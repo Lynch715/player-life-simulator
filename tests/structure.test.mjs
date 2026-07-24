@@ -16,7 +16,7 @@ assert.ok(G,"PlayerLife engine should be exported");
 assert.equal(G.TALENTS.length,20,"exactly 20 football talents");
 assert.equal(new Set(G.TALENTS.map(x=>x.id)).size,20,"talent ids are unique");
 assert.ok(G.EVENTS.length>=24,"two-month event pool should resist repetition");
-assert.ok(G.ACTIONS.length>=15,"all career phases need meaningful actions");
+assert.ok(G.ACTIONS.length>=12,"a compact but complete action set across phases");
 assert.equal(G.CSL_CLUBS.length,16,"2026 CSL club set");
 assert.equal(G.PL_CLUBS.length,20,"2026/27 Premier League club set");
 assert.ok(G.CSL_CLUBS.some(x=>x.name==="重庆铜梁龙"));
@@ -33,11 +33,11 @@ assert.ok(Number.isFinite(state.skills.finishing),"shooting is a real technical 
 assert.ok(Number.isFinite(state.skills.setPiece),"set pieces are a real technical attribute");
 assert.equal("clutch" in state.skills,false,"key moments are derived rather than a separate attribute");
 const finishingBefore=state.skills.finishing;
-G.ACTIONS.find(x=>x.id==="shooting").run(state);
-assert.ok(state.skills.finishing>finishingBefore,"shooting practice increases finishing");
+G.ACTIONS.find(x=>x.id==="train_tech").run(state);
+assert.ok(state.skills.finishing>finishingBefore,"technical training increases finishing");
 const setPieceBefore=state.skills.setPiece;
-G.ACTIONS.find(x=>x.id==="setpiece").run(state);
-assert.ok(state.skills.setPiece>setPieceBefore,"set-piece practice increases set-piece ability");
+G.ACTIONS.find(x=>x.id==="train_tech").run(state);
+assert.ok(state.skills.setPiece>setPieceBefore,"technical training increases set-piece ability");
 
 const seen=[];
 for(let i=0;i<6;i++){
@@ -55,7 +55,7 @@ const branch=G.routeChoice16(elite);
 assert.equal(branch.options.length,3,"elite 16-year-old gets three hard routes");
 assert.ok(branch.options.some(x=>x.text.includes("Manchester United")));
 G.setRoute(elite,"overseas");
-assert.equal(elite.relationship.status,"分手","overseas route requires a breakup");
+assert.equal(elite.relationship.status,"异地","overseas route keeps the relationship as long-distance instead of forcing a breakup");
 assert.equal(elite.club.league,"英超梯队");
 
 elite.totalMonth=48;elite.language=60;G.enterProAt18(elite);
