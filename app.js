@@ -243,7 +243,7 @@ const EVENTS=[
   {id:"overseas_party",once:true,phase:["overseas"],minAge:17,title:"队友说，放松也是职业的一部分",body:"<p>周六晚上，没有比赛。更衣室里换好衣服，有人拍了拍你的肩膀：<span class='dialogue'>“一起走，所有人都去。”</span>所有人。你去还是不去，都在被观察。</p><p>你站在衣柜前，手机日历上写着明天的恢复计划——冰浴、拉伸、轻量激活。队医用荧光笔画了三条线。</p><p>队友已经在门口等了，回头看了你一眼，笑了一下：<span class='dialogue'>“不来也没事。但来比较好——你知道的。”</span></p><p>他说“你知道的”的时候，语气很轻，像是在教你一个没有人写在纸上的规则。</p>",options:s=>[
     option("去，但设好离场时间","队内适应+8；体能-8，夜生活累积隐患",()=>{s.teamFit=clamp((s.teamFit||45)+8);change(s,"fitness",-8);s.clubNights=(s.clubNights||0)+1;log(s,"story","你坐了一个小时，喝了两杯汽水。离场时有人喊“这么早？”你摆摆手说明天有恢复计划。有人笑了一声，但笑里没有恶意。")}),
     option("拒绝，独自留在基地","体能+10；队内适应-7，意志+1",()=>{change(s,"fitness",10);s.teamFit=clamp((s.teamFit||45)-7);gainStat(s,"will",1,"pressure");log(s,"story","你回到房间，洗完澡，坐床上刷了会儿手机。零点时你听到楼下有车回来，有人在笑，有人用你的母语喊了句什么，没听清。")})]},
-  {id:"agent_contract",once:true,phase:["firstteam","overseas","pro"],minAge:17,title:"经纪人把“保证首发”写进了口头承诺",body:"<p>会面约在一家安静得连水声都听得见的咖啡馆。经纪人把合同推过来，封面很干净，里面密密麻麻的条款。</p><p>他说可以给你更高的工资，可以帮你运作转会，可以让你进国字号名单：<span class='dialogue'>“我跟你们教练很熟，他说了你就是未来核心。”</span>你说的每一句话他都点头。你说你要保证出场时间，他说<span class='dialogue'>“当然，这是我谈的前提。”</span></p><p>你翻到签字页。八年。肖像权、转会决定权、商业开发权全部打包。你问“保证首发”能不能写进合同。他笑了一下，很短，但很职业：<span class='dialogue'>“兄弟，这个写了也没用，教练换了你找谁去？”</span></p><p>他说的是实话。他的笑容也是实话。</p>",options:s=>[
+  {id:"agent_contract",once:true,phase:["firstteam","overseas","pro"],minAge:17,portrait:"assets/brother-wang-v1.webp",title:"经纪人把“保证首发”写进了口头承诺",body:"<p>会面约在一家安静得连水声都听得见的咖啡馆。你的经纪人王哥把合同推过来，封面很干净，里面密密麻麻的条款。</p><p>他说可以给你更高的工资，可以帮你运作转会，可以让你进国字号名单：<span class='dialogue'>“我跟你们教练很熟，他说了你就是未来核心。”</span>你说的每一句话他都点头。你说你要保证出场时间，他说<span class='dialogue'>“当然，这是我谈的前提。”</span></p><p>你翻到签字页。八年。肖像权、转会决定权、商业开发权全部打包。你问“保证首发”能不能写进合同。他笑了一下，很短，但很职业：<span class='dialogue'>“兄弟，这个写了也没用，教练换了你找谁去？”</span></p><p>他说的是实话。他的笑容也是实话。</p>",options:s=>[
     option("签长约，换取眼前资源","声望+9，报价+1；未来转会抽成高",()=>{change(s,"fame",9);s.agent={type:"aggressive",cut:18};generateOffers(s,1);log(s,"story","你签字的时候，他接了个电话，对着那头说“搞定了”。你低头看着自己的签名，墨迹还没干。")}),
     option("请独立律师，只签两年","花费6万，意志+1；资源增长较慢",()=>{addMoney(s,-6);gainStat(s,"will",1,"pressure");s.agent={type:"careful",cut:8};log(s,"story","他听完你的决定，笑容没消失，但嘴角的角度变了：“行，那先做两年看看。到时候你身价翻倍了，可别忘了老哥。”")})]},
   {id:"xiaoman_private",once:true,notMarried:true,phase:["firstteam","pro"],minAge:17,title:"球迷拍到了你和小满",body:"<p>照片是在商场门口拍的。你戴着口罩，她扎着马尾，你们之间隔了半个身位，她正偏头跟你说话。</p><p>评论不到两小时就破了五百。有人在扒她的学校、专业，有人说<span class='dialogue'>“穿成这样怎么配得上”</span>，有人贴了她在食堂吃饭的照片——不知道什么时候拍的。俱乐部打来电话，建议你<span class='dialogue'>“暂时不要公开回应”</span>，让热度自己降下去。</p><p>你翻到小满的对话框。她已经知道了，发来一条：<span class='dialogue'>“我没事，你别看评论。”</span></p><p>你打电话过去，她接得很快。第一句话是：<span class='dialogue'>“那些话我不在乎。”</span>顿了一下，又说：<span class='dialogue'>“但我在乎你会不会因为我在乎而乱做决定。”</span></p><p>你没有回答。她等了一会儿，轻声说：<span class='dialogue'>“你自己选。选完别后悔就行。”</span></p>",portrait:"assets/lin-xiaoman.webp",condition:s=>["恋人","异地"].includes(s.relationship.status),options:s=>[
@@ -296,7 +296,7 @@ const EVENTS=[
   {id:"loan_offer",phase:["pro"],minAge:19,title:"一份去小球队踢主力的租借",body:"<p>报价摆在桌上：二级联赛，保级队，踢满整个赛季，保证首发。对面教练亲自打了电话：<span class='dialogue'>“我需要你这种类型的球员，你来了就是战术核心。”</span></p><p>你现在的俱乐部能赢球，能打漂亮的比赛，能跟顶级球员一起训练。但你上不了场——你已经连续七场坐在替补席上，总出场时间四十一分钟。</p><p>经纪人把报价推过来：<span class='dialogue'>“这不是降级，这是去踢球。”</span></p><p>你没有回答。你看着窗外训练场上，一线队在打分组对抗，球从一个半场转移到另一个半场，没有人停下来等你。</p>",condition:s=>s.coachFavor<45,options:s=>[
     option("接受租借，去踢球","出场大增、成长加快；声望-4，月薪略降",()=>{change(s,"coachFavor",60-s.coachFavor);change(s,"form",6);change(s,"fame",-4);s.salary=Math.max(2,Math.round((s.salary||4)*.85));log(s,"story","你降薪去了保级队，但终于每周都能上场。")}),
     option("留下继续抢位置","维持平台；出场少，状态-5",()=>{change(s,"form",-5)})]},
-  {id:"sponsor_line",phase:["pro"],minAge:19,title:"一个来路不明的博彩赞助",body:"<p>报价是市场价的三倍。条件只有一个：在社交媒体上发一条内容，穿他们提供的装备，不需要提品牌名字，只需要“无意间露出”。</p><p>合规部门的邮件抄送了你，措辞很谨慎：<span class='dialogue'>“此类合作在联赛框架内属于灰色地带，建议谨慎评估。”</span>经纪人打来电话，语气兴奋：<span class='dialogue'>“这个数你不接就被人接了。到时候人家上了你却没上，你别后悔。”</span></p><p>你没有马上回答。你看着赞助方案上的品牌名，顺手搜了一下，发现它的母公司注册在一家你从没听过的小岛上。</p><p>你合上电脑。夜色里，手机屏幕又亮了，一条催促消息：<span class='dialogue'>“考虑得怎么样了？”</span></p>",options:s=>[
+  {id:"sponsor_line",phase:["pro"],minAge:19,portrait:"assets/brother-wang-v1.webp",title:"一个来路不明的博彩赞助",body:"<p>报价是市场价的三倍。条件只有一个：在社交媒体上发一条内容，穿他们提供的装备，不需要提品牌名字，只需要“无意间露出”。</p><p>合规部门的邮件抄送了你，措辞很谨慎：<span class='dialogue'>“此类合作在联赛框架内属于灰色地带，建议谨慎评估。”</span>王哥打来电话，语气兴奋：<span class='dialogue'>“这个数你不接就被人接了。到时候人家上了你却没上，你别后悔。”</span></p><p>你没有马上回答。你看着赞助方案上的品牌名，顺手搜了一下，发现它的母公司注册在一家你从没听过的小岛上。</p><p>你合上电脑。夜色里，手机屏幕又亮了，一条催促消息：<span class='dialogue'>“考虑得怎么样了？”</span></p>",options:s=>[
     option("拒绝，选干净的品牌","意志+1，声望+4；少赚一笔",()=>{change(s,"fame",4);gainStat(s,"will",1,"will");log(s,"story","你回复“不接”之后，对方没再发消息。两周后你看到那个报价出现在另一个球员的账号上。你划过那条帖子，没有点赞。")}),
     option("签下高额代言","立刻+30万；涉赌风险+30，埋下隐患",()=>{addMoney(s,30);s.flags.bettingEver=true;change(s.risks,"gambling",30);log(s,"story","你发出那条合作内容后，评论区第一条是“你也接这个了？取关。”你把它删了。但钱已经到账了。")},"danger")]},
   {id:"overseas_culture",once:true,phase:["overseas"],title:"更衣室的玩笑你听不懂",body:"<p>不是听不懂单词。是所有人都笑了，你晚了三秒才反应过来那个梗是什么——等你反应过来的时候，笑点已经过了。</p><p>有人注意到了你的延迟，善意地跟你解释了一遍前因后果。你点了点头，笑了一下。但那个笑是表演性的，你知道，他也知道。</p><p>正式训练还没开始。更衣室里大家在换衣服、聊天，开那个你听不懂的玩笑。你系好鞋带，比平时多系了一圈。</p><p>下一次他们再笑的时候，你没有再等那个延迟，低头把护腿板塞进袜子里。你是队里唯一一个没有笑的，但没有人注意到——因为你没有停下手里的动作，你一直在绑鞋带。</p>",options:s=>[
@@ -379,8 +379,8 @@ const EVENTS=[
   id:"pro_big_club_offer",
   phase:["pro"],once:true,condition:s=>s.fame>=50,
   title:"两个电话",
-  portrait:"assets/player.webp",
-  body:"<p>经纪人打来两个电话：一个来自欧洲中游俱乐部，出场时间有保证；一个来自国内顶级豪门，薪水翻倍但竞争激烈。</p><p>他说：<span class='dialogue'>“你爸那边……要不要再想想？”</span></p>",
+  portrait:"assets/brother-wang-v1.webp",
+  body:"<p>王哥打来两个电话：一个来自欧洲中游俱乐部，出场时间有保证；一个来自国内顶级豪门，薪水翻倍但竞争激烈。</p><p>他说：<span class='dialogue'>“你爸那边……要不要再想想？”</span></p>",
   options:s=>[
     option("去欧洲","资金-20万，声望+30；出国线开启",()=>{addMoney(s,-20);change(s,"fame",30);s.flags.go_abroad=true;log(s,"story","你买了单程票。")}),
     option("留国内豪门","资金+80万；竞争压力增大",()=>{addMoney(s,80);change(s,"fame",10);log(s,"story","你签了国内的大合同。")})
@@ -582,6 +582,52 @@ const EVENTS=[
   options:s=>[
     option("给梯队打个电话，问问带队的事","意志+3；开始想退路",()=>{gainStat(s,"will",3,"story");log(s,"story","对面说：随时欢迎你回来。")}),
     option("回家给小满做顿饭","心情+5，家庭+5",()=>{change(s,"morale",5);change(s,"family",5);log(s,"story","很久没这么早回家了。")})
+  ]
+}
+,
+// ===== 新角色：刘队（队长）与苏晚（赞助商千金）=====
+{
+  id:"pro_captain_liu",
+  phase:["firstteam","pro"],once:true,
+  title:"队长把你留了下来",
+  portrait:"assets/leader-liu-v1.webp",
+  body:"<p>训练结束，所有人都进了更衣室，只有刘队叫住你。他是这支队的队长，踢了十二年，膝盖上两道疤。<span class='dialogue'>“你有天赋，但你护球太软。”</span>他把球踩在脚下，<span class='dialogue'>“这一行，软的人先被淘汰。”</span></p><p>他没有骂你，语气甚至很平。但你听得出来，他是在给你留一条路。</p>",
+  options:s=>[
+    option("留下来跟他加练","耐力+1，教练信任+5；体能-8",()=>{gainStat(s,"stamina",1,"story");change(s,"coachFavor",5);change(s,"fitness",-8);log(s,"story","刘队陪你练到天黑，一句多余的话都没有。")}),
+    option("说自己有自己的踢法","意志+1；刘队没再多说",()=>{gainStat(s,"will",1,"story");log(s,"story","他点点头，转身走了。你分不清那是尊重还是失望。")})
+  ]
+},
+{
+  id:"pro_captain_liu_armband",
+  phase:["pro"],once:true,condition:s=>s.fame>=65&&!s.flags.captain,
+  title:"刘队把袖标交给你",
+  portrait:"assets/leader-liu-v1.webp",
+  body:"<p>刘队要退役了。最后一次队内会议，他当着全队把队长袖标摘下来，走到你面前。<span class='dialogue'>“别学我，我把自己踢废了才懂事。”</span>他把袖标塞进你手里，<span class='dialogue'>“这支队，以后看你的。”</span></p><p>更衣室很安静。所有人都在看你。</p>",
+  options:s=>[
+    option("郑重接过","成为队长；声望+10，意志+2",()=>{s.flags.captain=true;change(s,"fame",10);gainStat(s,"will",2,"story");log(s,"good","你戴上了袖标。刘队拍了拍你的后脑勺。")}),
+    option("说自己还不够格","成为队长；声望+3",()=>{change(s,"fame",3);s.flags.captain=true;log(s,"story","他说：不够格也得扛。没人天生够格。")})
+  ]
+},
+{
+  id:"pro_qianjin_meet",
+  phase:["pro"],once:true,notMarried:true,condition:s=>s.fame>=50,
+  title:"赞助商晚宴上的那位小姐",
+  portrait:"assets/qianjin.webp",
+  body:"<p>俱乐部赞助商的晚宴。你穿着不太合身的西装站在角落，一个女孩端着香槟走过来。<span class='dialogue'>“你就是那个从来不笑的前锋？”</span>她是赞助商的女儿，苏晚，商学院刚毕业，说话像在谈一桩生意。</p><p>临走她递给你一张名片，背面是一个私人号码。<span class='dialogue'>“我爸的钱，能让你少走十年弯路。有兴趣，就打给我。”</span></p>",
+  options:s=>[
+    option("客气地收下，回头再说","声望+3；留了个念想",()=>{change(s,"fame",3);s.flags.met_suwan=true;log(s,"story","你把名片收进内袋，没有承诺什么。")}),
+    option("说自己习惯自己走","意志+2；她挑了下眉",()=>{gainStat(s,"will",2,"story");s.flags.met_suwan=true;log(s,"story","苏晚笑了：“有意思。”她转身汇入人群。")})
+  ]
+},
+{
+  id:"pro_qianjin_choice",
+  phase:["pro"],once:true,notMarried:true,condition:s=>s.flags.met_suwan&&["恋人","异地"].includes(s.relationship.status),
+  title:"两条路，一条捷径",
+  portrait:"assets/qianjin.webp",
+  body:"<p>苏晚约你在江边的会所见面。她把一份资源摊在桌上：顶级康复团队、海外俱乐部的引荐、现成的代言合约。<span class='dialogue'>“跟着我，这些都是现成的。”</span>她顿了一下，看着你，<span class='dialogue'>“我要的也不多。”</span></p><p>手机在口袋里震了一下，是小满：<span class='dialogue'>“今天训练累不累？”</span>两条信息，两种人生，摆在同一张桌上。</p>",
+  options:s=>[
+    option("接过资源，和苏晚走近","资金+60万，声望+10；小满感情-25，舆情风险上升",()=>{addMoney(s,60);change(s,"fame",10);changeLove(s,-25);change(s.risks,"media",10);s.flags.with_suwan=true;log(s,"bad","你回了苏晚的消息，没有回小满的那条。")},"danger"),
+    option("把名片还回去，回小满的消息","感情+15，意志+2；错过那条捷径",()=>{changeLove(s,15);gainStat(s,"will",2,"story");log(s,"story","你站起来说谢谢，然后给小满打电话：我这就回去。")})
   ]
 }
 ];
