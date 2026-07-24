@@ -159,13 +159,13 @@ function fixtureLabel(s){const a=ageInfo(s);return`${a.age}岁 · 第${a.month}�
 function createInitialState(name="陈逐风",allocation={height:4,speed:4,burst:4,stamina:4,will:4},talents=[],difficulty="standard"){
   const stats={};CORE_STATS.forEach(x=>stats[x.key]=42+(allocation[x.key]||0)*4);
   const heightCm=Math.min(198,168+(allocation.height||0)*2.4);
-  const state={version:VERSION,runId:`r${Date.now()}${Math.random().toString(36).slice(2,7)}`,name:name.trim()||"陈逐风",position:"前锋",totalMonth:0,actionPoints:3,allocation:{...allocation},heightCm:Math.round(heightCm),talents:[...talents],stats,skills:{finishing:48+(allocation.will||0)*.5,dribble:46+(allocation.burst||0)*.5,vision:43,setPiece:41},fitness:90,form:60,morale:76,coachFavor:50,family:86,study:55,language:8,scout:5,fame:3,money:0,salary:0,debt:0,assets:{house:false,gym:false,coach:false},difficulty:DIFFICULTIES[difficulty]?difficulty:"standard",seasonGoal:null,retired:false,peakOverall:0,route:"academy",club:{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58},relationship:{name:"林小满",status:"恋人",love:80,conflictShield:hasTalent({talents},"childhood_bond")?1:0},injury:{name:"",months:0,risk:0},risks:{gambling:0,health:0,media:0},flags:{route16:false,pro18:false,overseasBreakup:false,hivDiagnosed:false,bettingEver:false,captain:false},statsCareer:{matches:0,starts:0,goals:0,assists:0,wins:0,draws:0,losses:0,nationalCaps:0,nationalGoals:0,bestRating:0,hatTricks:0},seasonStats:{matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0},national:{called:false,adapt:0,caps:0,goals:0,worldCups:0},honours:[],awards:[],transfers:[],offers:[],matches:[],usedEvents:[],recentEvents:[],actionUsage:{},log:[],tab:"actions",lastSeasonAward:null};
+  const state={version:VERSION,runId:`r${Date.now()}${Math.random().toString(36).slice(2,7)}`,name:name.trim()||"陈逐风",position:"前锋",totalMonth:0,actionPoints:3,allocation:{...allocation},heightCm:Math.round(heightCm),talents:[...talents],stats,skills:{finishing:48+(allocation.will||0)*.5,dribble:46+(allocation.burst||0)*.5,vision:43,setPiece:41},fitness:90,form:60,morale:76,coachFavor:50,family:86,study:55,language:8,scout:5,fame:3,money:0,salary:0,debt:0,assets:{house:false,gym:false,coach:false},difficulty:DIFFICULTIES[difficulty]?difficulty:"standard",seasonGoal:null,retired:false,peakOverall:0,route:"academy",club:{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58},relationship:{name:"林小满",status:"恋人",love:80,conflictShield:hasTalent({talents},"childhood_bond")?1:0},injury:{name:"",months:0,risk:0},risks:{gambling:0,health:0,media:0},flags:{route16:false,pro18:false,overseasBreakup:false,hivDiagnosed:false,bettingEver:false,captain:false,father_alive:true},statsCareer:{matches:0,starts:0,goals:0,assists:0,wins:0,draws:0,losses:0,nationalCaps:0,nationalGoals:0,bestRating:0,hatTricks:0},seasonStats:{matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0},national:{called:false,adapt:0,caps:0,goals:0,worldCups:0},honours:[],awards:[],transfers:[],offers:[],matches:[],usedEvents:[],recentEvents:[],actionUsage:{},log:[],tab:"actions",lastSeasonAward:null};
   log(state,"story","你进入重庆铜梁龙U16梯队。父亲站在铁丝网外，小满把一瓶水塞进你包里。");
   return state;
 }
 
 function fatigueInjuryCheck(s,base){const p=Math.max(0,(base+(50-s.fitness)/500+(s.injury.risk||0)/800-(hasTalent(s,"iron_man")?.025:0))*diffOf(s).injury*assetInjuryFactor(s));if(chance(p))sufferInjury(s,p>.1?2:1)}
-function sufferInjury(s,months=1){const list=["脚踝扭伤","腿后肌拉伤","膝关节轻度损伤","腹股沟拉伤"];s.injury.name=pick(list);s.injury.months=Math.max(s.injury.months,Math.max(1,months-(hasTalent(s,"quick_healer")?1:0)));change(s,"form",-7);log(s,"bad",`${s.injury.name}，预计伤停${s.injury.months}个月。`);enqueueDecision({title:"你受伤了",body:`<p class="dialogue">${s.injury.name}，预计伤停 ${s.injury.months} 个月。</p><p>伤停期间无法高强度训练和比赛，只能做休息、康复、顾家、陪小满这类行动。</p>`,options:[option("知道了","",()=>{})]},"伤病")}
+function sufferInjury(s,months=1){const list=["脚踝扭伤","腿后肌拉伤","膝关节轻度损伤","腹股沟拉伤"];s.injury.name=pick(list);s.injury.months=Math.max(s.injury.months,Math.max(1,months-(hasTalent(s,"quick_healer")?1:0)));if(s.injury.months>=3)s.flags.serious_injury=true;change(s,"form",-7);log(s,"bad",`${s.injury.name}，预计伤停${s.injury.months}个月。`);enqueueDecision({title:"你受伤了",body:`<p class="dialogue">${s.injury.name}，预计伤停 ${s.injury.months} 个月。</p><p>伤停期间无法高强度训练和比赛，只能做休息、康复、顾家、陪小满这类行动。</p>`,options:[option("知道了","",()=>{})]},"伤病")}
 
 function addMoney(s,n){s.money=Math.round((s.money||0)+n)}
 const ASSETS=[
@@ -200,13 +200,13 @@ function buyAsset(s,id){const it=ASSETS.find(x=>x.id===id);if(!it||ownedAsset(s,
 function option(text,effect,apply,tone=""){return{text,effect,apply,tone}}
 
 const EVENTS=[
-  {id:"academy_ankle",phase:["academy"],title:"队医说“可以上”，你的脚踝说不行",body:"<p>队医捏着你脚踝按了两下，问了三个问题：疼不疼、能不能发力、能不能变向。你回了三个“能”。他点点头，在报告上写“可参赛”。</p><p>周骁在你旁边系鞋带，头没抬：<span class='dialogue'>“首发名单只等你一句话。”</span></p><p>你站起来走了两步，左脚落地那一下，脚踝里有一根筋像被拨了一下，不尖锐，但你知道它在。</p><p>小满发来一条消息：<span class='dialogue'>“膝盖以下的部分还连着吗？”</span>你没回。你把护踝拉紧了两格，走进通道。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
+  {id:"academy_ankle",once:true,phase:["academy"],title:"队医说“可以上”，你的脚踝说不行",body:"<p>队医捏着你脚踝按了两下，问了三个问题：疼不疼、能不能发力、能不能变向。你回了三个“能”。他点点头，在报告上写“可参赛”。</p><p>周骁在你旁边系鞋带，头没抬：<span class='dialogue'>“首发名单只等你一句话。”</span></p><p>你站起来走了两步，左脚落地那一下，脚踝里有一根筋像被拨了一下，不尖锐，但你知道它在。</p><p>小满发来一条消息：<span class='dialogue'>“膝盖以下的部分还连着吗？”</span>你没回。你把护踝拉紧了两格，走进通道。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
     option("咬牙首发","球探关注+8；可能抓住机会，也可能伤停2—4个月",()=>{change(s,"scout",8);change(s,"coachFavor",4);if(chance(hasTalent(s,"iron_man")?.28:.48))sufferInjury(s,rand(2,4));else{change(s,"form",6);log(s,"good","你撑过了比赛，但这不是一个可以反复使用的答案。")}},"danger"),
     option("主动退出名单","体能+12；教练信任-5，意志+1",()=>{change(s,"fitness",12);change(s,"coachFavor",-5);gainStat(s,"will",1,"will")})]},
-  {id:"xiaoman_exam",phase:["academy"],title:"她的考试，和你的选拔赛在同一天",body:"<p>小满把准考证放在你桌上，什么也没说。你拿起来看了一眼——考试时间下午两点，你的选拔赛两点半开球。</p><p>她已经在门口穿鞋了，背对着你说：<span class='dialogue'>“不用送，我坐公交。”</span></p><p>你捏着那张纸，纸张边缘被她的手指攥出了细小的折痕。你想起初中那次你发烧，她在校医室陪了你一下午，自己错过了模考。</p><p>她直起腰，拉开门，回头看了你一眼。那一眼很短，没有期待，没有暗示，只是确认你还在。然后她笑了一下：<span class='dialogue'>“赢了再跟我说。”</span></p><p>门关上了。你低头看那张准考证，才发现背面用铅笔写了一行很小的字：<span class='dialogue'>“别迟到就好——你的比赛。”</span></p>",portrait:"assets/lin-xiaoman.webp",options:s=>[
+  {id:"xiaoman_exam",once:true,phase:["academy"],title:"她的考试，和你的选拔赛在同一天",body:"<p>小满把准考证放在你桌上，什么也没说。你拿起来看了一眼——考试时间下午两点，你的选拔赛两点半开球。</p><p>她已经在门口穿鞋了，背对着你说：<span class='dialogue'>“不用送，我坐公交。”</span></p><p>你捏着那张纸，纸张边缘被她的手指攥出了细小的折痕。你想起初中那次你发烧，她在校医室陪了你一下午，自己错过了模考。</p><p>她直起腰，拉开门，回头看了你一眼。那一眼很短，没有期待，没有暗示，只是确认你还在。然后她笑了一下：<span class='dialogue'>“赢了再跟我说。”</span></p><p>门关上了。你低头看那张准考证，才发现背面用铅笔写了一行很小的字：<span class='dialogue'>“别迟到就好——你的比赛。”</span></p>",portrait:"assets/lin-xiaoman.webp",options:s=>[
     option("送她去考场再赶比赛","感情+10；体能-10，比赛状态存在波动",()=>{changeLove(s,10);change(s,"fitness",-10);change(s,"form",chance(.5)?3:-4);log(s,"story","你在考场门口转身跑向公交站时，听见她在背后喊了一句“跑慢点！”你回头，她已经进去了，隔着玻璃朝你摆手。")}),
     option("提前去球场热身","球探+9，状态+5；感情-10",()=>{change(s,"scout",9);change(s,"form",5);changeLove(s,-10);log(s,"story","比赛前你收到一条短信，只有两个字：“写完了。”你没回，把手机锁进柜子。")})]},
-  {id:"father_boots",phase:["academy"],title:"父亲买了一双你不敢穿坏的球鞋",body:"<p>鞋盒放在你床上，不是快递包装，是店里的手提袋。你打开，一双顶级款刺客——你上周在店里隔着玻璃看过的那双。你拎起来试了一下，刚好合脚。鞋仓里还垫着旧报纸，你爸的习惯。</p><p>你走出房间，他坐在客厅里修遥控器，头没抬：<span class='dialogue'>“旧鞋我扔了。底都磨穿了，穿着容易受伤。”</span></p><p>你没有拆穿——那双旧鞋你上周自己藏起来了，根本没给他看见过。他一定是翻了你柜子。</p><p>你把新鞋放回鞋盒，又把旧鞋从柜子里翻出来：大底已经开胶，鞋头那块皮磨得发白，是你练颠球磨出来的。你没有穿新鞋，但你把鞋盒放在床头，放了很久。</p>",portrait:"assets/father.webp",options:s=>[
+  {id:"father_boots",once:true,phase:["academy"],title:"父亲买了一双你不敢穿坏的球鞋",body:"<p>鞋盒放在你床上，不是快递包装，是店里的手提袋。你打开，一双顶级款刺客——你上周在店里隔着玻璃看过的那双。你拎起来试了一下，刚好合脚。鞋仓里还垫着旧报纸，你爸的习惯。</p><p>你走出房间，他坐在客厅里修遥控器，头没抬：<span class='dialogue'>“旧鞋我扔了。底都磨穿了，穿着容易受伤。”</span></p><p>你没有拆穿——那双旧鞋你上周自己藏起来了，根本没给他看见过。他一定是翻了你柜子。</p><p>你把新鞋放回鞋盒，又把旧鞋从柜子里翻出来：大底已经开胶，鞋头那块皮磨得发白，是你练颠球磨出来的。你没有穿新鞋，但你把鞋盒放在床头，放了很久。</p>",portrait:"assets/father.webp",options:s=>[
     option("收下新鞋，把旧鞋留作纪念","爆发+1，家庭+5；父亲继续加班",()=>{gainStat(s,"burst",1,"burst");change(s,"family",5);s.risks.familyFatigue=(s.risks.familyFatigue||0)+7}),
     option("退掉鞋，换成普通款","家庭+8，意志+1；本月训练状态-3",()=>{change(s,"family",8);gainStat(s,"will",1,"will");change(s,"form",-3)})]},
   {id:"teammate_blame",phase:["academy","firstteam","overseas"],title:"队友把丢球算在你头上",body:"<p>训练赛最后三十秒，你在前场被断，对方打了一个反击，1比0。</p><p>更衣室里没人说话。水声，鞋钉敲地板的声音。直到有人——不是最大声的那个，但也不是最小声的——从柜子那头丢过来一句：<span class='dialogue'>“有些人，集锦够用了，比赛够呛。”</span></p><p>所有人都听见了。有人低头看手机，有人假装在解鞋带。你站在柜子前面，背对着所有人，能感觉到背后的视线。你在等他再说一句。</p><p>他没有说。他等你说。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
@@ -215,51 +215,51 @@ const EVENTS=[
   {id:"mystery_supplement",phase:["academy","firstteam","overseas","pro"],title:"一瓶“绝对查不出来”的补剂",body:"<p>训练结束后，一个平时不怎么跟你说话的人从包里拿出一瓶东西，放在你凳子上。没有完整中文标签，瓶身是哑光白，上面只有一行英文，没写成分。</p><p>他说：<span class='dialogue'>“体能师配的，恢复快，绝对查不出来。”</span>你问他多少钱。他说不用钱，<span class='dialogue'>“你先试，有用再说。”</span></p><p>他走之后你拿起那瓶东西晃了一下，液体，没有味道。瓶口封膜完好，但封膜下面的压印不太平整。</p><p>队医办公室的门还亮着。走廊里没有人。你把这瓶东西放进了柜子，没有扔，也没有用。</p>",options:s=>[
     option("拒绝并报告队医","教练信任+4，队友关系受损；职业风险下降",()=>{change(s,"coachFavor",4);change(s.risks,"health",-8);log(s,"good","队医把补剂封存了。你没走捷径，也没把前途交到一个陌生人手里。")}),
     option("只拿去检测，不供出队友","花费4万；意志+1，教练无变化",()=>{addMoney(s,-4);gainStat(s,"will",1,"will");change(s.risks,"health",-4)})]},
-  {id:"viral_clip",phase:["academy","campus"],title:"十秒过人视频突然有了二十万播放",body:"<p>你是在训练结束后刷到的。不知道谁拍的，镜头晃了一下，只截了你穿裆过人和远射入网那十秒，前面三次丢球全部剪掉了。</p><p>评论区有人说“国足有救了”，有人说“集锦型球员”，有人在吵你的动作像谁。经纪人私信进来了，措辞很专业：<span class='dialogue'>“你好，我是某经纪公司，是否有意向聊一下职业规划？”</span></p><p>周骁也发来一条消息，没有链接，只有一句话：<span class='dialogue'>“谁允许训练的时候拍的？”</span></p><p>你放下手机。那十秒还在自动循环播放。你盯着屏幕上那个过人的自己，觉得有点陌生——那个动作你做出来的时候根本没想那么多。</p>",options:s=>[
+  {id:"viral_clip",once:true,phase:["academy","campus"],title:"十秒过人视频突然有了二十万播放",body:"<p>你是在训练结束后刷到的。不知道谁拍的，镜头晃了一下，只截了你穿裆过人和远射入网那十秒，前面三次丢球全部剪掉了。</p><p>评论区有人说“国足有救了”，有人说“集锦型球员”，有人在吵你的动作像谁。经纪人私信进来了，措辞很专业：<span class='dialogue'>“你好，我是某经纪公司，是否有意向聊一下职业规划？”</span></p><p>周骁也发来一条消息，没有链接，只有一句话：<span class='dialogue'>“谁允许训练的时候拍的？”</span></p><p>你放下手机。那十秒还在自动循环播放。你盯着屏幕上那个过人的自己，觉得有点陌生——那个动作你做出来的时候根本没想那么多。</p>",options:s=>[
     option("顺势经营个人账号","声望+10，球探+4；媒体风险+8",()=>{change(s,"fame",10);change(s,"scout",4);change(s.risks,"media",8)}),
     option("删除视频并向球队说明","教练信任+8；错过曝光，意志+1",()=>{change(s,"coachFavor",8);gainStat(s,"will",1,"pressure")})]},
-  {id:"growth_pain",phase:["academy"],title:"一个夏天，你突然长高了六厘米",body:"<p>你撞到了门框。不是开玩笑那种撞，是真的没估好高度，额头磕在上沿，整个人往后倒了一步。</p><p>队医量完身高，在表上改了数字。新的体重跟不上新的身高——你在禁区里接一个半高球，身体已经做出了转身的动作，脚却还在原地。</p><p>教练在笔记上写了两行，训练结束后把你叫到一边：<span class='dialogue'>“两条路。要么去禁区里待着，背身拿球，靠身高吃饭；要么花三个月重新建立协调性，但这段时候你可能连替补席都坐不上。”</span></p><p>你站在门口，出门的时候又低了低头。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
+  {id:"growth_pain",once:true,phase:["academy"],title:"一个夏天，你突然长高了六厘米",body:"<p>你撞到了门框。不是开玩笑那种撞，是真的没估好高度，额头磕在上沿，整个人往后倒了一步。</p><p>队医量完身高，在表上改了数字。新的体重跟不上新的身高——你在禁区里接一个半高球，身体已经做出了转身的动作，脚却还在原地。</p><p>教练在笔记上写了两行，训练结束后把你叫到一边：<span class='dialogue'>“两条路。要么去禁区里待着，背身拿球，靠身高吃饭；要么花三个月重新建立协调性，但这段时候你可能连替补席都坐不上。”</span></p><p>你站在门口，出门的时候又低了低头。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
     option("改造成支点中锋","身高/对抗+2，射术+1；速度-1",()=>{s.heightCm=Math.min(200,s.heightCm+6);gainStat(s,"height",2,"height");gainSkill(s,"finishing",1,"finish");s.stats.speed=clamp(s.stats.speed-1)}),
     option("花时间重建协调性","盘带+2，爆发+1；未来2个月教练信任-4",()=>{s.heightCm=Math.min(200,s.heightCm+6);gainSkill(s,"dribble",2,"dribble");gainStat(s,"burst",1,"burst");change(s,"coachFavor",-4)})]},
-  {id:"rain_final",phase:["academy"],title:"暴雨里的决赛，父亲却没有出现",body:"<p>开球前你在球员通道里往外看了一眼。雨很大，看台上的人稀稀拉拉，都缩在雨衣里。你一个位置一个位置扫过去——中间区域，第四排，他通常坐的那个位置。空的。</p><p>上半场你踢得很急，两次越位。中场休息你拿起手机，没有消息。</p><p>终场哨响，2比1，你助攻了一个。你站在雨里没有动，水从头发上往下流。小满从看台上跑下来，隔着铁丝网，伞也顾不上打，衣服湿透了。她喘着气：<span class='dialogue'>“你爸来之前接到电话，厂里机器出问题了，他折回去了。他让我跟你说——”</span></p><p>雨很大，她的声音几乎被盖过去：<span class='dialogue'>“他说他看了直播。你那个助攻，他看到了。”</span></p><p>你站在原地，雨水顺着下巴往下滴。你没说好，也没说不好。铁丝网那边，小满站在那里陪你淋着。</p>",portrait:"assets/lin-xiaoman.webp",options:s=>[
+  {id:"rain_final",once:true,phase:["academy"],title:"暴雨里的决赛，父亲却没有出现",body:"<p>开球前你在球员通道里往外看了一眼。雨很大，看台上的人稀稀拉拉，都缩在雨衣里。你一个位置一个位置扫过去——中间区域，第四排，他通常坐的那个位置。空的。</p><p>上半场你踢得很急，两次越位。中场休息你拿起手机，没有消息。</p><p>终场哨响，2比1，你助攻了一个。你站在雨里没有动，水从头发上往下流。小满从看台上跑下来，隔着铁丝网，伞也顾不上打，衣服湿透了。她喘着气：<span class='dialogue'>“你爸来之前接到电话，厂里机器出问题了，他折回去了。他让我跟你说——”</span></p><p>雨很大，她的声音几乎被盖过去：<span class='dialogue'>“他说他看了直播。你那个助攻，他看到了。”</span></p><p>你站在原地，雨水顺着下巴往下滴。你没说好，也没说不好。铁丝网那边，小满站在那里陪你淋着。</p>",portrait:"assets/lin-xiaoman.webp",options:s=>[
     option("给父亲打电话，说你赢了","家庭+10，意志+1；不追问缺席",()=>{change(s,"family",10);gainStat(s,"will",1,"will")}),
     option("把失望说出来","家庭-6；长期压力下降，状态+6",()=>{change(s,"family",-6);change(s,"morale",6);s.risks.familyFatigue=Math.max(0,(s.risks.familyFatigue||0)-6)})]},
-  {id:"firstteam_veteran",phase:["firstteam","pro"],title:"老队员要你训练后留下来捡球",body:"<p>训练刚结束，一瓶水从长凳那头滚到你脚下。<span class='dialogue'>“新人都这样。球收好，圈收好，垃圾带出去。”</span></p><p>说话的人已经换好拖鞋了。他比你大六岁，一线队出场次数比你多两位数。他不是在跟你商量。</p><p>你蹲下来，把那瓶水捡起来放在凳子上。更衣室里有人在笑，不是恶意，更像是一种——“看你怎么选”的等待。</p>",options:s=>[
+  {id:"firstteam_veteran",once:true,phase:["firstteam","pro"],title:"老队员要你训练后留下来捡球",body:"<p>训练刚结束，一瓶水从长凳那头滚到你脚下。<span class='dialogue'>“新人都这样。球收好，圈收好，垃圾带出去。”</span></p><p>说话的人已经换好拖鞋了。他比你大六岁，一线队出场次数比你多两位数。他不是在跟你商量。</p><p>你蹲下来，把那瓶水捡起来放在凳子上。更衣室里有人在笑，不是恶意，更像是一种——“看你怎么选”的等待。</p>",options:s=>[
     option("先做一个月，再靠表现说话","队内适应+8，体能-8；意志-1",()=>{s.teamFit=clamp((s.teamFit||45)+8);change(s,"fitness",-8);s.stats.will=clamp(s.stats.will-1);log(s,"story","你收了球。一个月后你在一线队训练里给他送了一脚直塞，他进了，回头看了你一眼，什么也没说。")}),
     option("拒绝，把时间用来加练","意志+1，射术+1；短期首发概率下降",()=>{gainStat(s,"will",1,"pressure");gainSkill(s,"finishing",1,"finish");change(s,"coachFavor",-5);log(s,"story","你去加练了。第二天你到训练场时，发现球已经被人收好了。你没有去问是谁。")})]},
   {id:"bench_promise",phase:["firstteam","overseas","pro"],title:"教练说“下场一定给你机会”",body:"<p>这句话你听到第三遍了。第一次是主场大胜之后，他说“下场轮换”；第二次是杯赛之前，他说“这场让你踢”。结果两次你都在替补席坐满90分钟，第二次甚至连热身都没叫到你。</p><p>这次他是主动找你的：<span class='dialogue'>“我知道你在等。我也在等一个让你上的时机。”</span>你看着他，点了头。</p><p>走出门的时候你收到一条消息——隔壁俱乐部的助教通过熟人递话：<span class='dialogue'>“如果你公开表达想走，我们这边推动租借。”</span></p><p>你锁掉手机。训练场上的灯还亮着。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
     option("继续沉默训练","教练信任+7，意志+1；声望不变",()=>{change(s,"coachFavor",7);gainStat(s,"will",1,"pressure")}),
     option("通过媒体释放离队意愿","声望+5，转会报价概率上升；媒体风险+12",()=>{change(s,"fame",5);change(s.risks,"media",12);s.flags.wantsMove=true})]},
-  {id:"parents_hospital",phase:["firstteam","overseas","pro"],minAge:16,title:"父亲的住院押金",body:"<p>缴费单上的数字你看了两遍。你现在的工资够一部分，但缺口不小。队医说你爸需要长期治疗，不是一次性的。</p><p>电话响了，一个没有保存的号码。对面自称是朋友的朋友，知道你家里情况，说可以借20万，不打欠条，不催还。条件很简单——下一场比赛，你的射正数不要超过一次。<span class='dialogue'>“不影响胜负，没人会知道。”</span></p><p>你挂掉电话，站在医院走廊里。ICU的门关着，你爸在里面。护士说你可以在外面等，也可以先回去训练。</p><p>你坐在塑料椅上。走廊很长，灯管有一根在闪。你知道这笔钱是什么性质，也知道——不接它，你爸的治疗可能拖不到你发下个赛季的工资。</p><p>走廊尽头，电梯门开了一下，又关上。</p>",portrait:"assets/father.webp",options:s=>[
+  {id:"parents_hospital",once:true,maxMoney:60,phase:["firstteam","overseas","pro"],minAge:16,title:"父亲的住院押金",body:"<p>缴费单上的数字你看了两遍。你现在的工资够一部分，但缺口不小。队医说你爸需要长期治疗，不是一次性的。</p><p>电话响了，一个没有保存的号码。对面自称是朋友的朋友，知道你家里情况，说可以借20万，不打欠条，不催还。条件很简单——下一场比赛，你的射正数不要超过一次。<span class='dialogue'>“不影响胜负，没人会知道。”</span></p><p>你挂掉电话，站在医院走廊里。ICU的门关着，你爸在里面。护士说你可以在外面等，也可以先回去训练。</p><p>你坐在塑料椅上。走廊很长，灯管有一根在闪。你知道这笔钱是什么性质，也知道——不接它，你爸的治疗可能拖不到你发下个赛季的工资。</p><p>走廊尽头，电梯门开了一下，又关上。</p>",portrait:"assets/father.webp",options:s=>[
     option("拒绝，向俱乐部申请预支","家庭+8，俱乐部信任-5；欠下12万",()=>{change(s,"family",8);change(s,"coachFavor",-5);addMoney(s,-12);s.debt=(s.debt||0)+12;log(s,"story","财务说需要审核，下周五才给答复。你在走廊坐了很久，最后站起来，去缴费窗口先付了一部分。")}),
     option("联系公益与队友筹款","声望-3，家庭+6；隐私被公开",()=>{change(s,"fame",-3);change(s,"family",6);change(s.risks,"media",8);log(s,"story","周骁第一个转了账，附言写的是“不用还，以后请我吃饭就行”。你盯着那行字看了很久。")}),
     option("接受那笔“借款”","立刻+20万；涉赌暗雷大幅上升，可能毁掉生涯",()=>{addMoney(s,20);s.flags.bettingEver=true;change(s.risks,"gambling",38);log(s,"bad","你收下了这笔见不得光的钱。眼下风平浪静，但你心里清楚它迟早要还。");log(s,"story","回到病房时你爸醒了，他看着你，没问钱的事，只说了一句：“你眼睛怎么红了。”你说外面风大。")},"danger")],weight:1.25},
-  {id:"language_wall",phase:["overseas"],title:"你听错了教练的最后一句话",body:"<p>最后十分钟，教练朝你喊了一句话。你听见了“wide”和“hold”，理解为拉边保护领先。你拉边了。球从你这一侧被断，反击，扳平。</p><p>更衣室里没有人用中文。没有人骂你，但也没有人替你说话。队长——不是跟你一个国家的——走过来拍了拍你的肩膀，什么也没说，然后走了。</p><p>你坐在柜子前面，翻译发来一条消息：<span class='dialogue'>“他让你压进禁区，不是拉边。”</span>你盯着那条消息看了很久。你听懂了每一个词，但你听错了意思。</p><p>更衣室里的人在聊别的事了。你坐在那里，系好鞋带又解开，反复了两次。</p>",options:s=>[
+  {id:"language_wall",once:true,phase:["overseas"],title:"你听错了教练的最后一句话",body:"<p>最后十分钟，教练朝你喊了一句话。你听见了“wide”和“hold”，理解为拉边保护领先。你拉边了。球从你这一侧被断，反击，扳平。</p><p>更衣室里没有人用中文。没有人骂你，但也没有人替你说话。队长——不是跟你一个国家的——走过来拍了拍你的肩膀，什么也没说，然后走了。</p><p>你坐在柜子前面，翻译发来一条消息：<span class='dialogue'>“他让你压进禁区，不是拉边。”</span>你盯着那条消息看了很久。你听懂了每一个词，但你听错了意思。</p><p>更衣室里的人在聊别的事了。你坐在那里，系好鞋带又解开，反复了两次。</p>",options:s=>[
     option("公开承担责任，增加英语课","语言+18，教练信任-2；意志+1",()=>{change(s,"language",hasTalent(s,"language_gift")?30:18);change(s,"coachFavor",-2);gainStat(s,"will",1,"pressure")}),
     option("让翻译解释是指令不清","教练信任-8，状态+4；队内适应下降",()=>{change(s,"coachFavor",-8);change(s,"form",4);s.teamFit=clamp((s.teamFit||45)-6)})]},
-  {id:"lonely_christmas",phase:["overseas"],title:"圣诞夜，视频那头没有人说话",body:"<p>你这边下午三点，圣诞夜刚过了一半。她那边凌晨一点，窗外还在下雪。</p><p>视频接通的时候她没露脸，屏幕上是宿舍的天花板，灯关着，只有手机屏幕的光映出一小片轮廓。她的声音闷在枕头里：<span class='dialogue'>“没事，我就是……把手机开着，你要说话的话我听得见。”</span></p><p>你问她今天怎么过的。她说去了一趟超市，买了半只烤鸡，自己煮了一碗面，<span class='dialogue'>“跟平时差不多”</span>。</p><p>你沉默了一会儿，说：<span class='dialogue'>“我这边的圣诞树已经摆出来了。”</span>她轻轻笑了一声，像是怕吵醒室友：<span class='dialogue'>“那你替我看一眼。”</span></p><p>你从窗边往外看，街上有人戴着圣诞帽在跑。你想跟她说这些，但觉得说出来都太轻了。最后你只说：<span class='dialogue'>“挺好的。”</span></p><p>她没有回话。过了很久你才听见她均匀的呼吸声——她举着手机睡着了。你盯着屏幕上那一片黑暗，没有挂断。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>s.relationship.status==="异地",options:s=>[
+  {id:"lonely_christmas",once:true,notMarried:true,phase:["overseas"],title:"圣诞夜，视频那头没有人说话",body:"<p>你这边下午三点，圣诞夜刚过了一半。她那边凌晨一点，窗外还在下雪。</p><p>视频接通的时候她没露脸，屏幕上是宿舍的天花板，灯关着，只有手机屏幕的光映出一小片轮廓。她的声音闷在枕头里：<span class='dialogue'>“没事，我就是……把手机开着，你要说话的话我听得见。”</span></p><p>你问她今天怎么过的。她说去了一趟超市，买了半只烤鸡，自己煮了一碗面，<span class='dialogue'>“跟平时差不多”</span>。</p><p>你沉默了一会儿，说：<span class='dialogue'>“我这边的圣诞树已经摆出来了。”</span>她轻轻笑了一声，像是怕吵醒室友：<span class='dialogue'>“那你替我看一眼。”</span></p><p>你从窗边往外看，街上有人戴着圣诞帽在跑。你想跟她说这些，但觉得说出来都太轻了。最后你只说：<span class='dialogue'>“挺好的。”</span></p><p>她没有回话。过了很久你才听见她均匀的呼吸声——她举着手机睡着了。你盯着屏幕上那一片黑暗，没有挂断。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>s.relationship.status==="异地",options:s=>[
     option("承认自己很想家","感情+12，意志+1；第二天训练状态-4",()=>{changeLove(s,12);gainStat(s,"will",1,"love");change(s,"form",-4)}),
     option("说一切都很好","维持专注，状态+5；感情-12",()=>{change(s,"form",5);changeLove(s,-12)})]},
-  {id:"overseas_party",phase:["overseas"],minAge:17,title:"队友说，放松也是职业的一部分",body:"<p>周六晚上，没有比赛。更衣室里换好衣服，有人拍了拍你的肩膀：<span class='dialogue'>“一起走，所有人都去。”</span>所有人。你去还是不去，都在被观察。</p><p>你站在衣柜前，手机日历上写着明天的恢复计划——冰浴、拉伸、轻量激活。队医用荧光笔画了三条线。</p><p>队友已经在门口等了，回头看了你一眼，笑了一下：<span class='dialogue'>“不来也没事。但来比较好——你知道的。”</span></p><p>他说“你知道的”的时候，语气很轻，像是在教你一个没有人写在纸上的规则。</p>",options:s=>[
+  {id:"overseas_party",once:true,phase:["overseas"],minAge:17,title:"队友说，放松也是职业的一部分",body:"<p>周六晚上，没有比赛。更衣室里换好衣服，有人拍了拍你的肩膀：<span class='dialogue'>“一起走，所有人都去。”</span>所有人。你去还是不去，都在被观察。</p><p>你站在衣柜前，手机日历上写着明天的恢复计划——冰浴、拉伸、轻量激活。队医用荧光笔画了三条线。</p><p>队友已经在门口等了，回头看了你一眼，笑了一下：<span class='dialogue'>“不来也没事。但来比较好——你知道的。”</span></p><p>他说“你知道的”的时候，语气很轻，像是在教你一个没有人写在纸上的规则。</p>",options:s=>[
     option("去，但设好离场时间","队内适应+8；体能-8，夜生活累积隐患",()=>{s.teamFit=clamp((s.teamFit||45)+8);change(s,"fitness",-8);s.clubNights=(s.clubNights||0)+1;log(s,"story","你坐了一个小时，喝了两杯汽水。离场时有人喊“这么早？”你摆摆手说明天有恢复计划。有人笑了一声，但笑里没有恶意。")}),
     option("拒绝，独自留在基地","体能+10；队内适应-7，意志+1",()=>{change(s,"fitness",10);s.teamFit=clamp((s.teamFit||45)-7);gainStat(s,"will",1,"pressure");log(s,"story","你回到房间，洗完澡，坐床上刷了会儿手机。零点时你听到楼下有车回来，有人在笑，有人用你的母语喊了句什么，没听清。")})]},
-  {id:"agent_contract",phase:["firstteam","overseas","pro"],minAge:17,title:"经纪人把“保证首发”写进了口头承诺",body:"<p>会面约在一家安静得连水声都听得见的咖啡馆。经纪人把合同推过来，封面很干净，里面密密麻麻的条款。</p><p>他说可以给你更高的工资，可以帮你运作转会，可以让你进国字号名单：<span class='dialogue'>“我跟你们教练很熟，他说了你就是未来核心。”</span>你说的每一句话他都点头。你说你要保证出场时间，他说<span class='dialogue'>“当然，这是我谈的前提。”</span></p><p>你翻到签字页。八年。肖像权、转会决定权、商业开发权全部打包。你问“保证首发”能不能写进合同。他笑了一下，很短，但很职业：<span class='dialogue'>“兄弟，这个写了也没用，教练换了你找谁去？”</span></p><p>他说的是实话。他的笑容也是实话。</p>",options:s=>[
+  {id:"agent_contract",once:true,phase:["firstteam","overseas","pro"],minAge:17,title:"经纪人把“保证首发”写进了口头承诺",body:"<p>会面约在一家安静得连水声都听得见的咖啡馆。经纪人把合同推过来，封面很干净，里面密密麻麻的条款。</p><p>他说可以给你更高的工资，可以帮你运作转会，可以让你进国字号名单：<span class='dialogue'>“我跟你们教练很熟，他说了你就是未来核心。”</span>你说的每一句话他都点头。你说你要保证出场时间，他说<span class='dialogue'>“当然，这是我谈的前提。”</span></p><p>你翻到签字页。八年。肖像权、转会决定权、商业开发权全部打包。你问“保证首发”能不能写进合同。他笑了一下，很短，但很职业：<span class='dialogue'>“兄弟，这个写了也没用，教练换了你找谁去？”</span></p><p>他说的是实话。他的笑容也是实话。</p>",options:s=>[
     option("签长约，换取眼前资源","声望+9，报价+1；未来转会抽成高",()=>{change(s,"fame",9);s.agent={type:"aggressive",cut:18};generateOffers(s,1);log(s,"story","你签字的时候，他接了个电话，对着那头说“搞定了”。你低头看着自己的签名，墨迹还没干。")}),
     option("请独立律师，只签两年","花费6万，意志+1；资源增长较慢",()=>{addMoney(s,-6);gainStat(s,"will",1,"pressure");s.agent={type:"careful",cut:8};log(s,"story","他听完你的决定，笑容没消失，但嘴角的角度变了：“行，那先做两年看看。到时候你身价翻倍了，可别忘了老哥。”")})]},
-  {id:"xiaoman_private",phase:["firstteam","pro"],minAge:17,title:"球迷拍到了你和小满",body:"<p>照片是在商场门口拍的。你戴着口罩，她扎着马尾，你们之间隔了半个身位，她正偏头跟你说话。</p><p>评论不到两小时就破了五百。有人在扒她的学校、专业，有人说<span class='dialogue'>“穿成这样怎么配得上”</span>，有人贴了她在食堂吃饭的照片——不知道什么时候拍的。俱乐部打来电话，建议你<span class='dialogue'>“暂时不要公开回应”</span>，让热度自己降下去。</p><p>你翻到小满的对话框。她已经知道了，发来一条：<span class='dialogue'>“我没事，你别看评论。”</span></p><p>你打电话过去，她接得很快。第一句话是：<span class='dialogue'>“那些话我不在乎。”</span>顿了一下，又说：<span class='dialogue'>“但我在乎你会不会因为我在乎而乱做决定。”</span></p><p>你没有回答。她等了一会儿，轻声说：<span class='dialogue'>“你自己选。选完别后悔就行。”</span></p>",portrait:"assets/lin-xiaoman.webp",condition:s=>["恋人","异地"].includes(s.relationship.status),options:s=>[
+  {id:"xiaoman_private",once:true,notMarried:true,phase:["firstteam","pro"],minAge:17,title:"球迷拍到了你和小满",body:"<p>照片是在商场门口拍的。你戴着口罩，她扎着马尾，你们之间隔了半个身位，她正偏头跟你说话。</p><p>评论不到两小时就破了五百。有人在扒她的学校、专业，有人说<span class='dialogue'>“穿成这样怎么配得上”</span>，有人贴了她在食堂吃饭的照片——不知道什么时候拍的。俱乐部打来电话，建议你<span class='dialogue'>“暂时不要公开回应”</span>，让热度自己降下去。</p><p>你翻到小满的对话框。她已经知道了，发来一条：<span class='dialogue'>“我没事，你别看评论。”</span></p><p>你打电话过去，她接得很快。第一句话是：<span class='dialogue'>“那些话我不在乎。”</span>顿了一下，又说：<span class='dialogue'>“但我在乎你会不会因为我在乎而乱做决定。”</span></p><p>你没有回答。她等了一会儿，轻声说：<span class='dialogue'>“你自己选。选完别后悔就行。”</span></p>",portrait:"assets/lin-xiaoman.webp",condition:s=>["恋人","异地"].includes(s.relationship.status),options:s=>[
     option("承认恋情，要求停止打扰她","感情+15，声望波动；商业机会-1",()=>{changeLove(s,15);change(s,"fame",chance(.55)?5:-6);s.flags.publicLove=true;log(s,"story","你发完声明三分钟后，她发来一条语音，声音有点哑：“你傻不傻。”然后是很长的沉默，“傻完了记得回来。”")}),
     option("按俱乐部口径否认","媒体风险-6；感情-20，可能留下裂缝",()=>{change(s.risks,"media",-6);changeLove(s,-20);s.relationship.denied=true;log(s,"story","你打完电话之后，她的头像暗了很久。晚上你收到一条消息：“我理解。”后面没有别的了。")})]},
-  {id:"girlfriend_offer",phase:["firstteam","campus","pro"],minAge:18,title:"小满拿到了外地研究生名额",body:"<p>她把录取通知书放在桌子中间，正面朝你。你看了一眼那个城市——高铁四个半小时，航班一小时四十分钟，不算远，也不算近。</p><p>她没有看你，手指搁在杯子边上，来回摩挲杯沿：<span class='dialogue'>“我不是在考验你，也不是要你留我。我只是想告诉你。”</span></p><p>你问她想去吗。她终于抬起头，目光直直地看着你：<span class='dialogue'>“我想去。那个研究方向，全国只有这个组在做。”</span>她说这句话的时候眼睛是亮的。</p><p>她没有说“你怎么办”，没有说“我们怎么办”。她只是告诉你，她想往前走一步。你沉默了很久，她也没有催，只是把杯子端起来喝了一口，等你说完该说的话。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>s.relationship.status==="恋人",options:s=>[
+  {id:"girlfriend_offer",once:true,notMarried:true,phase:["firstteam","campus","pro"],minAge:18,title:"小满拿到了外地研究生名额",body:"<p>她把录取通知书放在桌子中间，正面朝你。你看了一眼那个城市——高铁四个半小时，航班一小时四十分钟，不算远，也不算近。</p><p>她没有看你，手指搁在杯子边上，来回摩挲杯沿：<span class='dialogue'>“我不是在考验你，也不是要你留我。我只是想告诉你。”</span></p><p>你问她想去吗。她终于抬起头，目光直直地看着你：<span class='dialogue'>“我想去。那个研究方向，全国只有这个组在做。”</span>她说这句话的时候眼睛是亮的。</p><p>她没有说“你怎么办”，没有说“我们怎么办”。她只是告诉你，她想往前走一步。你沉默了很久，她也没有催，只是把杯子端起来喝了一口，等你说完该说的话。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>s.relationship.status==="恋人",options:s=>[
     option("支持她去，开始异地","感情+8，状态-4；关系转为异地",()=>{changeLove(s,8);change(s,"form",-4);s.relationship.status="异地";log(s,"story","她听完你的话，低下头，过了很久才说：“那我买票了。”声音很平静，但你注意到她握着杯子的手指稍微用了点力。")}),
     option("希望她留下","当前感情+4；长期冲突+18",()=>{changeLove(s,4);s.relationship.conflict=(s.relationship.conflict||0)+18;log(s,"story","你话还没说完她就摇了摇头，表情没有愤怒，只有一点失望：“那你能把刚才那句话再说一遍吗？看着我说。”你说不出口了。")})]},
-  {id:"match_fixing",phase:["pro"],minAge:18,title:"他们只要一个无关胜负的角球",body:"<p>消息是通过一个你不太熟的号码发来的。对方知道你父亲在哪家医院、住哪一床、欠了多少。</p><p>他说比赛结果不变，只需要你在上半场把球碰出底线一次。一个角球。不影响胜负，没有人会注意。他发了一个数字，够你付清剩下的押金，后面跟了一句：<span class='dialogue'>“决定权在你。”</span></p><p>你放下手机。病房里你爸在睡觉，心电图的声音平稳地一跳一跳。你握了握拳头，指甲掐进掌心里。</p><p>然后你给那个号码回了一条消息。你回的是什么，只有你自己知道。</p>",options:s=>[
+  {id:"match_fixing",once:true,maxMoney:60,phase:["pro"],minAge:18,title:"他们只要一个无关胜负的角球",body:"<p>消息是通过一个你不太熟的号码发来的。对方知道你父亲在哪家医院、住哪一床、欠了多少。</p><p>他说比赛结果不变，只需要你在上半场把球碰出底线一次。一个角球。不影响胜负，没有人会注意。他发了一个数字，够你付清剩下的押金，后面跟了一句：<span class='dialogue'>“决定权在你。”</span></p><p>你放下手机。病房里你爸在睡觉，心电图的声音平稳地一跳一跳。你握了握拳头，指甲掐进掌心里。</p><p>然后你给那个号码回了一条消息。你回的是什么，只有你自己知道。</p>",options:s=>[
     option("保存证据并报告俱乐部","短期被调查和雪藏；职业风险大幅下降",()=>{change(s,"coachFavor",-8);change(s,"form",-8);change(s.risks,"gambling",-30);s.flags.reportedFixing=true;log(s,"story","你把截图发给了合规部门。之后三天没有任何回复。第四天，那个号码发来一个大拇指的表情——然后再也没有出现过。")}),
     option("删除消息，什么也不说","本月没有损失；暗雷仍可能回来",()=>{change(s.risks,"gambling",6);log(s,"story","你删掉之后去洗了把脸。镜子里的你跟平时一样。你对着镜子站了一会儿，然后回病房了。")}),
     option("按他说的做","获得35万；涉赌风险+45，成就与国家队可能永久失去",()=>{addMoney(s,35);s.flags.bettingEver=true;change(s.risks,"gambling",45);log(s,"story","上半场第三十分钟，对方一次没威胁的传中，你伸脚蹭了一下，球出了底线。角球。没人注意到你是故意的。半场结束你走进通道，手心全是汗。")},"danger")]},
-  {id:"health_test",phase:["pro"],minAge:18,title:"一次健康筛查的结果需要复核",body:"<p>队医把你叫到办公室，门关上了。他说话很慢，每一个字都像提前打过草稿——初筛有一项指标需要复核，不一定严重，但需要你去正规医疗机构做一次完整检查。</p><p>他把转诊单推过来，指了指地址：<span class='dialogue'>“这家医院，我帮您约好了时间。”</span>你问如果复查结果不好会怎样。他说：<span class='dialogue'>“先查，查完再说。不管结果是什么，隐私受法律保护，治疗和继续工作都有规范路径可循。”</span></p><p>你把转诊单叠好放进口袋。站起来时他补了一句：<span class='dialogue'>“高强度训练先缓一缓，等结果出来再调整计划。”</span></p><p>你走出门，走廊尽头的队友在喊你热身。你摸了摸口袋里那张纸，然后迈开步子跑过去——但你的速度比平时慢了一点，只有你自己知道。</p>",condition:s=>(s.clubNights||0)>=4&&!s.flags.healthTested,options:s=>[
+  {id:"health_test",once:true,phase:["pro"],minAge:18,title:"一次健康筛查的结果需要复核",body:"<p>队医把你叫到办公室，门关上了。他说话很慢，每一个字都像提前打过草稿——初筛有一项指标需要复核，不一定严重，但需要你去正规医疗机构做一次完整检查。</p><p>他把转诊单推过来，指了指地址：<span class='dialogue'>“这家医院，我帮您约好了时间。”</span>你问如果复查结果不好会怎样。他说：<span class='dialogue'>“先查，查完再说。不管结果是什么，隐私受法律保护，治疗和继续工作都有规范路径可循。”</span></p><p>你把转诊单叠好放进口袋。站起来时他补了一句：<span class='dialogue'>“高强度训练先缓一缓，等结果出来再调整计划。”</span></p><p>你走出门，走廊尽头的队友在喊你热身。你摸了摸口袋里那张纸，然后迈开步子跑过去——但你的速度比平时慢了一点，只有你自己知道。</p>",condition:s=>(s.clubNights||0)>=4&&!s.flags.healthTested,options:s=>[
     option("立即复核并暂停高强度训练","体能-8；健康风险大幅下降，获得正规支持",()=>{s.flags.healthTested=true;change(s,"fitness",-8);if(chance(.16)){s.flags.hivDiagnosed=true;s.healthCare=80;log(s,"story","复核确诊HIV。医生说明：规范抗病毒治疗可长期控制病毒，确诊不是职业与人生的终点。") }else{change(s.risks,"health",-18);log(s,"good","复核结果排除了感染。你接受了更完整的性健康咨询。")}}),
     option("推迟一个月，先保住首发","状态+5；健康与隐私风险上升",()=>{change(s,"form",5);change(s.risks,"health",12);change(s.risks,"media",5)},"danger")]},
-  {id:"hiv_treatment",phase:["pro"],minAge:18,title:"治疗不会替你踢球，但能让你继续生活",body:"<p>医生的语气很平，像是在念一份操作手册：<span class='dialogue'>“目前HIV感染已经有规范的治疗方案，只要坚持服药、定期复查，病毒可以被长期抑制。不影响正常生活，不影响工作。”</span></p><p>他把处方笺推过来：<span class='dialogue'>“保密是医疗常规。你的病史只会留在本院的系统里，不会有第二个人知道。”</span>你低头看那张处方笺，上面的药名你从来没有听说过。</p><p>你问了一句：<span class='dialogue'>“如果我间断服药呢？”</span>医生的表情第一次有了变化，很轻，像是失望也像是遗憾：<span class='dialogue'>“耐药之后，治疗选择会越来越少。”</span></p><p>你收好处方笺，站起来之前又坐了回去。诊室的白炽灯很亮，外面走廊里有人在打电话，笑着说明天去哪里吃饭。你坐了很久，医生没有催你。</p>",condition:s=>s.flags.hivDiagnosed&&(s.healthCare||0)<100,options:s=>{const rich=(s.money||0)>=500,arr=[];if(rich)arr.push(option("按医嘱规范治疗（花500万）","病毒长期抑制，身体不再被拖累；意志+2",()=>{addMoney(s,-500);s.healthCare=100;s.flags.hivIntermittent=false;gainStat(s,"will",2,"will");log(s,"good","你负担起了规范治疗。按医嘱服药、定期复查，训练照常。")}));arr.push(option(rich?"省下这笔钱，间断治疗":"负担不起500万，只能间断治疗","每月体能-30、健康风险上升，直到你能规范治疗",()=>{s.flags.hivIntermittent=true;log(s,"bad","药断断续续地吃。身体一天天被拖垮，你只能盼着哪天付得起规范治疗。")},"danger"));return arr}},
+  {id:"hiv_treatment",once:true,phase:["pro"],minAge:18,title:"治疗不会替你踢球，但能让你继续生活",body:"<p>医生的语气很平，像是在念一份操作手册：<span class='dialogue'>“目前HIV感染已经有规范的治疗方案，只要坚持服药、定期复查，病毒可以被长期抑制。不影响正常生活，不影响工作。”</span></p><p>他把处方笺推过来：<span class='dialogue'>“保密是医疗常规。你的病史只会留在本院的系统里，不会有第二个人知道。”</span>你低头看那张处方笺，上面的药名你从来没有听说过。</p><p>你问了一句：<span class='dialogue'>“如果我间断服药呢？”</span>医生的表情第一次有了变化，很轻，像是失望也像是遗憾：<span class='dialogue'>“耐药之后，治疗选择会越来越少。”</span></p><p>你收好处方笺，站起来之前又坐了回去。诊室的白炽灯很亮，外面走廊里有人在打电话，笑着说明天去哪里吃饭。你坐了很久，医生没有催你。</p>",condition:s=>s.flags.hivDiagnosed&&(s.healthCare||0)<100,options:s=>{const rich=(s.money||0)>=500,arr=[];if(rich)arr.push(option("按医嘱规范治疗（花500万）","病毒长期抑制，身体不再被拖累；意志+2",()=>{addMoney(s,-500);s.healthCare=100;s.flags.hivIntermittent=false;gainStat(s,"will",2,"will");log(s,"good","你负担起了规范治疗。按医嘱服药、定期复查，训练照常。")}));arr.push(option(rich?"省下这笔钱，间断治疗":"负担不起500万，只能间断治疗","每月体能-30、健康风险上升，直到你能规范治疗",()=>{s.flags.hivIntermittent=true;log(s,"bad","药断断续续地吃。身体一天天被拖垮，你只能盼着哪天付得起规范治疗。")},"danger"));return arr}},
   {id:"national_wrong_position",phase:["pro"],minAge:18,title:"国家队要你踢不熟悉的右边翼卫",body:"<p>教练在战术板上点了一下右路的位置：<span class='dialogue'>“你速度快，能解决边路问题。回去看录像，明天合练就按这个打。”</span></p><p>你没有马上回答。你练了十年的位置是前锋，突前、策应、抢点——所有比赛习惯都建立在这个位置上。右边翼卫要回防、要套边、要在攻守转换里不停折返。助理教练在旁边补了一句：<span class='dialogue'>“国家队需要你在这个位置上做出贡献。”</span></p><p>走出战术室，你收到俱乐部教练的消息：<span class='dialogue'>“听说他们要你踢边翼卫？你的训练计划需要调整吗？”</span></p><p>你站在走廊里。一边是国家队的窗口——拒绝了可能再也没有下一次；一边是你花了十年打磨的身体记忆。你把手机锁屏，走廊尽头有人喊你去看录像。</p>",condition:s=>s.national.called,options:s=>[
     option("接受位置，为国出战","国家队适应+15，意志+1；射术成长放缓",()=>{change(s.national,"adapt",15);gainStat(s,"will",1,"national");s.flags.outOfPosition=true;log(s,"story","你花两周恶补边翼卫的跑位录像。第一场热身赛送了两次传中，一次到位，一次出了底线。教练拍你肩说“适应得不错”——你没告诉他，你每晚都在房间对着战术板画跑位。")}),
     option("说明自己只能踢前锋","射术+1；国家队信任-12",()=>{gainSkill(s,"finishing",1,"finish");s.national.adapt=clamp(s.national.adapt-12);log(s,"story","你跟教练谈完，他说“我理解你的想法”，然后把你从首发名单里划掉了。你在看台上看完了那场比赛——你的替补在右翼卫踢了七十二分钟，数据一般，但没有失误。")})]},
@@ -269,13 +269,13 @@ const EVENTS=[
   {id:"transfer_loyalty",phase:["pro"],minAge:19,title:"豪门报价，和一份队长承诺",body:"<p>两份东西几乎同时摆在桌上。左边是一份报价单，数字后面跟着好几个零，俱乐部名字你从小就在电视上看过。右边是现任主教练的短信：<span class='dialogue'>“下赛季，队长袖标是你的。”</span></p><p>经纪人说豪门不能保证首发，但平台不是一个级别。主教练这边工资只有一半，但给你袖标，给你战术地位。</p><p>你坐在宿舍里，两样东西摊在桌面上，中间放着一瓶喝了一半的水。你想起周骁说过的一句话：<span class='dialogue'>“有人要你是因为你能用，有人要你是因为你是你。”</span></p><p>窗外的天快黑了。你把两份文件收进抽屉，哪一个都没回。</p>",options:s=>[
     option("留下争取队长袖标","教练信任+15，可能成为队长；错过本期报价",()=>{change(s,"coachFavor",15);if(overall(s)>=82||hasTalent(s,"captain")){s.flags.captain=true;unlock("captain_armband")};s.offers=[]}),
     option("要求经纪人推动转会","生成2份高一级报价；教练信任-12",()=>{generateOffers(s,2,true);change(s,"coachFavor",-12)})]},
-  {id:"brand_vs_rest",phase:["pro"],minAge:18,title:"一天广告拍摄，等于三个月康复费",body:"<p>品牌方档期只能排在休息日。经纪人打电话来：<span class='dialogue'>“机会难得，这个曝光量不拿白不拿。”</span></p><p>队医在旁边听到了，等你挂了电话，递过来一张恢复计划表：<span class='dialogue'>“你需要完整休息。连续训练和比赛之后，身体窗口期只有这几天。”</span>你看着他，他没再说第二句，把表放在桌上就走了。</p><p>你查了一下银行余额。父亲的住院账单还有一部分挂着。一天拍摄，三个月康复费的缺口。</p><p>你站在饮水机前面，接了一杯水，没喝，看着它慢慢凉下来。</p>",options:s=>[
+  {id:"brand_vs_rest",once:true,maxMoney:60,phase:["pro"],minAge:18,title:"一天广告拍摄，等于三个月康复费",body:"<p>品牌方档期只能排在休息日。经纪人打电话来：<span class='dialogue'>“机会难得，这个曝光量不拿白不拿。”</span></p><p>队医在旁边听到了，等你挂了电话，递过来一张恢复计划表：<span class='dialogue'>“你需要完整休息。连续训练和比赛之后，身体窗口期只有这几天。”</span>你看着他，他没再说第二句，把表放在桌上就走了。</p><p>你查了一下银行余额。父亲的住院账单还有一部分挂着。一天拍摄，三个月康复费的缺口。</p><p>你站在饮水机前面，接了一杯水，没喝，看着它慢慢凉下来。</p>",options:s=>[
     option("接下拍摄","收入+22万，声望+6；体能-14，伤病风险+8",()=>{addMoney(s,22);change(s,"fame",6);change(s,"fitness",-14);s.injury.risk+=8;log(s,"story","拍摄那天你站了七个小时，换了四套衣服。晚上回基地，小腿有点发紧。你冰敷了二十分钟才去睡。")}),
     option("拒绝，完成恢复","体能+20，状态+3；没有额外收入",()=>{change(s,"fitness",20);change(s,"form",3);log(s,"story","你回绝之后经纪人沉默了几秒，说“那我帮你推到下个月”。队医不知道这件事，但你第二天出现在恢复室时他什么也没问，只是把训练计划往前推了一页。")})]},
   {id:"captain_cover",phase:["pro"],minAge:20,title:"队友酒驾，队长要不要替他先挡住媒体",body:"<p>队友是凌晨被拦的。消息到中午还没上新闻，但俱乐部内部已经知道了。</p><p>你作为队长被叫进办公室，公关总监把一张稿纸推过来：<span class='dialogue'>“你先发个声，说队内问题已经处理了，维护一下集体形象。”</span>你问了一句：<span class='dialogue'>“警方通报出来了吗？”</span>公关总监看了你一眼：<span class='dialogue'>“还没有。但等通报出来再回应就晚了。”</span></p><p>玻璃窗外训练场上队友们在热身，那个酒驾的人也在场上。你不知道他酒驾的时候车上有没有别人，也不知道他知不知道你正在替他做决定。</p><p>稿纸上的字很简短——“队内问题已经解决，我们是一个团结的集体。”你拿起那张纸，没有签字。</p>",condition:s=>s.flags.captain||hasTalent(s,"captain"),options:s=>[
     option("拒绝背书，只谈球队纪律","短期更衣室-8；公众信任+10",()=>{s.teamFit=clamp((s.teamFit||55)-8);change(s,"fame",10);log(s,"story","你在镜头前说“在结果出来之前，任何个人观点都代表不了这个集体”。回更衣室的路上，那个队友从你身边经过，没有看你。")}),
     option("按俱乐部稿件发言","队内适应+8；若后续反转，媒体风险+18",()=>{s.teamFit=clamp((s.teamFit||55)+8);change(s.risks,"media",18);log(s,"story","你说完稿子上的话，放下手机，发现评论区已经炸了——“队长出来洗地了。”你没有再打开手机。")})]},
-  {id:"xiaoman_interview",phase:["pro"],minAge:20,title:"小满接受了一次关于你的采访",body:"<p>原稿发到你手上的时候，标题是深度采访的格式。小满在里面说你<span class='dialogue'>“把一个普通人的情绪全部交给了比赛”</span>，说<span class='dialogue'>“和他生活很累，因为他把所有东西都吞下去，到球场才倒出来”</span>。</p><p>她还说了你第一次签职业合同那天晚上给她打电话，什么也没说，就在电话那头喘气。她用的是“喘气”，不是“哭”。</p><p>见报那天标题被改了：《球星女友控诉多年牺牲：他把所有情绪都给了比赛》。评论区又炸了，有人骂她蹭热度，有人说“赚那么多钱还矫情”。</p><p>你打电话给她，她接起来第一句是：<span class='dialogue'>“标题不是我起的。”</span>沉默了一会儿，又说：<span class='dialogue'>“但那些话是我说的，我不后悔。你要否认就否认，我不需要你帮我解释。”</span></p><p>她的语气很平静，但你知道她不是无所谓。她只是把选择权又丢回给了你，然后自己去扛剩下的。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>["恋人","异地"].includes(s.relationship.status),options:s=>[
+  {id:"xiaoman_interview",once:true,notMarried:true,phase:["pro"],minAge:20,title:"小满接受了一次关于你的采访",body:"<p>原稿发到你手上的时候，标题是深度采访的格式。小满在里面说你<span class='dialogue'>“把一个普通人的情绪全部交给了比赛”</span>，说<span class='dialogue'>“和他生活很累，因为他把所有东西都吞下去，到球场才倒出来”</span>。</p><p>她还说了你第一次签职业合同那天晚上给她打电话，什么也没说，就在电话那头喘气。她用的是“喘气”，不是“哭”。</p><p>见报那天标题被改了：《球星女友控诉多年牺牲：他把所有情绪都给了比赛》。评论区又炸了，有人骂她蹭热度，有人说“赚那么多钱还矫情”。</p><p>你打电话给她，她接起来第一句是：<span class='dialogue'>“标题不是我起的。”</span>沉默了一会儿，又说：<span class='dialogue'>“但那些话是我说的，我不后悔。你要否认就否认，我不需要你帮我解释。”</span></p><p>她的语气很平静，但你知道她不是无所谓。她只是把选择权又丢回给了你，然后自己去扛剩下的。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>["恋人","异地"].includes(s.relationship.status),options:s=>[
     option("先和她谈，再共同澄清","感情+8；声望短期-4，媒体风险下降",()=>{changeLove(s,8);change(s,"fame",-4);change(s.risks,"media",-10);log(s,"story","见面时她第一句话是：“你不用道歉。我只是觉得，有些话总要有人说出来。”那天晚上你们坐在操场边的台阶上，说了很久。")}),
     option("让经纪人单方面否认","声望+3；感情-18，冲突+15",()=>{change(s,"fame",3);changeLove(s,-18);s.relationship.conflict=(s.relationship.conflict||0)+15;log(s,"story","声明发出去半小时后，你收到她最后一条消息：“原来你连跟我一起面对都觉得麻烦。”之后对话框里再也没有出现过她的头像。")})]},
   {id:"red_card_choice",phase:["firstteam","overseas","pro"],title:"队友被恶意铲倒，全队都在看你",body:"<p>对方中卫那一脚踩在你队友脚踝上，他没出声，但在地上翻了一圈才站起来。裁判只给了黄牌。队长经过你身边时丢了一句：<span class='dialogue'>“别冲动。”</span></p><p>下一个回合，球到了你脚下。你背身拿球，那个中卫贴上来，胸口顶住你的后腰，下巴搁在你肩膀上，用只有你们两个人听得见的音量说：<span class='dialogue'>“你想怎么样？”</span></p><p>看台上有人在吹口哨，有人在喊。你的手已经攥起来了。球在你脚下，他在你身后，裁判在十米外。</p><p>所有人在等你选。</p>",options:s=>[
@@ -284,7 +284,7 @@ const EVENTS=[
   {id:"study_contract",phase:["campus"],title:"职业试训，和小满的毕业答辩",body:"<p>重庆铜梁龙只给一次三天试训。最后一天，正好是小满的毕业答辩。</p><p>她比你先知道这件事。你还在纠结要不要告诉她的时候，她已经把你的训练日程表打印出来贴在书桌上了：<span class='dialogue'>“三天，第一天适应，第二天对抗，第三天比赛。你第三天早上答辩前出发，来得及赶上下午的对抗。”</span></p><p>你问她答辩几点。她说上午十点。<span class='dialogue'>“你不用回来。”</span>语气跟说“今天可能要下雨”一样平常，<span class='dialogue'>“我准备了很久，不是让你回来听的。”</span>但你听得出来，这句话不是“不需要”，而是“不能说需要”。</p><p>那天晚上你躺在床上，她在隔壁房间背稿。你听见她偶尔停下来，深呼吸，再从头开始。</p><p>第二天早上你起来时，桌上放着一份早餐和一张纸条：<span class='dialogue'>“答辩顺利的话，我中午在校门口等你。”</span>她没有写“如果你在的话”。</p>",portrait:"assets/lin-xiaoman.webp",options:s=>[
     option("参加全部试训","球探+18，职业机会大增；感情-14",()=>{change(s,"scout",18);changeLove(s,-14);log(s,"story","比赛结束后你才看到——她发来一张照片：学士服，手里一束花，一个人站在答辩教室门口笑着，配文“过了”。你拿着手机站了很久。")}),
     option("提前离队赶回答辩","感情+15，意志+1；试训成功率下降",()=>{changeLove(s,15);gainStat(s,"will",1,"love");change(s,"scout",-6);log(s,"story","你出现在答辩教室后门时，她刚好念到致谢。她看见你，顿了一拍，继续往下念。结束后她在走廊拉住你，眼睛红了：“你不该回来的。”但拉着你袖子的手没松开。")})]},
-  {id:"reconcile",phase:["firstteam","overseas","campus","pro"],minAge:19,title:"很久没亮的号码又亮了",body:"<p>对话框沉到很下面了。你没有删过聊天记录，但也很久没有往上翻过。</p><p>那天晚上消息弹出来的时候，你刚洗完澡，屏幕上只有一行预览：<span class='dialogue'>“我到你在的城市了，明天下午走。有空的话，一起吃个饭？”</span></p><p>你盯着那条消息看了很久。上一次见面是多久之前了？你甚至想不起最后一次说话的语气。你点进去，看见上一条消息还是她发的——“我理解。”后面什么都没有了。</p><p>你打了一行字：“几点，哪儿？”又删掉。又打：“好久不见。”又删掉。最后你发了一个字：<span class='dialogue'>“好。”</span>她回得很快：<span class='dialogue'>“那我把地址发你。”</span></p><p>地址发过来了，是一家你以前常去的面馆。她什么都没多说，但你知道，那个地方，吃一顿饭的时间比一顿饭本身要长。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>s.relationship.status==="分手",options:s=>[
+  {id:"reconcile",once:true,phase:["firstteam","overseas","campus","pro"],minAge:19,title:"很久没亮的号码又亮了",body:"<p>对话框沉到很下面了。你没有删过聊天记录，但也很久没有往上翻过。</p><p>那天晚上消息弹出来的时候，你刚洗完澡，屏幕上只有一行预览：<span class='dialogue'>“我到你在的城市了，明天下午走。有空的话，一起吃个饭？”</span></p><p>你盯着那条消息看了很久。上一次见面是多久之前了？你甚至想不起最后一次说话的语气。你点进去，看见上一条消息还是她发的——“我理解。”后面什么都没有了。</p><p>你打了一行字：“几点，哪儿？”又删掉。又打：“好久不见。”又删掉。最后你发了一个字：<span class='dialogue'>“好。”</span>她回得很快：<span class='dialogue'>“那我把地址发你。”</span></p><p>地址发过来了，是一家你以前常去的面馆。她什么都没多说，但你知道，那个地方，吃一顿饭的时间比一顿饭本身要长。</p>",portrait:"assets/lin-xiaoman.webp",condition:s=>s.relationship.status==="分手",options:s=>[
     option("赴约，试着重新开始","有机会复合；也可能只是好好告别",()=>{if(chance(.55)){s.relationship.status=phaseOf(s)==="overseas"?"异地":"恋人";s.relationship.love=42;s.relationship.conflict=0;s.flags.breakupQueued=false;change(s,"morale",8);log(s,"good","你们决定重新试试。这次你不想再拿比赛当借口。")}else{change(s,"morale",-4);gainStat(s,"will",1,"will");log(s,"story","一顿饭聊了很多，笑着笑着都明白，回不去了。")}}),
     option("婉拒，把力气留给赛场","状态+4，射术+1；关系仍为分手",()=>{change(s,"form",4);gainSkill(s,"finishing",1,"finish");log(s,"story","从那以后，你每次进球后都会不自觉地往看台某个方向看——即使知道她不在那里。")})]},
   {id:"contract_renewal",phase:["pro"],minAge:19,title:"续约合同摆到了桌上",body:"<p>俱乐部开出的条件是三年，工资涨幅不大，但有绩效奖金。经纪人看了一眼数字，在桌子底下给你发消息：<span class='dialogue'>“这个数低了，我可以再压一压，但可能会惹恼管理层。”</span></p><p>对面的经理在等你签字，笔已经放在纸上了：<span class='dialogue'>“俱乐部很看重你，希望把你作为长期计划的一部分。”</span></p><p>你拿起笔，没有马上签。经理看着你，脸上的笑容很职业，他在等你做选择——涨薪或者安稳。</p><p>经纪人还在看你。你突然意识到，这个房间里没有一个人是在替你想“踢球”这件事。</p>",options:s=>[
@@ -299,16 +299,295 @@ const EVENTS=[
   {id:"sponsor_line",phase:["pro"],minAge:19,title:"一个来路不明的博彩赞助",body:"<p>报价是市场价的三倍。条件只有一个：在社交媒体上发一条内容，穿他们提供的装备，不需要提品牌名字，只需要“无意间露出”。</p><p>合规部门的邮件抄送了你，措辞很谨慎：<span class='dialogue'>“此类合作在联赛框架内属于灰色地带，建议谨慎评估。”</span>经纪人打来电话，语气兴奋：<span class='dialogue'>“这个数你不接就被人接了。到时候人家上了你却没上，你别后悔。”</span></p><p>你没有马上回答。你看着赞助方案上的品牌名，顺手搜了一下，发现它的母公司注册在一家你从没听过的小岛上。</p><p>你合上电脑。夜色里，手机屏幕又亮了，一条催促消息：<span class='dialogue'>“考虑得怎么样了？”</span></p>",options:s=>[
     option("拒绝，选干净的品牌","意志+1，声望+4；少赚一笔",()=>{change(s,"fame",4);gainStat(s,"will",1,"will");log(s,"story","你回复“不接”之后，对方没再发消息。两周后你看到那个报价出现在另一个球员的账号上。你划过那条帖子，没有点赞。")}),
     option("签下高额代言","立刻+30万；涉赌风险+30，埋下隐患",()=>{addMoney(s,30);s.flags.bettingEver=true;change(s.risks,"gambling",30);log(s,"story","你发出那条合作内容后，评论区第一条是“你也接这个了？取关。”你把它删了。但钱已经到账了。")},"danger")]},
-  {id:"overseas_culture",phase:["overseas"],title:"更衣室的玩笑你听不懂",body:"<p>不是听不懂单词。是所有人都笑了，你晚了三秒才反应过来那个梗是什么——等你反应过来的时候，笑点已经过了。</p><p>有人注意到了你的延迟，善意地跟你解释了一遍前因后果。你点了点头，笑了一下。但那个笑是表演性的，你知道，他也知道。</p><p>正式训练还没开始。更衣室里大家在换衣服、聊天，开那个你听不懂的玩笑。你系好鞋带，比平时多系了一圈。</p><p>下一次他们再笑的时候，你没有再等那个延迟，低头把护腿板塞进袜子里。你是队里唯一一个没有笑的，但没有人注意到——因为你没有停下手里的动作，你一直在绑鞋带。</p>",options:s=>[
+  {id:"overseas_culture",once:true,phase:["overseas"],title:"更衣室的玩笑你听不懂",body:"<p>不是听不懂单词。是所有人都笑了，你晚了三秒才反应过来那个梗是什么——等你反应过来的时候，笑点已经过了。</p><p>有人注意到了你的延迟，善意地跟你解释了一遍前因后果。你点了点头，笑了一下。但那个笑是表演性的，你知道，他也知道。</p><p>正式训练还没开始。更衣室里大家在换衣服、聊天，开那个你听不懂的玩笑。你系好鞋带，比平时多系了一圈。</p><p>下一次他们再笑的时候，你没有再等那个延迟，低头把护腿板塞进袜子里。你是队里唯一一个没有笑的，但没有人注意到——因为你没有停下手里的动作，你一直在绑鞋带。</p>",options:s=>[
     option("硬着头皮融进去","队内适应+9，语言+6；体能-6",()=>{s.teamFit=clamp((s.teamFit||45)+9);change(s,"language",6);change(s,"fitness",-6)}),
     option("专注训练，少社交","射术+1，体能+6；队内适应-6",()=>{gainSkill(s,"finishing",1,"finish");change(s,"fitness",6);s.teamFit=clamp((s.teamFit||45)-6)})]},
-  {id:"academy_cut",phase:["academy"],minAge:15,title:"梯队年底要裁掉三个人",body:"<p>周骁在食堂里跟你说的，声音压得很低：<span class='dialogue'>“名单我看到了。年底压缩名单，淘汰三个。”</span>他没有说你在不在上面，但他看着你的眼神已经说明他不知道怎么开口。</p><p>你问他另外两个是谁。他说了一个名字，然后停了一下：<span class='dialogue'>“反正，你自己心里有数。”</span></p><p>那天晚上你加练到操场关灯。保安大爷站在门口等你，手里晃着钥匙串：<span class='dialogue'>“又没人给你开门了是不是。”</span></p><p>你没有回答。你弯腰系鞋带，手指有点抖。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
+  {id:"academy_cut",once:true,phase:["academy"],minAge:15,title:"梯队年底要裁掉三个人",body:"<p>周骁在食堂里跟你说的，声音压得很低：<span class='dialogue'>“名单我看到了。年底压缩名单，淘汰三个。”</span>他没有说你在不在上面，但他看着你的眼神已经说明他不知道怎么开口。</p><p>你问他另外两个是谁。他说了一个名字，然后停了一下：<span class='dialogue'>“反正，你自己心里有数。”</span></p><p>那天晚上你加练到操场关灯。保安大爷站在门口等你，手里晃着钥匙串：<span class='dialogue'>“又没人给你开门了是不是。”</span></p><p>你没有回答。你弯腰系鞋带，手指有点抖。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
     option("加倍训练证明自己","射术+1，耐力+1；体能-14，伤病风险上升",()=>{gainSkill(s,"finishing",1,"finish");gainStat(s,"stamina",1,"stamina");change(s,"fitness",-14);s.injury.risk+=6}),
     option("找教练要一个明确标准","教练信任+6，球探+4；状态-3",()=>{change(s,"coachFavor",6);change(s,"scout",4);change(s,"form",-3)})]}
+,
+// ===== 新增剧情事件（批量整合）=====
+{
+  id:"academy_captain_test",
+  phase:["academy"],once:true,
+  title:"队长袖标扔在你脚下",
+  portrait:"assets/coach-zhou.webp",
+  body:"<p>训练赛结束，周骁把袖标往地上一丢。<span class='dialogue'>“谁捡起来戴上，下一场谁就是队长。”</span></p><p>几个队友看了你一眼，没人动。袖标躺在泥里。</p>",
+  options:s=>[
+    option("弯腰捡起来戴上","声望+8，队长身份",()=>{change(s,"fame",8);s.flags.captain=true;log(s,"story","你捡起了袖标。")}),
+    option("一脚踢回教练脚边","意志+1，但可能得罪教练",()=>{gainStat(s,"will",1,"story");change(s,"coachFavor",-5);log(s,"story","你把袖标踢了回去。")})
+  ]
+},
+{
+  id:"academy_father_money",
+  phase:["academy"],once:true,
+  title:"牛皮信封",
+  portrait:"assets/father.webp",
+  body:"<p>你爸来梯队送棉被，临走从裤兜掏出一个牛皮纸信封，塞进你枕头底下。<span class='dialogue'>“别让你妈知道。”</span></p><p>你打开一看，是他半个月的夜班费。</p>",
+  options:s=>[
+    option("把钱塞回他帆布袋里","家庭+10",()=>{change(s,"family",10);log(s,"story","你把钱还了回去。")}),
+    option("收下，说声‘回头还’","资金+15万，但家庭-5",()=>{addMoney(s,15);change(s,"family",-5);log(s,"story","你收下了那笔夜班费。")})
+  ]
+},
+{
+  id:"academy_first_goal",
+  phase:["academy"],once:true,
+  title:"第一粒正式比赛进球",
+  portrait:"assets/player.webp",
+  body:"<p>U15联赛，你接直塞单刀破门。球场边没什么人喝彩，只有铁丝网外一个穿工装的身影默默转身走了。</p><p>那个人你认识。</p>",
+  options:s=>[
+    option("冲到场边朝他挥手","家庭+8，情感回忆",()=>{change(s,"family",8);log(s,"story","你朝那个背影使劲挥手。")}),
+    option("默默比赛，后面再说","意志+1",()=>{gainStat(s,"will",1,"story");log(s,"story","你咽下情绪，跑回中圈。")})
+  ]
+},
+{
+  id:"firstteam_overwork",
+  phase:["firstteam","pro"],
+  title:"连续加班加练",
+  portrait:"assets/coach-zhou.webp",
+  body:"<p>周骁让你每天加练两小时射门。你已经连续三周没休息过一天。膝盖开始酸胀。</p><p>队医写了个纸条：<span class='dialogue'>“建议轮休一场。”</span>周骁把它揉成一团。</p>",
+  options:s=>[
+    option("跟教练申请轮休","健康风险-15，但教练信任-5",()=>{change(s.risks,"health",-15);change(s,"coachFavor",-5);log(s,"story","你递了轮休申请。")}),
+    option("咬牙撑住，打封闭继续","教练信任+8；积累健康隐患",()=>{change(s,"coachFavor",8);if(!s.flags.health_warn){s.flags.health_warn=true;log(s,"warn","医生皱眉看着你的膝盖。")}change(s.risks,"health",20)})
+  ]
+},
+{
+  id:"firstteam_gambling_approach",
+  phase:["firstteam"],once:true,
+  title:"“方便喝杯咖啡吗？”",
+  portrait:"assets/player.webp",
+  body:"<p>一个自称“球迷”的人在基地外等你，递来一杯咖啡，随口聊了几句。临走塞给你一张名片：<span class='dialogue'>“哥几个凑钱玩球，输赢都跟你无关。就是给点内幕消息。”</span></p><p>名片背面只有一个手机号。</p>",
+  options:s=>[
+    option("当场撕掉","降低赌博风险至0",()=>{s.risks.gambling=0;log(s,"good","你撕了名片，扔进垃圾桶。")}),
+    option("先留着，不联系","赌博风险+5",()=>{change(s.risks,"gambling",5);log(s,"story","名片夹进了手机壳后面。")}),
+    option("收下，并约了下次见面","赌博风险+30；资金+10万",()=>{addMoney(s,10);change(s.risks,"gambling",30);log(s,"bad","你接过了那杯咖啡。")},"danger")
+  ]
+},
+{
+  id:"firstteam_lin_xiaoman_conflict",
+  phase:["firstteam","pro"],notMarried:true,once:true,
+  title:"她站在铁丝网外",
+  portrait:"assets/lin-xiaoman.webp",
+  body:"<p>林小满淋着雨看完训练，等你出来。<span class='dialogue'>“你上次说请假陪我去面试，你没来。”</span></p><p>她的语气很平静，像在陈述比分。</p>",
+  options:s=>[
+    option("道歉，解释训练任务","感情+5，但显得敷衍",()=>{changeLove(s,5);log(s,"story","你说对不起。她说：没事。")}),
+    option("沉默，给她一把伞","感情+2，自尊心持平",()=>{changeLove(s,2);log(s,"story","你递了伞，她推开了。")}),
+    option("“你该理解我”","感情-10",()=>{changeLove(s,-10);log(s,"bad","她说：那也要我变成你的球迷才行吗？")},"danger")
+  ]
+},
+{
+  id:"pro_big_club_offer",
+  phase:["pro"],once:true,condition:s=>s.fame>=50,
+  title:"两个电话",
+  portrait:"assets/player.webp",
+  body:"<p>经纪人打来两个电话：一个来自欧洲中游俱乐部，出场时间有保证；一个来自国内顶级豪门，薪水翻倍但竞争激烈。</p><p>他说：<span class='dialogue'>“你爸那边……要不要再想想？”</span></p>",
+  options:s=>[
+    option("去欧洲","资金-20万，声望+30；出国线开启",()=>{addMoney(s,-20);change(s,"fame",30);s.flags.go_abroad=true;log(s,"story","你买了单程票。")}),
+    option("留国内豪门","资金+80万；竞争压力增大",()=>{addMoney(s,80);change(s,"fame",10);log(s,"story","你签了国内的大合同。")})
+  ]
+},
+{
+  id:"pro_father_hospital",
+  phase:["pro"],once:true,condition:s=>s.family<40,
+  title:"急诊室走廊",
+  portrait:"assets/father.webp",
+  body:"<p>你爸急性心梗住院。你妈在电话里说：<span class='dialogue'>“你不用回来，比赛重要。”</span></p><p>可你听出她在哭。</p>",
+  options:s=>[
+    option("请假连夜回去","家庭+20，体能-20，比赛缺阵",()=>{change(s,"family",20);change(s,"fitness",-20);sufferInjury(s,1);log(s,"story","你出现在了病房门口。")}),
+    option("拜托表妹照顾，打完客场再说","家庭-10，职业态度+3",()=>{change(s,"family",-10);gainStat(s,"will",3,"story");log(s,"bad","你挂掉电话，发了一条朋友圈。")})
+  ]
+},
+{
+  id:"pro_gambling_debt",
+  phase:["pro"],condition:s=>s.risks.gambling>=30,
+  title:"“上次那事，该结了”",
+  portrait:"assets/player.webp",
+  body:"<p>你在基地停车场被两辆车堵住。副驾驶摇下窗，那人笑了笑。<span class='dialogue'>“兄弟，上次那些消息不够准啊……帮忙补个数？”</span></p><p>他伸出三根手指。不是三万。是三十万。</p>",
+  options:s=>[
+    option("老实给钱","资金-30万",()=>{addMoney(s,-30);log(s,"bad","你付了钱，但留下转账记录。")},"danger"),
+    option("报警","警方介入；赌博风险清零；足球名声受损-20",()=>{s.risks.gambling=0;change(s,"fame",-20);log(s,"story","你拨了110。")})
+  ]
+},
+{
+  id:"pro_corner_choice",
+  phase:["pro"],condition:s=>s.national.called===true,
+  title:"一个无关胜负的角球",
+  portrait:"assets/coach-zhou.webp",
+  body:"<p>世预赛最后一场，已经提前出线。补时阶段，你赢得一个角球。所有人都在等时间走完。</p><p>你想起了很久以前一个承诺——无关胜负，只关底线。</p>",
+  options:s=>[
+    option("一脚踢出界，耗完时间","职业表现+1",()=>{gainStat(s,"will",1,"story");log(s,"story","你安稳地结束了比赛。")}),
+    option("去争那个角球，哪怕没必要","体能-15，意志+5",()=>{change(s,"fitness",-15);gainStat(s,"will",5,"story");log(s,"story","你冲向门前。有人记住了这一刻。")})
+  ]
+},
+{
+  id:"pro_media_storm",
+  phase:["pro"],weight:2,
+  title:"摄像头后面的眼睛",
+  portrait:"assets/player.webp",
+  body:"<p>一场比赛你发挥失常，赛后某大V剪辑了你三次失误，配文：<span class='dialogue'>“这是他真实水平？”</span></p><p>转发量一小时内破万。</p>",
+  options:s=>[
+    option("公开发长文回应","若声望>80则舆论平息，否则更糟",()=>{if(s.fame>80){change(s.risks,"media",-10);log(s,"good","多数球迷选择相信你。")}else{change(s.risks,"media",30);log(s,"bad","你被骂得更凶了。")}}),
+    option("沉默，下一场用表现打脸","意志+2，舆情不加不减",()=>{gainStat(s,"will",2,"story");log(s,"story","你没有回应。三天后训练场加练到深夜。")})
+  ]
+},
+{
+  id:"pro_injury_knock",
+  phase:["pro"],weight:2,
+  title:"不经意的碰撞",
+  portrait:"assets/player.webp",
+  body:"<p>队内对抗赛，你跟后卫对脚。小腿一阵发麻。队医跑过来问：<span class='dialogue'>“有声音吗？”</span></p><p>你摇了摇腿说没事。但那一下的声音，你自己听到了。</p>",
+  options:s=>[
+    option("立刻要求检查","伤停1周，健康风险清空",()=>{sufferInjury(s,1);change(s.risks,"health",-20);log(s,"story","你没有逞强。")}),
+    option("轻伤不下火线","可能恶化；得周骁信任+5",()=>{if(chance(.3)){sufferInjury(s,rand(2,4));log(s,"bad","那一脚最终让你躺了几个月。")}else{change(s,"coachFavor",5);log(s,"story","你咬牙撑完了训练。")}})
+  ]
+},
+{
+  id:"pro_training_rival",
+  phase:["pro"],weight:1,
+  title:"更衣室里的新面孔",
+  portrait:"assets/player.webp",
+  body:"<p>俱乐部签了一个年轻前锋，你的号码被分走了半个训练区域。他看你的眼神像看一棵旧草。</p><p>你的位置没有铁打一说。</p>",
+  options:s=>[
+    option("主动带他练习，示好","声望+5",()=>{change(s,"fame",5);log(s,"story","你朝他伸出手说：欢迎。")}),
+    option("加练得更凶，位置要靠抢","意志+3",()=>{gainStat(s,"will",3,"story");log(s,"story","你一个人练到所有灯都熄灭。")})
+  ]
+},
+{
+  id:"pro_marriage_proposal",
+  phase:["pro"],notMarried:true,once:true,condition:s=>s.relationship.love>=80,
+  title:"后备箱里的玫瑰",
+  portrait:"assets/lin-xiaoman.webp",
+  body:"<p>林小满生日那天，你开车，她坐副驾。后备箱里是你偷偷准备的玫瑰和戒指，车程还有一公里到家。</p>",
+  options:s=>[
+    option("靠边停车，求婚","结婚线开启；感情+20",()=>{s.flags.married=true;changeLove(s,20);log(s,"good","她哭了。你给她戴上戒指。")}),
+    option("再等等，还不是时候","感情不变；错过一次机会",()=>{log(s,"story","你握紧方向盘，开过了那个路口。")})
+  ]
+},
+{
+  id:"pro_old_football",
+  phase:["pro"],once:true,
+  title:"旧足球的线断了",
+  portrait:"assets/father.webp",
+  body:"<p>训练回来，你发现背包夹层里的那只旧足球表面的线崩开了一条。你爸很多年前缝过的位置，开了。</p><p>你坐在床边，拿着那只球。</p>",
+  options:s=>[
+    option("找鞋匠重新缝好","意志+2；保存这只球",()=>{gainStat(s,"will",2,"story");log(s,"story","你花了三十块钱，缝好了。")}),
+    option("把它收进柜子最深处的箱子","家庭回忆+5，但再也不会用了",()=>{change(s,"family",5);log(s,"story","你把它放进了箱底。")})
+  ]
+},
+{
+  id:"pro_lin_pregnant_b",
+  phase:["pro"],once:true,condition:s=>s.flags.married===true,
+  title:"两条杠",
+  portrait:"assets/lin-xiaoman.webp",
+  body:"<p>林小满把验孕棒放在茶几上，等你回来。你看了一眼，坐下了。她看着你：<span class='dialogue'>“你要是没准备好，我们可以再谈谈。”</span></p><p>她的声音很平静，像在说一件别人的事。但你知道她不是不在乎。</p>",
+  options:s=>[
+    option("蹲下来，把手放在她肚子上","感情+15，家庭+10；确定成为父亲",()=>{changeLove(s,15);change(s,"family",10);s.flags.father=true;log(s,"good","她握住了你的手腕。")}),
+    option("说‘让我想一想，下周再聊’","感情-5，家庭-5",()=>{changeLove(s,-5);change(s,"family",-5);log(s,"story","她轻轻点了点头，把验孕棒收进了抽屉。")})
+  ]
+},
+{
+  id:"pro_injury_comeback",
+  phase:["pro"],once:true,condition:s=>s.flags.serious_injury&&!(s.injury.months>0),
+  title:"复出前的最后一趟训练",
+  portrait:"assets/player.webp",
+  body:"<p>伤愈后第一次合练。你站在场边系鞋带，手腕有点抖。不是怕，是太久没碰球了。草坪的味道让你想起很多东西。</p><p>场边的哨声响了。</p>",
+  options:s=>[
+    option("深呼吸，第一个踏进球场","意志+5；正式复出",()=>{gainStat(s,"will",5,"story");log(s,"story","你踏上了草坪。一切都没变。")}),
+    option("先在边路慢跑两圈找感觉","谨慎，状态+3",()=>{change(s,"form",3);log(s,"story","你慢慢进入了节奏。")})
+  ]
+},
+{
+  id:"pro_worldcup_qualified_b",
+  phase:["pro"],once:true,condition:s=>s.flags.worldcup_qualified===true,
+  title:"出线之夜·更衣室",
+  portrait:"assets/player.webp",
+  body:"<p>裁判哨响。你们赢了。更衣室成了疯子集中营。有人把冰桶扣在教练头上，有人在哭。你靠在自己的柜门上，低着头，大口喘气。</p><p>你的手机亮了——你爸的短信：<span class='dialogue'>“踢得好。”</span></p><p>就三个字。</p>",
+  options:s=>[
+    option("拨回去","家庭+10，情感高潮",()=>{change(s,"family",10);log(s,"good","你爸没接。你妈说他在客厅抹眼泪。")}),
+    option("回一条：还不够","意志+3，保持饥饿",()=>{gainStat(s,"will",3,"story");log(s,"story","你又拿起战术手册翻了两页，才加入庆祝。")})
+  ]
+},
+{
+  id:"pro_lin_wedding",
+  phase:["pro"],once:true,condition:s=>s.flags.married===true&&s.flags.wedding_done===undefined,
+  title:"把婚礼定在休赛期",
+  portrait:"assets/lin-xiaoman.webp",
+  body:"<p>林小满在电话里说：<span class='dialogue'>“婚纱店说那天档期空着。你要能请假，就定那天。”</span></p><p>你打开手机日历——那天正好有一场热身赛邀请，对手是韩国俱乐部。</p>",
+  options:s=>[
+    option("推掉热身赛","婚礼如期举行，感情+20",()=>{changeLove(s,20);s.flags.wedding_done=true;log(s,"good","她穿着婚纱等你。你差点迟到。")}),
+    option("推迟婚礼，去打比赛","感情-15，职业态度+5",()=>{changeLove(s,-15);gainStat(s,"will",5,"story");s.flags.wedding_done=true;log(s,"bad","你在酒店大堂给她打了一个很长的电话。")})
+  ]
+},
+{
+  id:"pro_retirement_decision",
+  phase:["pro"],once:true,condition:s=>ageInfo(s).age>=34,
+  title:"最后一场主场比赛",
+  portrait:"assets/player.webp",
+  body:"<p>俱乐部为你办了一个简短的仪式——最后一场主场比赛，赛前给你送了纪念球衣。看台上有人举着你刚进一线队时的照片。那一年你十八岁，瘦得像根竹竿。</p><p>你绕着球场走了一圈，听到很多人的声音。</p>",
+  options:s=>[
+    option("在球场中央跪下，亲吻草皮","仪式感，意志+5",()=>{gainStat(s,"will",5,"story");log(s,"story","全场起立鼓掌。你站起来的时候，眼眶是红的。")}),
+    option("绕场一周，把护腕扔上看台","与球迷告别，家庭+5",()=>{change(s,"family",5);log(s,"story","一个小孩抢到了护腕，举着它尖叫。")})
+  ]
+},
+{
+  id:"pro_mentor_death",
+  phase:["pro"],once:true,
+  title:"周骁的电话没人接",
+  portrait:"assets/coach-zhou.webp",
+  body:"<p>你打了三次周骁的电话，没人接。最后是他儿子回的消息：<span class='dialogue'>“我爸昨天走了，心梗。他手机里有你的未接来电，我替他回了。”</span></p><p>你坐在车里，没有熄火。</p>",
+  options:s=>[
+    option("参加葬礼，站最后一排","情感+10，正式告别",()=>{change(s,"family",10);log(s,"story","你放了一朵白花在墓碑前。风很大。")}),
+    option("自己踢一场比赛纪念他","意志+5，孤独的告别",()=>{gainStat(s,"will",5,"story");log(s,"story","你一个人在训练场踢了两个小时。")})
+  ]
+},
+{
+  id:"pro_father_pass_away",
+  phase:["pro"],once:true,condition:s=>s.family<=20&&s.flags.father_alive,
+  title:"电话在凌晨三点响",
+  portrait:"assets/father.webp",
+  body:"<p>凌晨三点的电话从不带来好消息。你妈在电话那头只说了一句：<span class='dialogue'>“儿，你爸走了。”</span></p><p>然后她挂了。你听着忙音，躺了很久才起来订票。</p><p>衣柜最上层，那只旧足球还在。</p>",
+  options:s=>[
+    option("带那只球回家参加葬礼","家庭+20；关系闭环",()=>{change(s,"family",20);s.flags.father_alive=false;s.flags.football_back_home=true;log(s,"story","你把球放在他旁边。一起带去的还有那双他买的鞋。")}),
+    option("把球留在基地，继续训练","意志+8；回避性处理",()=>{gainStat(s,"will",8,"story");s.flags.father_alive=false;log(s,"story","你那天练到所有灯都灭掉。")})
+  ]
+},
+{
+  id:"pro_father_pass_b",
+  phase:["pro"],once:true,condition:s=>s.family>20&&s.flags.father_alive,
+  title:"同一个电话",
+  portrait:"assets/father.webp",
+  body:"<p>凌晨三点的电话。你妈的声音比你想的平静：<span class='dialogue'>“你爸让我别吵你比赛。但他走了四个小时了，我想你应该知道。”</span></p><p>你下周有世预赛。</p>",
+  options:s=>[
+    option("请假回家处理丧事","家庭+15，缺席一场",()=>{change(s,"family",15);s.flags.father_alive=false;sufferInjury(s,1);log(s,"story","你跪在灵堂前，一句话都说不出来。")}),
+    option("踢完世预赛再回去","意志+10；但家庭永久受损",()=>{gainStat(s,"will",10,"story");s.flags.father_alive=false;change(s,"family",-5);log(s,"story","你进了球，没有庆祝。赛后你对着镜头说：爸，这是给你的。")})
+  ]
+},
+{
+  id:"pro_legend_ending",
+  phase:["pro"],once:true,condition:s=>s.fame>=95&&s.flags.worldcup_qualified,
+  title:"金球奖之夜",
+  portrait:"assets/player.webp",
+  body:"<p>你坐在巴黎的颁奖礼现场。主持人念出你的名字时，你脑子里一片空白。走上台的路很长，大约十五米。你想起那只旧足球，想起重庆的雨，想起周骁，想起你爸的夜班费。</p><p>奖杯很重。</p>",
+  options:s=>[
+    option("把旧足球带上领奖台","情感闭环，声望+5",()=>{change(s,"fame",5);log(s,"good","你从口袋里掏出那只旧足球，举过奖杯。全场起立。")}),
+    option("把奖杯献给父亲","家庭+10，情感完成",()=>{change(s,"family",10);log(s,"good","你说：这是我爸的奖杯。")})
+  ]
+},
+{
+  id:"pro_silent_ending",
+  phase:["pro"],once:true,condition:s=>s.fame<=30&&ageInfo(s).age>=30,
+  title:"没有掌声的夜晚",
+  portrait:"assets/player.webp",
+  body:"<p>又一场替补席上度过的比赛。你收拾更衣室柜子的时候，发现角落里有一只遗落的旧护腿板——不记得是谁的了。你把东西装进塑料袋，从侧门走出去。</p><p>没有记者。没有人等你。</p>",
+  options:s=>[
+    option("给梯队打个电话，问问带队的事","意志+3；开始想退路",()=>{gainStat(s,"will",3,"story");log(s,"story","对面说：随时欢迎你回来。")}),
+    option("回家给小满做顿饭","心情+5，家庭+5",()=>{change(s,"morale",5);change(s,"family",5);log(s,"story","很久没这么早回家了。")})
+  ]
+}
 ];
 
-function eventEligible(e,s){const a=ageInfo(s).age,p=phaseOf(s);return(!e.phase||e.phase.includes(p))&&(!e.minAge||a>=e.minAge)&&(!e.maxAge||a<=e.maxAge)&&(!e.condition||e.condition(s))}
-function chooseRandomEvent(s,rng=Math.random){let pool=EVENTS.filter(e=>eventEligible(e,s)&&!s.usedEvents.includes(e.id)&&!s.recentEvents.includes(e.id));if(!pool.length){s.usedEvents=s.usedEvents.filter(id=>!EVENTS.some(e=>e.id===id&&eventEligible(e,s)));pool=EVENTS.filter(e=>eventEligible(e,s)&&!s.recentEvents.includes(e.id))}if(!pool.length)return null;const weighted=[];pool.forEach(e=>{const n=Math.max(1,Math.round((e.weight||1)*3));for(let i=0;i<n;i++)weighted.push(e)});const e=weighted[Math.floor(rng()*weighted.length)];s.usedEvents.push(e.id);s.recentEvents=[e.id,...s.recentEvents].slice(0,5);return e}
+function eventEligible(e,s){const a=ageInfo(s).age,p=phaseOf(s);return(!e.phase||e.phase.includes(p))&&(!e.minAge||a>=e.minAge)&&(!e.maxAge||a<=e.maxAge)&&(!e.maxMoney||(s.money||0)<e.maxMoney)&&(!e.minMoney||(s.money||0)>=e.minMoney)&&(!e.notMarried||!(s.flags&&s.flags.married))&&(!e.requireMarried||(s.flags&&s.flags.married))&&(!e.condition||e.condition(s))}
+function chooseRandomEvent(s,rng=Math.random){let pool=EVENTS.filter(e=>eventEligible(e,s)&&!s.usedEvents.includes(e.id)&&!s.recentEvents.includes(e.id));if(!pool.length){s.usedEvents=s.usedEvents.filter(id=>{const ev=EVENTS.find(x=>x.id===id);return !ev||!eventEligible(ev,s)||ev.once});pool=EVENTS.filter(e=>eventEligible(e,s)&&!s.usedEvents.includes(e.id)&&!s.recentEvents.includes(e.id))}if(!pool.length)return null;const weighted=[];pool.forEach(e=>{const n=Math.max(1,Math.round((e.weight||1)*3));for(let i=0;i<n;i++)weighted.push(e)});const e=weighted[Math.floor(rng()*weighted.length)];s.usedEvents.push(e.id);s.recentEvents=[e.id,...s.recentEvents].slice(0,5);return e}
 
 const STORY_BEATS={
   6:s=>({title:"铁丝网外的两个人",portrait:"assets/lin-xiaoman.webp",body:`<p>那个夏天你第一次跟队合练。结束的时候天已经黑透，你提着鞋往门口走，远远看见铁丝网外面站着两个人。</p><p>小满抱着一个保温杯，旁边站着周骁。周骁先看见你，朝你抬了抬下巴：<span class="dialogue">“你妹等你半天了。”</span></p><p>小满没理他，把保温杯递过来：<span class="dialogue">“绿豆汤，你妈让我带的。”</span>你接过来，烫的。周骁在旁边笑了一声：<span class="dialogue">“我站这儿八分钟了，她一句话没跟我说。”</span></p><p>你拧开盖子喝了一口，小满低下头，发绳松了，她重新扎。三个人站在路灯底下，谁也没说一起走。</p>`,options:[
@@ -565,6 +844,7 @@ function startWorldCup(s){
 }
 function setupWcFinals(s){
   s.national.worldCups++;
+  s.flags.worldcup_qualified=true;
   const d=wcDraw(Math.random);
   s.national.wcRun={stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true};
   enqueueFront({title:"世界杯抽签",body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,options:[option("开始小组赛","",()=>wcNext(s))]},"世界杯");
@@ -640,7 +920,7 @@ function heroMetrics(items){return`<div class="metric-grid">${items.map(x=>`<div
 
 function renderActions(){const phase=phaseOf(S),available=ACTIONS.filter(a=>a.phases.includes(phase)&&(!a.show||a.show(S)));$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">MONTHLY PLAN</span><h2>${esc(S.name)}，这个月你想怎么过？</h2><p>同一种行动每月最多执行${phase==="academy"?"一到两次":"两次"}。天赋会影响成功率和收益，但每种选择都有取舍。<span class="diff-inline">${esc(diffOf(S).name)}难度</span></p>${S.seasonGoal?`<div class="goal-banner"><span class="eyebrow">本赛季目标</span>${esc(goalProgressText(S))}</div>`:""}${heroMetrics([[`${S.actionPoints}/3`,"剩余执行点"],[overall(S),"综合能力"],[Math.round(S.coachFavor),"教练信任"],[S.injury.months?`${S.injury.months}月`:"健康","伤停状态"]])}</section>${S.lastActionFeedback?`<div class="feedback-banner"><span class="eyebrow">${esc(S.lastActionFeedback.name)}</span><p>${esc(S.lastActionFeedback.text)}</p><small>${esc(S.lastActionFeedback.effects)}</small></div>`:""}<div class="section-head"><h2>本月行动</h2><span>${available.length}项可选 · 点击即消耗1点</span></div><div class="action-grid">${available.map(a=>{const used=S.actionUsage[a.id]||0,broke=a.cost&&(S.money||0)<a.cost,injuredLock=S.injury.months>0&&!['recover','home','english','love_time','gift'].includes(a.id),disabled=S.actionPoints<=0||used>=a.max||broke||injuredLock;return`<article class="action-card ${used?"used":""}"><div class="action-icon">${a.icon}</div><h3>${esc(a.name)}</h3><p>${esc(a.desc)}</p><div class="effect-line">${a.effects.map(e=>`<span>${esc(e)}</span>`).join("")}</div><button data-action-id="${a.id}" ${disabled?"disabled":""}>${used>=a.max?"本月已完成":broke?`资金不足 · 需${a.cost}万`:injuredLock?"伤停不可用":"执行 · 1点"}</button></article>`}).join("")}</div>`;$("panel").querySelectorAll("[data-action-id]").forEach(b=>b.addEventListener("click",()=>applyAction(b.dataset.actionId)))}
 
-function renderStory(){const relation=S.relationship.status==="分手"?"你们已经分开，关系值不再变化，但共同经历仍留在生涯记录里。":S.relationship.status==="异地"?"隔着这么远还没散，可每次谁都不先开口，心就更远一点。":"她有自己的学业和生活，不可能一直围着你的比赛转。";$("panel").innerHTML=`<section class="hero-panel relation-card"><img src="assets/lin-xiaoman.webp" alt="林小满"><div><span class="eyebrow">林小满 · ${esc(S.relationship.status)}</span><h2>${S.relationship.status==="分手"?"你们回到了各自的人生":`关系值 ${Math.round(S.relationship.love)}`}</h2><p class="quote">${relation}</p><div class="bar-label"><span>亲密与信任</span><b>${Math.round(S.relationship.love)}/100</b></div><div class="bar-wide"><i style="width:${S.relationship.love}%"></i></div>${S.relationship.status!=="分手"?`<div class="effect-line"><span>比赛发挥 +${loveSupport(S)}</span><span>每月心情 +${S.relationship.love>=65?3:1}</span><span>关系越高，加成越大</span></div>`:""}</div></section><div class="section-head"><h2>人生记录</h2><span>最近${Math.min(30,S.log.length)}条</span></div><div class="story-list">${S.log.slice(0,30).map(l=>{const ai={age:14+Math.floor(l.month/12),month:l.month%12+1};return`<article class="story-log"><time>${ai.age}岁·${ai.month}月</time><div><h3>${l.kind==="action"?"行动":l.kind==="good"?"好消息":l.kind==="bad"?"代价":"故事"}</h3><p>${esc(l.text)}</p></div></article>`}).join("")}</div>`}
+function renderStory(){const married=!!(S.flags&&S.flags.married);const relation=married?"你们成家了。她还是有自己的事业，你还是在球场上奔跑，但如今每天回去，有个人在等你。":S.relationship.status==="分手"?"你们已经分开，关系值不再变化，但共同经历仍留在生涯记录里。":S.relationship.status==="异地"?"隔着这么远还没散，可每次谁都不先开口，心就更远一点。":"她有自己的学业和生活，不可能一直围着你的比赛转。";$("panel").innerHTML=`<section class="hero-panel relation-card"><img src="assets/lin-xiaoman.webp" alt="林小满"><div><span class="eyebrow">林小满 · ${esc(married?"已婚":S.relationship.status)}</span><h2>${S.relationship.status==="分手"?"你们回到了各自的人生":`关系值 ${Math.round(S.relationship.love)}`}</h2><p class="quote">${relation}</p><div class="bar-label"><span>亲密与信任</span><b>${Math.round(S.relationship.love)}/100</b></div><div class="bar-wide"><i style="width:${S.relationship.love}%"></i></div>${S.relationship.status!=="分手"?`<div class="effect-line"><span>比赛发挥 +${loveSupport(S)}</span><span>每月心情 +${S.relationship.love>=65?3:1}</span><span>关系越高，加成越大</span></div>`:""}</div></section><div class="section-head"><h2>人生记录</h2><span>最近${Math.min(30,S.log.length)}条</span></div><div class="story-list">${S.log.slice(0,30).map(l=>{const ai={age:14+Math.floor(l.month/12),month:l.month%12+1};return`<article class="story-log"><time>${ai.age}岁·${ai.month}月</time><div><h3>${l.kind==="action"?"行动":l.kind==="good"?"好消息":l.kind==="bad"?"代价":"故事"}</h3><p>${esc(l.text)}</p></div></article>`}).join("")}</div>`}
 
 function renderCareer(){const a=ageInfo(S),c=S.statsCareer,winRate=c.matches?Math.round(c.wins/c.matches*100):0;$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">CAREER FILE</span><h2>${esc(S.name)} · ${esc(S.position)}</h2><p>${esc(S.club.name)}，${a.age}岁。你能走多远，不只看最高属性；出勤、状态和每次选择也算数。</p>${heroMetrics([[c.matches,"正式比赛"],[c.goals,"生涯进球"],[c.assists,"生涯助攻"],[`${winRate}%`,"胜率"]])}</section><div class="career-grid"><article class="info-card path-card"><h3>生涯时间线</h3><div class="path-line"><b>14岁 · 重庆铜梁龙U16</b><span>进入当地知名俱乐部梯队</span></div><div class="path-line"><b>16岁 · ${S.flags.route16?S.route==="overseas"?"赴英青训":S.route==="campus"?"回到校园":"升入一线队":"尚未发生"}</b><span>${S.flags.route16?S.route==="overseas"?"与小满异地，独自适应海外":S.route==="campus"?"保留感情与学业，等待第二次机会":"在熟悉的城市开始成年足球":"16岁评估后决定去向"}</span></div><div class="path-line"><b>18岁 · ${S.flags.pro18?`效力${esc(S.club.name)}`:"转会市场尚未开放"}</b><span>${S.flags.pro18?"职业合同、转会与国家队系统开放":"继续积累实力、球探与教练信任"}</span></div></article><article class="info-card"><h3>技术属性（训练成长）</h3><div class="effect-line"><span>射术 ${Math.round(S.skills.finishing)}</span><span>盘带 ${Math.round(S.skills.dribble)}</span><span>视野 ${Math.round(S.skills.vision)}</span><span>定位球 ${Math.round(S.skills.setPiece)}</span><span>语言 ${Math.round(S.language)}</span><span>声望 ${Math.round(S.fame)}</span></div><p>射术、盘带、视野和定位球都是真实数值，会参与综合能力和比赛判定。“关键球”不设单独数值，由意志、状态、赛事阶段和相关天赋共同影响。当前生涯积分 <b>${careerScore(S)}</b>。</p></article></div><div class="section-head"><h2>转会履历</h2><span>${S.transfers.length}次</span></div>${S.transfers.length?`<div class="card-list">${S.transfers.map(t=>`<article class="info-card"><h3>${esc(t.from)} → ${esc(t.to)}</h3><p>${14+Math.floor(t.month/12)}岁 · 转会费${t.fee}万 · ${esc(t.role)}</p></article>`).join("")}</div>`:'<div class="empty-state">尚未完成正式转会。</div>'}`}
 
