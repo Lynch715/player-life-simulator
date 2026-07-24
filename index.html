@@ -2,17 +2,29 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#07130f">
   <meta name="description" content="从14岁梯队少年到国家队核心的足球球员生涯模拟游戏。">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%2328d27d%22/><text x=%2232%22 y=%2243%22 text-anchor=%22middle%22 font-size=%2236%22>⚽</text></svg>">
   <title>模拟球员 · 绿茵人生</title>
   <link rel="stylesheet" href="style.css">
+  <style>html{touch-action:manipulation;-webkit-text-size-adjust:100%}body{overscroll-behavior:none}.menu-screen .story-art img{object-position:center top}</style>
 </head>
 <body>
   <div class="pitch-noise" aria-hidden="true"></div>
 
-  <section id="creator" class="screen creator-screen">
+  <section id="menu" class="story-screen menu-screen">
+    <div class="story-art"><img src="assets/player.webp" alt="球员立绘"></div>
+    <div class="story-copy glass">
+      <span class="eyebrow">PLAYER / 001</span>
+      <h2>模拟球员 · 绿茵人生</h2>
+      <div class="story-body"><p>从14岁梯队少年开始，走出你自己的一段绿茵人生。</p></div>
+      <button id="menuContinue" class="primary-cta hidden" type="button">继续游戏 <span>→</span></button>
+      <button id="menuNew" class="ghost-btn" type="button" style="width:100%;margin-top:12px;min-height:48px">新游戏</button>
+    </div>
+  </section>
+
+  <section id="creator" class="screen creator-screen hidden">
     <div class="creator-visual">
       <img src="assets/player.webp" alt="年轻前锋立绘">
       <div class="visual-copy">

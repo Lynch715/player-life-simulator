@@ -149,7 +149,7 @@ function createInitialState(name="陈逐风",allocation={height:4,speed:4,burst:
 }
 
 function fatigueInjuryCheck(s,base){const p=Math.max(0,(base+(50-s.fitness)/500+(s.injury.risk||0)/800-(hasTalent(s,"iron_man")?.025:0))*diffOf(s).injury*assetInjuryFactor(s));if(chance(p))sufferInjury(s,p>.1?2:1)}
-function sufferInjury(s,months=1){const list=["脚踝扭伤","腿后肌拉伤","膝关节轻度损伤","腹股沟拉伤"];s.injury.name=pick(list);s.injury.months=Math.max(s.injury.months,Math.max(1,months-(hasTalent(s,"quick_healer")?1:0)));change(s,"form",-7);log(s,"bad",`${s.injury.name}，预计伤停${s.injury.months}个月。`)}
+function sufferInjury(s,months=1){const list=["脚踝扭伤","腿后肌拉伤","膝关节轻度损伤","腹股沟拉伤"];s.injury.name=pick(list);s.injury.months=Math.max(s.injury.months,Math.max(1,months-(hasTalent(s,"quick_healer")?1:0)));change(s,"form",-7);log(s,"bad",`${s.injury.name}，预计伤停${s.injury.months}个月。`);enqueueDecision({title:"你受伤了",body:`<p class="dialogue">${s.injury.name}，预计伤停 ${s.injury.months} 个月。</p><p>伤停期间无法高强度训练和比赛，只能做休息、康复、学业、顾家、陪小满这类行动。</p>`,options:[option("知道了","",()=>{})]},"伤病")}
 
 function addMoney(s,n){s.money=Math.round((s.money||0)+n)}
 const ASSETS=[
@@ -514,6 +514,8 @@ function queueWorldCupReport(r){enqueueDecision({title:r.champion?"中国队，�
 function queueAward(r,s,goalResult){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军。</p>`:""}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
 
 function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actionPoints>0&&!force){enqueueDecision({title:"还有执行点没有使用",body:`本月还剩 <b>${S.actionPoints}</b> 点。这些点用不完也不会留到下个月。`,options:[option("继续安排本月","返回行动面板",()=>{}),option("放弃剩余时间","直接进入下个月",()=>setTimeout(()=>advanceMonth(true),120),"danger")]},"时间确认");return}
+  modalBusy=true;
+  const _snap=S.monthSnap||{ov:overall(S),fit:S.fitness,form:S.form,mor:S.morale,love:S.relationship.love,money:S.money||0,age:ageInfo(S).age,inj:S.injury.months||0,st:S.relationship.status};
   S.totalMonth++;S.actionPoints=3;S.actionUsage={};change(S,"fitness",8);change(S,"morale",1);change(S,"form",-1);
   S.peakOverall=Math.max(S.peakOverall||0,overall(S));S.lastActionFeedback=null;
   if(["恋人","异地"].includes(S.relationship.status))change(S,"morale",S.relationship.love>=65?3:1);
@@ -536,8 +538,9 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
   if(S.national.called&&S.totalMonth>=96&&S.totalMonth%48===0)queueWorldCupReport(simulateWorldCup(S));
   if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);queueAward(seasonAwardCheck(S),S,goalResult);makeSeasonGoal(S)}
   riskSettlement(S);breakupCheck(S);intimateCheck(S);checkAchievements(S);updateRanking(S);
+  {const a2=ageInfo(S),rows=[],dd=(l,b,af,u="")=>{const v=Math.round((af-b)*10)/10;if(v)rows.push(`<p>${l} <b style="color:${v>0?'var(--green)':'var(--bad)'}">${v>0?'+':''}${v}${u}</b></p>`)};dd("综合能力",_snap.ov,overall(S));dd("体能",_snap.fit,S.fitness);dd("状态",_snap.form,S.form);dd("心情",_snap.mor,S.morale);if(["恋人","异地"].includes(S.relationship.status))dd("小满关系",_snap.love,S.relationship.love);dd("资金",_snap.money,S.money||0,"万");const extra=`${a2.age>_snap.age?`<p>🎂 你满 ${a2.age} 岁了。</p>`:""}${(S.injury.months||0)>_snap.inj?`<p style="color:var(--bad)">🩹 ${esc(S.injury.name)}，预计伤停 ${S.injury.months} 个月。</p>`:""}${_snap.st!=="分手"&&S.relationship.status==="分手"?`<p style="color:var(--bad)">💔 你和小满走散了。</p>`:""}`;modalQueue.unshift({title:`${a2.age}岁 · 第${a2.month}月 · 月度小结`,kicker:"月度小结",body:`${extra}${rows.join("")||"<p>这个月平平淡淡。</p>"}`,options:[option("确认，进入下月","",()=>{})]});S.monthSnap={ov:overall(S),fit:S.fitness,form:S.form,mor:S.morale,love:S.relationship.love,money:S.money||0,age:a2.age,inj:S.injury.months||0,st:S.relationship.status}}
   if(!S.retired){const r=shouldRetire(S);if(r){retirePlayer(S,r);saveGame();return}}
-  saveGame();renderAll();pumpModal()}
+  modalBusy=false;saveGame();renderAll();pumpModal()}
 
 function phaseCopy(s){const a=ageInfo(s).age,p=phaseOf(s);if(a<16)return["梯队成长期","通过训练和比赛争取留队"];if(a<18&&p==="firstteam")return["一线队学徒期","训练、替补和更衣室竞争都要适应"];if(a<18&&p==="overseas")return["海外青训期","先适应语言，再跟上训练强度"];if(a<18&&p==="campus")return["校园重启期","兼顾学业，为18岁的职业试训做准备"];return["职业生涯","转会、国家队和年度荣誉已经开放"]}
 
@@ -575,7 +578,7 @@ function renderCreator(){const left=20-Object.values(creatorAllocation).reduce((
 $("rerollTalents").disabled=rerollsLeft<=0;$("startGame").disabled=left!==0||creatorTalents.length!==3||!$("playerName").value.trim();$("attributeAllocator").querySelectorAll("[data-stat]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.stat,d=Number(b.dataset.delta),remaining=20-Object.values(creatorAllocation).reduce((a,v)=>a+v,0);if(d>0&&remaining<=0||d<0&&creatorAllocation[k]<=0)return;creatorAllocation[k]+=d;renderCreator()}))}
 
 function renderPrologue(){const p=PROLOGUE[prologueIndex];$("prologuePortrait").src=p.portrait;$("prologueKicker").textContent=p.kicker;$("prologueTitle").textContent=p.title;$("prologueBody").innerHTML=p.body.map(x=>`<p>${x}</p>`).join("");$("prologueProgress").style.width=`${(prologueIndex+1)/PROLOGUE.length*100}%`;$("nextPrologue").innerHTML=prologueIndex===PROLOGUE.length-1?"进入梯队 <span>→</span>":"继续 <span>→</span>"}
-function showGame(){$("creator").classList.add("hidden");$("prologue").classList.add("hidden");$("ending")?.classList.add("hidden");$("game").classList.remove("hidden");if(S.retired){showEnding(S);return}updateRanking(S);saveGame();renderAll()}
+function showGame(){$("menu")?.classList.add("hidden");$("creator").classList.add("hidden");$("prologue").classList.add("hidden");$("ending")?.classList.add("hidden");$("game").classList.remove("hidden");if(S.retired){showEnding(S);return}updateRanking(S);saveGame();renderAll()}
 function showEnding(s){const e=buildEnding(s),el=$("ending");if(typeof document==="undefined"||!el)return;$("game").classList.add("hidden");$("modalMask").classList.add("hidden");el.classList.remove("hidden");
   $("endingBody").innerHTML=`<span class="eyebrow">CAREER OVER · ${esc(e.difficulty)}难度</span><h2>${esc(s.name)} · ${e.age}岁挂靴</h2><div class="ending-grade">${esc(e.grade)}</div><p class="ending-line">${e.line}</p>
   <div class="metric-grid">${e.metrics.map(x=>`<div class="metric"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>
@@ -589,7 +592,10 @@ function requestRestart(){if(!S){location.reload();return}enqueueDecision({title
 
 function init(){
   creatorTalents=randomTalents();renderCreator();
-  const saved=loadGame();if(saved){const cont=document.createElement("button");cont.id="continueBtn";cont.className="ghost-btn";cont.style.cssText="width:100%;margin-top:10px;min-height:46px";cont.textContent=`继续 ${saved.name} · ${ageInfo(saved).age}岁存档`;cont.addEventListener("click",()=>{if(!loadGame())return;S=saved;showGame()});$("startGame").after(cont)}
+  const saved=loadGame();
+  if(saved){$("menuContinue").classList.remove("hidden");$("menuContinue").innerHTML=`继续 · ${esc(saved.name)} · ${ageInfo(saved).age}岁 <span>→</span>`;$("menuContinue").addEventListener("click",()=>{if(!loadGame())return;S=saved;$("menu").classList.add("hidden");showGame()})}else{$("menuNew").className="primary-cta"}
+  $("menuNew").addEventListener("click",()=>{$("menu").classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()});
+  ["gesturestart","gesturechange","gestureend"].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
   $("playerName").addEventListener("input",renderCreator);$("rerollTalents").addEventListener("click",()=>{if(rerollsLeft<=0)return;creatorTalents=randomTalents();rerollsLeft--;renderCreator()});$("startGame").addEventListener("click",startNewGame);$("nextPrologue").addEventListener("click",()=>{const now=Date.now();if(now-prologueClickAt<300)return;prologueClickAt=now;if(prologueIndex<PROLOGUE.length-1){prologueIndex++;renderPrologue()}else showGame()});
   document.addEventListener("keydown",trapModalFocus);
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
