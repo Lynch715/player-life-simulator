@@ -62,6 +62,24 @@ const NATIONAL_OPPONENTS=[
   {name:"日本",strength:86},{name:"韩国",strength:84},{name:"伊朗",strength:83},{name:"澳大利亚",strength:81},
   {name:"沙特阿拉伯",strength:79},{name:"卡塔尔",strength:78},{name:"乌兹别克斯坦",strength:77},{name:"泰国",strength:69}
 ];
+// 世预赛（亚洲区）对手池
+const WC_QUAL_POOL=[
+  {name:"日本",strength:85},{name:"韩国",strength:83},{name:"伊朗",strength:82},{name:"澳大利亚",strength:80},
+  {name:"沙特阿拉伯",strength:78},{name:"卡塔尔",strength:76},{name:"伊拉克",strength:73},{name:"阿联酋",strength:72},
+  {name:"阿曼",strength:69},{name:"越南",strength:67},{name:"巴林",strength:66}
+];
+// 世界杯决赛圈：小组赛对手池（中上游）
+const WC_GROUP_POOL=[
+  {name:"墨西哥",strength:82},{name:"塞内加尔",strength:81},{name:"日本",strength:82},{name:"美国",strength:80},
+  {name:"韩国",strength:80},{name:"瑞士",strength:81},{name:"喀麦隆",strength:79},{name:"哥伦比亚",strength:82},
+  {name:"波兰",strength:80},{name:"澳大利亚",strength:78},{name:"摩洛哥",strength:83},{name:"加纳",strength:78}
+];
+// 世界杯决赛圈：淘汰赛对手池（强队）
+const WC_ELITE_POOL=[
+  {name:"巴西",strength:93},{name:"法国",strength:93},{name:"阿根廷",strength:92},{name:"英格兰",strength:90},
+  {name:"西班牙",strength:89},{name:"葡萄牙",strength:89},{name:"德国",strength:88},{name:"荷兰",strength:87},
+  {name:"意大利",strength:86},{name:"克罗地亚",strength:85},{name:"比利时",strength:85},{name:"乌拉圭",strength:84}
+];
 
 const PROLOGUE=[
   {kicker:"序章 · 200?年",title:"那只旧足球",portrait:"assets/father.webp",body:[
@@ -343,10 +361,10 @@ function simulateMatchCore(s,rng=Math.random,opts={}){
     if(hasTalent(s,"free_kick")||s.skills.setPiece>68)types.push("setpiece");
     for(let i=0;i<attempts;i++){
       const type=types[Math.floor(rng()*types.length)],stat=type==="finish"?s.skills.finishing:type==="dribble"?((s.stats.burst+s.skills.dribble)/2):type==="header"?s.stats.height:type==="setpiece"?s.skills.setPiece:s.skills.vision;
-      let p=.25+(stat-45)/110+(s.form-50)/260+talentBonus/100;
+      let p=.25+(stat-45)/90+(s.form-50)/260+talentBonus/100;
       if(type==="finish"&&hasTalent(s,"box_instinct"))p+=.09;if(type==="header"&&hasTalent(s,"aerial_king"))p+=.13;if(type==="setpiece"&&hasTalent(s,"free_kick"))p+=.16;if(type==="dribble"&&hasTalent(s,"explosive_start"))p+=.08;
-      const success=rng()<clamp(p,.16,.83);if(success)keyWins++;else failures++;
-      let isGoal=success&&["finish","header","setpiece"].includes(type)&&goals<gf&&rng()<clamp(.36+(stat-55)/130,.28,.76);
+      const success=rng()<clamp(p,.16,.88);if(success)keyWins++;else failures++;
+      let isGoal=success&&["finish","header","setpiece"].includes(type)&&goals<gf&&rng()<clamp(.38+(stat-52)/100,.28,.82);
       let isAssist=success&&["pass","dribble"].includes(type)&&assists+goals<gf&&rng()<clamp(.26+(s.skills.vision-45)/150,.18,.63);
       if(isGoal){goals++;timeline.push({minute:Math.min(88,Math.round(minuteStart+i*(80-minuteStart)/attempts+rndFloat(rng,0,6))),text:matchActionText(type,true,s),kind:"goal"})}
       else if(isAssist){assists++;timeline.push({minute:Math.min(88,Math.round(minuteStart+i*(80-minuteStart)/attempts+rndFloat(rng,0,6))),text:`助攻：${matchActionText(type,true,s)}`,kind:"good"})}
@@ -369,7 +387,7 @@ function applyMatch(s,report){
   const c=s.statsCareer,ss=s.seasonStats;c.matches++;ss.matches++;if(report.role==="首发")c.starts++;c.goals+=report.goals;c.assists+=report.assists;ss.goals+=report.goals;ss.assists+=report.assists;ss.ratingTotal+=report.rating;
   if(report.gf>report.ga){c.wins++;ss.wins++;change(s,"form",5)}else if(report.gf===report.ga){c.draws++;change(s,"form",1)}else{c.losses++;change(s,"form",Math.round(-4*pp))}
   c.bestRating=Math.max(c.bestRating,report.rating);if(report.goals>=3){c.hatTricks++;unlock("hat_trick")};if(report.goals>0)unlock("first_goal");unlock("debut");if(c.goals>=50)unlock("fifty_goals");if(c.goals>=100)unlock("hundred_goals");if(c.assists>=50)unlock("fifty_assists");
-  change(s,"fame",report.goals*1.3+report.assists*.7+(report.rating>=8?2:0));change(s,"fitness",-(hasTalent(s,"engine")?12:16));change(s,"morale",report.rating>=7?3:Math.round(-2*pp));change(s,"coachFavor",report.rating>=7.5?4:report.rating<6?-3:1);
+  change(s,"fame",report.goals*1.3+report.assists*.7+(report.rating>=8?2:0));change(s,"fitness",-(hasTalent(s,"engine")?8:12));change(s,"morale",report.rating>=7?3:Math.round(-2*pp));change(s,"coachFavor",report.rating>=7.5?4:report.rating<6?-3:1);
   if(report.injured)sufferInjury(s,rand(1,4));
   log(s,report.gf>report.ga?"good":report.gf<report.ga?"bad":"story",`${report.competition}：${report.club} ${report.gf}-${report.ga} ${report.opponent}。你${report.role}，${report.goals}球${report.assists}助，评分${report.rating||"—"}。`)
 }
@@ -402,8 +420,6 @@ function acceptOffer(s,id){const offer=s.offers.find(o=>o.id===id);if(!offer)ret
 
 function nationalSelectionCheck(s){if(s.national.called||ageInfo(s).age<18)return false;const avg=s.seasonStats.matches?s.seasonStats.ratingTotal/s.seasonStats.matches:0;const threshold=(hasTalent(s,"red_shirt")?71:74)+diffOf(s).threshold;if(overall(s)>=threshold&&avg>=6.7+diffOf(s).threshold*.02){s.national.called=true;s.national.adapt=35;unlock("national");log(s,"story","中国国家队征召函抵达俱乐部。父亲把那张截图保存了三次。") ;return true}return false}
 function simulateNationalMatch(s,rng=Math.random,worldCup=false){const opp=pick(NATIONAL_OPPONENTS),player=overall(s),china=70+(player-70)*.45+(s.national.adapt||0)*.05+(hasTalent(s,"red_shirt")?2:0),edge=china-opp.strength+rndFloat(rng,-9,9),gf=poisson(clamp(1.1+edge/18,.2,3.2),rng),ga=poisson(clamp(1.15-edge/22,.2,3.1),rng),goals=gf>0&&rng()<clamp(.28+(player-65)/85,.2,.72)?Math.min(gf,rng()<.16?2:1):0,assists=gf-goals>0&&rng()<.32?1:0,report={opponent:opp.name,gf,ga,goals,assists,worldCup};s.national.caps++;s.statsCareer.nationalCaps++;s.national.goals+=goals;s.statsCareer.nationalGoals+=goals;if(goals)unlock("national_goal");change(s,"fitness",-12);change(s,"fame",goals*3+(gf>ga?2:0));log(s,gf>ga?"good":gf<ga?"bad":"story",`国家队${gf}-${ga}${opp.name}。你贡献${goals}球${assists}助。`);return report}
-
-function simulateWorldCup(s,rng=Math.random){s.national.worldCups++;const stages=["小组赛1","小组赛2","小组赛3","十六强","八强","半决赛","决赛"],opps=[{name:"墨西哥",strength:83},{name:"塞内加尔",strength:82},{name:"丹麦",strength:84},{name:"葡萄牙",strength:90},{name:"巴西",strength:93},{name:"法国",strength:94},{name:"阿根廷",strength:92}],results=[];let alive=true;for(let i=0;i<stages.length&&alive;i++){const opp=opps[i],team=72+(overall(s)-72)*.62+(s.national.adapt||0)*.06+(hasTalent(s,"red_shirt")?2:0)+(hasTalent(s,"big_heart")&&i>=3?2:0)+(hasTalent(s,"final_master")&&i===6?4:0),edge=team-opp.strength+rndFloat(rng,-10,10),gf=poisson(clamp(1.1+edge/16,.18,3.4),rng),ga=poisson(clamp(1.15-edge/20,.18,3.2),rng);let won=gf>ga;if(i>=3&&gf===ga)won=rng()<clamp(.42+edge/40+(hasTalent(s,"big_heart")?.08:0),.18,.82);results.push({stage:stages[i],opp:opp.name,gf,ga,won,pen:i>=3&&gf===ga});if(i>=3&&!won)alive=false;if(i<3&&i===2&&results.filter(x=>x.gf>x.ga).length<1)alive=false}const champion=results.length===7&&results[6].won;if(champion){s.honours.unshift({title:"世界杯冠军",season:ageInfo(s).season,icon:"世",detail:"中国国家队"});s.seasonStats.trophies++;unlock("world_cup");change(s,"fame",25);log(s,"good","中国队赢得世界杯。你把父亲送你的旧足球带上领奖台。")};return{results,champion}}
 
 function makeSeasonGoal(s){if(ageInfo(s).age<18||s.route!=="pro"){s.seasonGoal=null;return}
   const o=overall(s),club=currentClub(s),roll=Math.random();let goal;
@@ -459,6 +475,8 @@ function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return 
 function toast(text){if(typeof document==="undefined")return;const el=$("toast");if(!el)return;el.textContent=text;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),1800)}
 
 function enqueueDecision(d,kicker="关键抉择"){if(!d)return;modalQueue.push({...d,kicker});pumpModal()}
+// 插到队首：让世界杯的逐场链条连续播放，不被赛季奖项等其它弹窗打断
+function enqueueFront(d,kicker="关键抉择"){if(!d)return;modalQueue.unshift({...d,kicker});pumpModal()}
 function pumpModal(){if(modalBusy||!modalQueue.length||typeof document==="undefined")return;modalBusy=true;const d=modalQueue.shift(),mask=$("modalMask"),modal=$("modal"),wrap=$("modalPortraitWrap");$("modalKicker").textContent=d.kicker||"关键抉择";$("modalTitle").textContent=d.title||"抉择";$("modalBody").innerHTML=d.body||"";
   if(d.portrait){wrap.classList.remove("hidden");$("modalPortrait").src=d.portrait;modal.classList.remove("no-portrait")}else{wrap.classList.add("hidden");modal.classList.add("no-portrait")}
   const opts=typeof d.options==="function"?d.options(S):d.options;$("modalOptions").innerHTML="";(opts||[option("继续","",()=>{})]).forEach((o,i)=>{const b=document.createElement("button");b.className=`option-button ${o.tone||""}`;b.innerHTML=`<b>${esc(o.text)}</b>${o.effect?`<span>${esc(o.effect)}</span>`:""}`;b.addEventListener("click",()=>{b.disabled=true;try{o.apply?.()}finally{mask.classList.add("hidden");modalBusy=false;saveGame();renderAll();setTimeout(pumpModal,80)}});$("modalOptions").appendChild(b)});mask.classList.remove("hidden");const first=$("modalOptions").querySelector("button");if(first)setTimeout(()=>first.focus(),30)}
@@ -507,14 +525,81 @@ function queueMatchReport(s,report){enqueueDecision({title:`${report.competition
 function queueEvent(s,e){enqueueDecision({title:e.title,body:e.body,portrait:e.portrait,options:e.options(s)},"两月事件")}
 function queueStory(s,beat){enqueueDecision({title:beat.title,body:beat.body,portrait:beat.portrait,options:beat.options},"半年剧情")}
 function queueNationalCall(s){enqueueDecision({title:"中国国家男子足球队 · 征召",portrait:"assets/father.webp",body:`<p>通知是以红头文件的形式通过俱乐部转交的。不是电话，不是消息。一张纸，公章，写着你的名字。</p><p>你发了一会儿愣。你从小在电视上看过很多次别人接到征召的场景——有人会哭，会打电话给家人。但你只是坐在那里。你想到的不是荣耀，而是门诊部三楼的收费窗口，想到你爸在病床上说的“踢给爸看”，想到小满最后一次站在漏雨的铁丝网外看你的比赛，她什么时候走的你都不知道。</p><p>你把手机翻到反面扣在桌上，坐了一会儿。然后你站起来，把那张纸叠好，放进背包最里面的夹层——那个你一直放着那只旧足球皮的位置。</p><p>你拉上拉链，走出去。训练场上的灯已经亮了。</p>`,options:[option("接受征召","国家队功能开放；体能管理压力增加",()=>{})]},"国家队")}
-function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga} ${r.opponent}`,body:`你代表中国队出场，贡献 <b>${r.goals}</b> 球。${r.gf>r.ga?"终场哨后，整片看台都在唱同一首歌。":r.gf<r.ga?"失利没有让任务结束，下一次集训已经写进日历。":"比分没有分出高下，身体的疲惫却很具体。"}`,options:[option("返回俱乐部","国家队数据已归档",()=>{})]},"为国而战")}
-function queueWorldCupReport(r){enqueueDecision({title:r.champion?"中国队，世界冠军":"世界杯之旅结束",body:`<div class="story-list">${r.results.map(x=>`<div class="story-log"><time>${x.stage}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.won?"晋级":"止步"}</p></div></div>`).join("")}</div>${r.champion?`<p class="dialogue">终场哨一响，你和队友一起冲进场内。七场比赛，你们真的一场一场赢到了最后。</p>`:"<p>你把这一届的比分记了下来。四年后，还能再来一次。</p>"}`,options:[option("记住这一届","国家队数据已更新",()=>{})]},"世界杯")}
-function queueAward(r,s,goalResult){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军。</p>`:""}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
+function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga} ${r.opponent}`,body:`你代表中国队出场，贡献 <b>${r.goals}</b> 球。${r.gf>r.ga?"终场哨后，整片看台都在唱同一首歌。":r.gf<r.ga?"失利没有让任务结束，下一次集训已经写进日历。":"比分没有分出高下，身体的疲惫却很具体。"}`,options:[option("返回俱乐部","国家队数据已归档",()=>{})]},"为国而战")}function queueAward(r,s,goalResult){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军。</p>`:""}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
 
+// ===== 世界杯：世预赛门槛 + 随机抽签 + 逐场可玩（淘汰赛临场战术）=====
+const WC_STAGE_NAMES=["小组赛第1场","小组赛第2场","小组赛第3场","十六强","八强","半决赛","决赛"];
+function wcDraw(rng){
+  const take=(pool,n)=>{const c=[...pool],out=[];for(let k=0;k<n&&c.length;k++)out.push(c.splice(Math.floor(rng()*c.length),1)[0]);return out};
+  return {group:take(WC_GROUP_POOL,3),ko:take(WC_ELITE_POOL,4).sort((a,b)=>a.strength-b.strength)};
+}
+function simulateQualifiers(s,rng){
+  const china=75+(overall(s)-74)*.6+(s.national.adapt||0)*.05+(hasTalent(s,"red_shirt")?2:0);
+  const c=[...WC_QUAL_POOL],list=[];
+  for(let k=0;k<8;k++)list.push(c.length?c.splice(Math.floor(rng()*c.length),1)[0]:pick(WC_QUAL_POOL));
+  const matches=[];let points=0;
+  for(const opp of list){
+    const edge=china-opp.strength+rndFloat(rng,-11,11);
+    const gf=poisson(clamp(1.2+edge/17,.2,3.4),rng),ga=poisson(clamp(1.15-edge/20,.2,3.2),rng);
+    if(gf>ga)points+=3;else if(gf===ga)points+=1;
+    matches.push({opp:opp.name,gf,ga});
+  }
+  const threshold=11+diffOf(s).threshold;
+  return {matches,points,threshold,qualified:points>=threshold};
+}
+function wcMatchSim(s,opp,mentality,i,rng){
+  const men={"稳守":{a:.85,d:.68},"均衡":{a:1,d:1},"强攻":{a:1.28,d:1.32}}[mentality]||{a:1,d:1};
+  const team=74+(overall(s)-72)*.72+(s.national.adapt||0)*.06+(hasTalent(s,"red_shirt")?2:0)+(hasTalent(s,"big_heart")&&i>=3?3:0)+(hasTalent(s,"final_master")&&i===6?5:0);
+  const edge=team-opp.strength+rndFloat(rng,-10,10);
+  const gf=poisson(clamp((1.1+edge/16)*men.a,.18,3.6),rng),ga=poisson(clamp((1.15-edge/20)*men.d,.18,3.4),rng);
+  const player=overall(s);
+  const goals=gf>0&&rng()<clamp(.30+(player-65)/80,.2,.75)?Math.min(gf,rng()<.18?2:1):0;
+  const assists=(gf-goals>0&&rng()<.32)?1:0;
+  let won=gf>ga,pen=false;
+  if(i>=3&&gf===ga){pen=true;won=rng()<clamp(.42+edge/40+(hasTalent(s,"big_heart")?.08:0),.18,.82)}
+  return {opp:opp.name,strength:opp.strength,gf,ga,goals,assists,won,pen,mentality,stage:i};
+}
+function startWorldCup(s){
+  const q=simulateQualifiers(s,Math.random);
+  enqueueDecision({title:q.qualified?"世预赛出线！":"世预赛出局",body:`<div class="story-list">${q.matches.map(m=>`<div class="story-log"><time>${m.gf>m.ga?"胜":m.gf===m.ga?"平":"负"}</time><div><h3>中国 ${m.gf}-${m.ga} ${esc(m.opp)}</h3></div></div>`).join("")}</div><p>八场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${q.qualified?"中国队闯进世界杯决赛圈！":"差一口气，四年后再来——提升综合能力能带动全队实力。"}</p>`,options:[q.qualified?option("进入决赛圈抽签","",()=>setupWcFinals(s)):option("接受结果","",()=>{})]},"世界杯预选赛");
+}
+function setupWcFinals(s){
+  s.national.worldCups++;
+  const d=wcDraw(Math.random);
+  s.national.wcRun={stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true};
+  enqueueFront({title:"世界杯抽签",body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,options:[option("开始小组赛","",()=>wcNext(s))]},"世界杯");
+}
+function wcNext(s){const run=s.national.wcRun;if(!run||!run.alive)return;if(run.stage<3)wcPlayMatch(s,"均衡");else wcKnockoutChoice(s);}
+function wcKnockoutChoice(s){
+  const run=s.national.wcRun,opp=run.ko[run.stage-3];
+  enqueueFront({title:`${WC_STAGE_NAMES[run.stage]} · 对阵 ${esc(opp.name)}`,body:`<p>对手 <b>${esc(opp.name)}</b>（实力 ${opp.strength}）。选择本场基调：</p><p class="dialogue">稳守：少丢也少进，利于以弱抗强、拖进点球；全力压上：进球更多但后防更险；均衡：居中。</p>`,options:[option("稳守反击","降低失球与进球，利于爆冷",()=>wcPlayMatch(s,"稳守")),option("攻守均衡","中规中矩",()=>wcPlayMatch(s,"均衡")),option("全力压上","多进球，风险更高",()=>wcPlayMatch(s,"强攻"))]},"世界杯");
+}
+function wcPlayMatch(s,mentality){
+  const run=s.national.wcRun,i=run.stage;
+  const opp=i<3?run.group[i]:run.ko[i-3];
+  const m=wcMatchSim(s,opp,mentality,i,Math.random);
+  s.national.caps++;s.statsCareer.nationalCaps++;s.national.goals+=m.goals;s.statsCareer.nationalGoals+=m.goals;
+  if(m.goals)unlock("national_goal");
+  change(s,"fitness",-10);change(s,"fame",m.goals*3+(m.won?2:0));
+  run.results.push(m);
+  let advance;
+  if(i<3){run.groupWins+=(m.gf>m.ga?1:0);run.groupPts+=(m.gf>m.ga?3:m.gf===m.ga?1:0);advance=i<2?true:(run.groupWins>=1||run.groupPts>=4);}
+  else advance=m.won;
+  const champion=i===6&&m.won;
+  const resultLine=i>=3?(m.won?"晋级下一轮！":"止步于此。"):(i===2?(advance?"小组出线！":"小组赛出局。"):(m.gf>m.ga?"拿下三分。":m.gf===m.ga?"逼平对手。":"惜败。"));
+  enqueueFront({title:`${WC_STAGE_NAMES[i]} · 中国 ${m.gf}-${m.ga} ${esc(m.opp)}${m.pen?"（点球）":""}`,body:`<div class="match-score"><span class="match-team">中国</span><strong>${m.gf} : ${m.ga}</strong><span class="match-team">${esc(m.opp)}</span></div><p>你贡献 <b>${m.goals}</b> 球 ${m.assists} 助。${resultLine}</p>${(i>=3&&mentality!=="均衡")?`<p class="dialogue">本场基调：${mentality}。</p>`:""}`,options:[option(champion?"捧起大力神杯":advance?"继续":"接受结果","",()=>{run.stage++;if(champion)wcFinish(s,true);else if(!advance){run.alive=false;wcFinish(s,false);}else wcNext(s);})]},"世界杯");
+}
+function wcFinish(s,champion){
+  const run=s.national.wcRun;
+  if(champion){s.honours.unshift({title:"世界杯冠军",season:ageInfo(s).season,icon:"世",detail:"中国国家队"});s.seasonStats.trophies++;unlock("world_cup");change(s,"fame",25);}
+  const short=["小组1","小组2","小组3","十六强","八强","半决赛","决赛"];
+  const wcGoals=run.results.reduce((p,x)=>p+x.goals,0);
+  enqueueFront({title:champion?"中国队，世界冠军！":"世界杯之旅结束",body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option("记住这一届","国家队数据已更新",()=>{s.national.wcRun=null;})]},"世界杯");
+}
 function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actionPoints>0&&!force){enqueueDecision({title:"还有执行点没有使用",body:`本月还剩 <b>${S.actionPoints}</b> 点。这些点用不完也不会留到下个月。`,options:[option("继续安排本月","返回行动面板",()=>{}),option("放弃剩余时间","直接进入下个月",()=>setTimeout(()=>advanceMonth(true),120),"danger")]},"时间确认");return}
   modalBusy=true;
   const _snap=S.monthSnap||{ov:overall(S),fit:S.fitness,form:S.form,mor:S.morale,love:S.relationship.love,money:S.money||0,age:ageInfo(S).age,inj:S.injury.months||0,st:S.relationship.status};
-  S.totalMonth++;S.actionPoints=3;S.actionUsage={};change(S,"fitness",8);change(S,"morale",1);change(S,"form",-1);
+  S.totalMonth++;S.actionPoints=3;S.actionUsage={};change(S,"fitness",16+Math.max(0,Math.round((60-S.fitness)*0.7)));change(S,"morale",1);change(S,"form",Math.round((52-S.form)*0.22));
   S.peakOverall=Math.max(S.peakOverall||0,overall(S));S.lastActionFeedback=null;
   if(["恋人","异地"].includes(S.relationship.status))change(S,"morale",S.relationship.love>=65?3:1);
   if(S.assets&&S.assets.house)change(S,"morale",2);
@@ -532,8 +617,7 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
   if(S.totalMonth%2===0&&!justTurned16){const e=chooseRandomEvent(S);if(e)queueEvent(S,e)}
   if(S.totalMonth%6===0&&STORY_BEATS[S.totalMonth])queueStory(S,STORY_BEATS[S.totalMonth](S));
   if(a.age>=18&&S.totalMonth%6===0&&!S.offers.length)generateOffers(S,S.flags.wantsMove?3:2);
-  const calledNow=nationalSelectionCheck(S);if(calledNow)queueNationalCall(S);else if(S.national.called&&S.totalMonth%6===0)queueNationalReport(simulateNationalMatch(S));
-  if(S.national.called&&S.totalMonth>=96&&S.totalMonth%48===0)queueWorldCupReport(simulateWorldCup(S));
+  const calledNow=nationalSelectionCheck(S);if(calledNow)queueNationalCall(S);else if(S.national.called&&S.totalMonth>=96&&S.totalMonth%48===0)startWorldCup(S);else if(S.national.called&&S.totalMonth%6===0)queueNationalReport(simulateNationalMatch(S));
   if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);queueAward(seasonAwardCheck(S),S,goalResult);makeSeasonGoal(S)}
   riskSettlement(S);breakupCheck(S);intimateCheck(S);checkAchievements(S);updateRanking(S);
   {const a2=ageInfo(S),rows=[],dd=(l,b,af,u="")=>{const v=Math.round((af-b)*10)/10;if(v)rows.push(`<div class="ms-row"><span>${l}</span><b style="color:${v>0?'var(--green)':'var(--bad)'}">${v>0?'+':''}${v}${u}</b></div>`)};dd("综合能力",_snap.ov,overall(S));dd("体能",_snap.fit,S.fitness);dd("状态",_snap.form,S.form);dd("心情",_snap.mor,S.morale);if(["恋人","异地"].includes(S.relationship.status))dd("小满关系",_snap.love,S.relationship.love);dd("资金",_snap.money,S.money||0,"万");const extra=`${a2.age>_snap.age?`<p>🎂 你满 ${a2.age} 岁了。</p>`:""}${(S.injury.months||0)>_snap.inj?`<p style="color:var(--bad)">🩹 ${esc(S.injury.name)}，预计伤停 ${S.injury.months} 个月。</p>`:""}${_snap.st!=="分手"&&S.relationship.status==="分手"?`<p style="color:var(--bad)">💔 你和小满走散了。</p>`:""}`;modalQueue.unshift({title:`${a2.age}岁 · 第${a2.month}月 · 月度小结`,kicker:"月度小结",body:`${extra}<div class="month-summary">${rows.join("")||'<div class="ms-row"><span>这个月平平淡淡</span></div>'}</div>`,options:[option("确认，进入下月","",()=>{})]});S.monthSnap={ov:overall(S),fit:S.fitness,form:S.form,mor:S.morale,love:S.relationship.love,money:S.money||0,age:a2.age,inj:S.injury.months||0,st:S.relationship.status}}
@@ -565,7 +649,7 @@ function renderMatches(){const c=S.statsCareer;$("panel").innerHTML=`<section cl
 
 function renderTransfer(){if(ageInfo(S).age<18){$("panel").innerHTML=`<div class="locked-panel"><div class="lock">⌁</div><h2>转会市场将在18岁开放</h2><p>16岁的选择会影响职业起点。即使回到校园，18岁时仍有机会参加职业试训。</p></div>`;return}$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">TRANSFER MARKET</span><h2>${esc(S.club.name)} · 身价约 ${Math.max(120,Math.round((overall(S)-50)*38+S.fame*8))}万</h2><p>报价会参考能力、年龄、声望、赛季数据和天赋。球队越强，比赛强度越高，首发也越难拿。个人资金可以用来给小满买礼物、贴补家用和专业康复，也会计入生涯积分。${S.debt?`<br><b>当前欠款 ${S.debt} 万</b>，会拉低生涯积分，记得用工资或“贴补家用”还清。`:""}</p>${heroMetrics([[overall(S),"综合能力"],[Math.round(S.fame),"声望"],[S.offers.length,"有效报价"],[`${Math.round(S.money)}万`,"个人资金"]])}</section><div class="section-head"><h2>收到的报价</h2><button id="askOffers" class="small-button" ${S.actionPoints<1?"disabled":""}>联系经纪人 · 1点</button></div><div class="card-list">${S.offers.length?S.offers.map(o=>`<article class="offer-card"><div><span class="eyebrow">${esc(o.league)} · ${esc(o.role)}</span><h3>${esc(o.club)}</h3><p>俱乐部强度 ${o.strength} · 转会费 ${o.fee}万 · 报价剩余${o.months}个月</p><div class="offer-actions"><button class="small-button" data-offer="${o.id}">接受报价</button></div></div><div class="salary"><b>${o.salary}万</b><br><span class="tag">月薪</span></div></article>`).join(""):'<div class="empty-state">当前没有有效报价。每半年会自动刷新，也可以消耗1点联系经纪人。</div>'}</div>`;$("askOffers")?.addEventListener("click",()=>{if(S.actionPoints<1)return;S.actionPoints--;generateOffers(S,3);log(S,"action","联系经纪人了解转会市场。");saveGame();renderAll()});$("panel").querySelectorAll("[data-offer]").forEach(b=>b.addEventListener("click",()=>{enqueueDecision({title:"确认完成转会？",body:`离开${esc(S.club.name)}后，现有教练信任与首发顺位会重新计算。`,options:[option("签署合同","转会立即生效",()=>acceptOffer(S,b.dataset.offer),"gold"),option("再考虑一下","报价继续保留",()=>{})]},"转会确认")}))}
 
-function renderNational(){if(!S.national.called){const avg=S.seasonStats.matches?S.seasonStats.ratingTotal/S.seasonStats.matches:0;$("panel").innerHTML=`<div class="locked-panel"><div class="lock">★</div><h2>国家队大门尚未打开</h2><p>当前${esc(diffOf(S).name)}难度下，通常需要综合能力达到 ${(hasTalent(S,"red_shirt")?71:74)+diffOf(S).threshold}，并保持赛季平均评分 ${(6.7+diffOf(S).threshold*.02).toFixed(1)} 以上。当前能力 ${overall(S)}，赛季平均 ${avg?avg.toFixed(1):"—"}。</p></div>`;return}$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">CHINA NATIONAL TEAM</span><h2>穿上国家队球衣</h2><p>国家队比赛每半年触发。你可能受伤，也可能被安排到不熟悉的位置；实力足够时，还能带队冲击世界杯。</p>${heroMetrics([[S.national.caps,"国家队出场"],[S.national.goals,"国家队进球"],[Math.round(S.national.adapt),"战术适应"],[S.national.worldCups,"世界杯次数"]])}</section><div class="section-head"><h2>国家队说明</h2><span>世界杯每4年模拟一次</span></div><article class="info-card"><h3>当前角色</h3><p>${overall(S)>=90?"世界级核心，球队会围绕你的终结能力组织进攻。":overall(S)>=82?"稳定主力，拥有改变亚洲级强强对话的能力。":"轮换前锋，需要在有限时间内证明自己。"}${S.flags.outOfPosition?" 教练还会把你安排到右侧承担防守职责。":""}</p><div class="effect-line"><span>身披红色战袍</span><span>${hasTalent(S,"red_shirt")?"红色战袍天赋":"常规征召"}</span><span>${S.flags.captain?"国家队队长候选":"竞争队内地位"}</span></div></article>`}
+function renderNational(){if(!S.national.called){const avg=S.seasonStats.matches?S.seasonStats.ratingTotal/S.seasonStats.matches:0;$("panel").innerHTML=`<div class="locked-panel"><div class="lock">★</div><h2>国家队大门尚未打开</h2><p>当前${esc(diffOf(S).name)}难度下，通常需要综合能力达到 ${(hasTalent(S,"red_shirt")?71:74)+diffOf(S).threshold}，并保持赛季平均评分 ${(6.7+diffOf(S).threshold*.02).toFixed(1)} 以上。当前能力 ${overall(S)}，赛季平均 ${avg?avg.toFixed(1):"—"}。</p></div>`;return}$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">CHINA NATIONAL TEAM</span><h2>穿上国家队球衣</h2><p>国家队比赛每半年触发。你可能受伤，也可能被安排到不熟悉的位置；实力足够时，还能带队冲过世预赛、征战世界杯。</p>${heroMetrics([[S.national.caps,"国家队出场"],[S.national.goals,"国家队进球"],[Math.round(S.national.adapt),"战术适应"],[S.national.worldCups,"世界杯次数"]])}</section><div class="section-head"><h2>国家队说明</h2><span>每4年一届世界杯</span></div><article class="info-card"><h3>世界杯赛制</h3><p>每4年一届：先打<b>世预赛</b>（八场亚洲区，积分够才出线，全队实力随你的综合能力提升）；出线后<b>随机抽签</b>分组，<b>逐场进行</b>小组赛与淘汰赛；淘汰赛前可选<b>临场基调</b>（稳守／均衡／强攻）左右赔率，一路赢到底即是世界冠军。</p></article><article class="info-card"><h3>当前角色</h3><p>${overall(S)>=90?"世界级核心，球队会围绕你的终结能力组织进攻。":overall(S)>=82?"稳定主力，拥有改变亚洲级强强对话的能力。":"轮换前锋，需要在有限时间内证明自己。"}${S.flags.outOfPosition?" 教练还会把你安排到右侧承担防守职责。":""}</p><div class="effect-line"><span>身披红色战袍</span><span>${hasTalent(S,"red_shirt")?"红色战袍天赋":"常规征召"}</span><span>${S.flags.captain?"国家队队长候选":"竞争队内地位"}</span></div></article>`}
 
 function renderHonours(){const c=S.statsCareer;$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">TROPHY ROOM</span><h2>你的奖杯和纪录</h2><p>奖杯、成就和生涯数据都会保存在本地。金球奖会综合赛季进球、助攻、平均评分、联赛级别、国家队表现和团队荣誉。</p>${heroMetrics([[S.honours.length,"奖杯与大赛荣誉"],[S.awards.length,"金球奖"],[c.goals,"生涯进球"],[c.assists,"生涯助攻"]])}</section><div class="section-head"><h2>奖杯陈列室</h2><span>${S.honours.length}件</span></div>${S.honours.length?`<div class="trophy-shelf">${S.honours.map(h=>`<article class="honour-card"><div class="trophy-icon">${esc(h.icon||"♛")}</div><b>${esc(h.title)}</b><span>第${h.season}赛季 · ${esc(h.detail||"")}</span></article>`).join("")}</div>`:'<div class="empty-state">奖杯架还空着。真正的职业生涯刚刚开始。</div>'}<div class="section-head"><h2>成就系统</h2><span>${Object.keys(META.unlocked).length}/${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map(a=>`<article class="achievement-card ${META.unlocked[a.id]?"":"locked"}"><div class="ach-icon">${a.icon}</div><div><b>${esc(a.name)}</b><span>${esc(a.desc)}</span></div></article>`).join("")}</div>`}
 
@@ -591,7 +675,7 @@ function requestRestart(){if(!S){location.reload();return}enqueueDecision({title
 function init(){
   creatorTalents=randomTalents();renderCreator();
   const saved=loadGame();
-  if(saved){$("menuContinue").classList.remove("hidden");$("menuContinue").innerHTML=`继续 · ${esc(saved.name)} · ${ageInfo(saved).age}岁 <span>→</span>`;$("menuContinue").addEventListener("click",()=>{if(!loadGame())return;S=saved;$("menu").classList.add("hidden");showGame()})}else{$("menuNew").className="primary-cta"}
+  if(saved){$("menuContinue").classList.remove("hidden");$("menuContinue").innerHTML=`继续 · ${esc(saved.name)} · ${ageInfo(saved).age}岁 <span>→</span>`;$("menuContinue").addEventListener("click",()=>{if(!loadGame())return;S=saved;if(S.national&&S.national.wcRun)S.national.wcRun=null;$("menu").classList.add("hidden");showGame()})}else{$("menuNew").className="primary-cta"}
   $("menuNew").addEventListener("click",()=>{$("menu").classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()});
   ["gesturestart","gesturechange","gestureend"].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
   $("playerName").addEventListener("input",renderCreator);$("rerollTalents").addEventListener("click",()=>{if(rerollsLeft<=0)return;creatorTalents=randomTalents();rerollsLeft--;renderCreator()});$("startGame").addEventListener("click",startNewGame);$("nextPrologue").addEventListener("click",()=>{const now=Date.now();if(now-prologueClickAt<300)return;prologueClickAt=now;if(prologueIndex<PROLOGUE.length-1){prologueIndex++;renderPrologue()}else showGame()});
@@ -599,6 +683,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ACTIONS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ACTIONS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

@@ -85,9 +85,15 @@ elite.seasonStats={matches:20,goals:38,assists:13,wins:15,ratingTotal:158,trophi
 const award=G.seasonAwardCheck(elite,()=>.5);
 assert.equal(award.ballon,true,"world-class season can win Ballon d'Or");
 
-const wc=G.simulateWorldCup(elite,seeded(42));
-assert.ok(wc.results.length>=3&&wc.results.length<=7);
-assert.ok(typeof wc.champion==="boolean");
+const qual=G.simulateQualifiers(elite,seeded(42));
+assert.equal(qual.matches.length,8,"world cup qualifiers run an 8-match Asian campaign");
+assert.equal(typeof qual.qualified,"boolean","qualification is a pass/fail gate");
+const draw=G.wcDraw(seeded(7));
+assert.equal(draw.group.length,3,"finals draw yields three group opponents");
+assert.equal(draw.ko.length,4,"finals draw yields four knockout opponents");
+assert.ok(draw.ko[0].strength<=draw.ko[3].strength,"knockout opponents escalate in strength");
+const wcMatch=G.wcMatchSim(elite,draw.ko[0],"稳守",4,seeded(9));
+assert.ok(typeof wcMatch.won==="boolean"&&wcMatch.gf>=0,"a single world cup match resolves with a winner and score");
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
