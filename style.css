@@ -23,3 +23,33 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .ending-copy{max-width:760px}.ending-copy .metric-grid{grid-template-columns:repeat(3,1fr)}.ending-grade{font-size:clamp(30px,5vw,54px);font-weight:1000;letter-spacing:-.05em;color:var(--gold);margin:6px 0 12px;text-shadow:0 8px 30px #f0bd5e33}.ending-line{color:#d4e1da;font-size:14px;line-height:1.8;margin:12px 0}.ending-copy .trophy-shelf{grid-template-columns:repeat(3,1fr)}
 @media (max-width:760px){.difficulty-picker{grid-template-columns:1fr}.ending-copy .metric-grid,.ending-copy .trophy-shelf{grid-template-columns:1fr 1fr}}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* 本场职责三选一 */
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.plan-card{text-align:left;border:1px solid var(--line);background:linear-gradient(145deg,#12281f,#0b1b15);border-radius:17px;padding:15px;cursor:pointer;color:inherit;font:inherit;transition:border-color .15s,background .15s}
+.plan-card:hover{border-color:#31d98555}
+.plan-card.active{border-color:var(--gold);background:linear-gradient(145deg,#23301c,#141f14);box-shadow:inset 0 0 0 1px #f0bd5e33}
+.plan-card h3{font-size:13px;margin:11px 0 5px}
+.plan-card p{font-size:10px;line-height:1.55;color:var(--muted);margin:0}
+.plan-card.active .action-icon{background:#f0bd5e18;color:var(--gold)}
+
+/* 三场挑战横幅 */
+.challenge-banner{border-color:#31d98544;background:#28d27d0d;color:#dcefe4;margin-top:9px}
+.challenge-banner .eyebrow{color:var(--green)}
+.challenge-banner small{display:block;margin-top:6px;font-size:9px;color:var(--muted);font-weight:600}
+
+/* 流派卡片 */
+.style-card{margin-top:9px}
+.style-row{margin:12px 0}
+.style-row.dim{opacity:.45}
+.style-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.style-head b{font-size:11px}
+.style-lv{font-size:9px;font-weight:900;color:var(--gold);border:1px solid #f0bd5e40;border-radius:6px;padding:2px 6px}
+.style-row.dim .style-lv{color:var(--muted);border-color:#ffffff1a}
+.style-row .bar-wide i{background:linear-gradient(90deg,#1d8f5a,var(--green))}
+
+/* 经典比赛 */
+.match-card.classic{border-color:#f0bd5e66;box-shadow:0 0 0 1px #f0bd5e22,0 8px 28px #f0bd5e0f}
+.classic-tag{display:inline-block;margin-bottom:10px;padding:5px 10px;border-radius:9px;background:#f0bd5e18;color:var(--gold);font-size:10px;font-weight:900;letter-spacing:.02em}
+
+@media (max-width:760px){.plan-grid{grid-template-columns:1fr}.plan-card{padding:12px}}

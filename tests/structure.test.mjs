@@ -33,11 +33,28 @@ assert.ok(Number.isFinite(state.skills.finishing),"shooting is a real technical 
 assert.ok(Number.isFinite(state.skills.setPiece),"set pieces are a real technical attribute");
 assert.equal("clutch" in state.skills,false,"key moments are derived rather than a separate attribute");
 const finishingBefore=state.skills.finishing;
-G.ACTIONS.find(x=>x.id==="train_tech").run(state);
+G.ACTIONS.find(x=>x.id==="train_box").run(state);
 assert.ok(state.skills.finishing>finishingBefore,"technical training increases finishing");
 const setPieceBefore=state.skills.setPiece;
-G.ACTIONS.find(x=>x.id==="train_tech").run(state);
+G.ACTIONS.find(x=>x.id==="train_box").run(state);
 assert.ok(state.skills.setPiece>setPieceBefore,"technical training increases set-piece ability");
+
+// 四条流派各有一个专项训练，天赋与流派保持独立
+assert.equal(G.STYLES.length,4,"four playing-style routes");
+assert.equal(new Set(G.STYLES.map(x=>x.key)).size,4,"style keys are unique");
+G.STYLES.forEach(st=>{
+  assert.equal(st.levels.length,3,`${st.key} has three levels`);
+  assert.ok(G.ACTIONS.some(a=>a.style===st.key),`${st.key} has a dedicated training action`);
+});
+assert.equal(G.styleLevel(0),0);
+assert.equal(G.styleLevel(19),0);
+assert.equal(G.styleLevel(20),1);
+assert.equal(G.styleLevel(59),1);
+assert.equal(G.styleLevel(60),2);
+assert.equal(G.styleLevel(120),3);
+assert.equal("styles" in state&&state.styles.box===0,true,"new careers start with zero style experience");
+assert.equal(state.matchPlan,"box","a match role is always set, there is no neutral option");
+assert.equal(G.MATCH_PLANS.length,3,"exactly three match roles to choose from");
 
 const seen=[];
 for(let i=0;i<6;i++){
@@ -94,6 +111,56 @@ assert.equal(draw.ko.length,4,"finals draw yields four knockout opponents");
 assert.ok(draw.ko[0].strength<=draw.ko[3].strength,"knockout opponents escalate in strength");
 const wcMatch=G.wcMatchSim(elite,draw.ko[0],"稳守",4,seeded(9));
 assert.ok(typeof wcMatch.won==="boolean"&&wcMatch.gf>=0,"a single world cup match resolves with a winner and score");
+
+// 关键时刻：成功率永远夹在 15%~85%，任何职责/属性组合都能凑齐两个场景
+const weak=G.createInitialState("弱鸡",allocation,[]);
+Object.keys(weak.stats).forEach(k=>weak.stats[k]=1);
+Object.keys(weak.skills).forEach(k=>weak.skills[k]=1);
+weak.form=0;weak.fitness=0;
+for(const m of G.MOMENTS)for(const o of m.options){
+  const lo=G.momentSuccessRate(weak,m,o,99,true),hi=G.momentSuccessRate(elite,m,o,1,false);
+  assert.ok(lo>=0.15&&lo<=0.85,`${m.id}/${o.text} floor stays inside 15%-85%`);
+  assert.ok(hi>=0.15&&hi<=0.85,`${m.id}/${o.text} ceiling stays inside 15%-85%`);
+}
+for(const plan of G.MATCH_PLANS){
+  weak.matchPlan=plan.id;
+  const slots=G.pickMoments(weak,seeded(3));
+  assert.equal(slots.length,2,`${plan.id} always yields two key moments`);
+  slots.forEach(sl=>{
+    const m=G.MOMENTS.find(x=>x.id===sl.id);
+    assert.ok(m,"每个时刻都指向一个真实场景");
+    assert.ok(G.momentOptions(weak,m).length>=3,`${m.id} keeps at least three options before style unlocks`);
+  });
+}
+// 待决比赛必须能存档——中途刷新页面不能丢掉整个月
+// 比对序列化结果而不是 deepEqual：app.js 跑在 vm 沙箱里，跨 realm 的原型天然不同。
+// 函数或 undefined 一旦混进来，round-trip 后的键就会消失，这里立刻会炸。
+const pending=G.prepareMatch(elite,seeded(11));
+assert.equal(JSON.stringify(JSON.parse(JSON.stringify(pending))),JSON.stringify(pending),"a pending match is plain serialisable data");
+assert.equal(pending.moments.length,2,"a played match reserves two key moments");
+
+// 三场挑战：未出场不消耗场次
+const chal=G.createInitialState("挑战者",allocation,[]);
+chal.challenge={id:"t1",tier:"steady",kind:"starts",target:2,text:"至少两场获得首发",played:0,acc:G.newChallengeAcc()};
+G.challengeProgress(chal,{role:"未出场",rating:0,goals:0,assists:0,gf:0,ga:1,timeline:[]});
+assert.equal(chal.challenge.played,0,"a match you did not play never burns a challenge slot");
+G.challengeProgress(chal,{role:"首发",rating:7.2,goals:1,assists:0,gf:2,ga:1,timeline:[{minute:80,kind:"goal"}]});
+assert.equal(chal.challenge.played,1,"an appearance advances the challenge");
+assert.equal(chal.challenge.acc.keyGoals,1,"a late goal in a one-goal game counts as decisive");
+G.CHALLENGE_TIERS.forEach(t=>{
+  assert.equal(t.goals.length,3,`${t.tier} offers three goals`);
+  assert.equal(new Set(t.goals.map(g=>g.kind)).size,3,`${t.tier} goals are distinct`);
+});
+
+// 老存档补字段后可以直接续玩
+const legacy=G.normalizeSave({});
+assert.equal(legacy.matchPlan,"box");
+assert.equal(JSON.stringify(legacy.styles),JSON.stringify({box:0,burst:0,target:0,play:0}));
+assert.equal(legacy.challenge,null);
+assert.equal(legacy.pendingMatch,null);
+assert.equal(legacy.combosHit.length,0);
+assert.equal(G.normalizeSave({matchPlan:"press"}).matchPlan,"press","a valid stored role survives normalisation");
+assert.equal(G.normalizeSave({matchPlan:"nonsense"}).matchPlan,"box","a bogus role falls back to the default");
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
