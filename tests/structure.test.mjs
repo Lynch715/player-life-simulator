@@ -22,22 +22,51 @@ assert.equal(G.PL_CLUBS.length,20,"2026/27 Premier League club set");
 assert.ok(G.CSL_CLUBS.some(x=>x.name==="重庆铜梁龙"));
 assert.ok(G.PL_CLUBS.some(x=>x.name==="Manchester United"));
 
-const allocation={height:4,speed:4,burst:4,stamina:4,will:4};
-const state=G.createInitialState("测试前锋",allocation,G.TALENTS.slice(0,3).map(x=>x.id));
-assert.equal(Object.values(state.allocation).reduce((a,b)=>a+b,0),20);
+const ATTR_KEYS=["PAC","SHO","PAS","DRI","DEF","PHY","WIL"];
+const allocation={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4};
+const state=G.createInitialState("测试前锋",allocation,G.TALENTS.slice(0,3).map(x=>x.id),"standard","mid");
+
+// 七项属性是唯一一层，旧的两层结构必须消失
+assert.equal(G.ATTRS.length,7,"exactly seven core attributes");
+assert.deepEqual([...G.ATTRS.map(x=>x.key)],ATTR_KEYS,"attribute order drives the radar chart vertices");
+assert.equal(Math.abs(G.ATTRS.reduce((t,x)=>t+x.w,0)-1)<1e-9,true,"OVR weights sum to exactly 1");
+assert.equal("stats" in state,false,"the old stats layer is gone");
+assert.equal("skills" in state,false,"the old skills layer is gone");
+ATTR_KEYS.forEach(k=>assert.ok(Number.isFinite(state.attrs[k]),`${k} is a real number`));
+assert.equal(Object.keys(state.attrs).length,7,"no stray attribute keys");
+assert.equal(Object.values(state.allocation).reduce((a,b)=>a+b,0),24,"creation spends 24 points across seven attributes");
 assert.equal(state.actionPoints,3);
 assert.equal(state.position,"前锋");
 assert.equal(G.ageInfo(state).age,14);
 assert.equal(state.relationship.status,"恋人");
-assert.ok(Number.isFinite(state.skills.finishing),"shooting is a real technical attribute");
-assert.ok(Number.isFinite(state.skills.setPiece),"set pieces are a real technical attribute");
-assert.equal("clutch" in state.skills,false,"key moments are derived rather than a separate attribute");
-const finishingBefore=state.skills.finishing;
+assert.equal("clutch" in state.attrs,false,"key moments are derived rather than a separate attribute");
+const shoBefore=state.attrs.SHO;
+
+// ===== 防漏改：没有任何代码路径还在碰旧属性 =====
+G.ACTIONS.forEach(a=>{
+  const t=G.createInitialState("漏网探针",allocation,[],"standard","mid");
+  t.flags.intimateUnlocked=true;t.money=999;
+  const keysBefore=Object.keys(t.attrs).sort().join(",");
+  try{a.run(t)}catch(e){assert.fail(`ACTION ${a.id} threw: ${e.message}`)}
+  assert.equal(Object.keys(t.attrs).sort().join(","),keysBefore,
+    `${a.id} invented or dropped an attribute key`);
+  ATTR_KEYS.forEach(k=>assert.ok(Number.isFinite(t.attrs[k]),
+    `${a.id} left ${k} as ${t.attrs[k]}`));
+  assert.equal("stats" in t,false,`${a.id} resurrected the stats layer`);
+  assert.equal("skills" in t,false,`${a.id} resurrected the skills layer`);
+});
+G.MOMENTS.forEach(m=>m.options.forEach(o=>
+  assert.ok(ATTR_KEYS.includes(o.stat),
+    `MOMENT ${m.id} option "${o.text}" points at stale stat "${o.stat}"`)));
+assert.ok(!/\bCORE_STATS\b/.test(code),"CORE_STATS is retired");
+assert.ok(!/\bgainStat\b|\bgainSkill\b/.test(code),"the two growth functions merged into gain()");
+assert.ok(!/s\.stats\.|s\.skills\./.test(code),"no source path still reads the old two-tier model");
+
 G.ACTIONS.find(x=>x.id==="train_box").run(state);
-assert.ok(state.skills.finishing>finishingBefore,"technical training increases finishing");
-const setPieceBefore=state.skills.setPiece;
+assert.ok(state.attrs.SHO>shoBefore,"finishing training raises SHO");
+const pasBefore=state.attrs.PAS;
 G.ACTIONS.find(x=>x.id==="train_box").run(state);
-assert.ok(state.skills.setPiece>setPieceBefore,"technical training increases set-piece ability");
+assert.ok(state.attrs.PAS>pasBefore,"finishing training also feeds PAS via set pieces");
 
 // 四条流派各有一个专项训练，天赋与流派保持独立
 assert.equal(G.STYLES.length,4,"four playing-style routes");
@@ -65,8 +94,7 @@ for(let i=0;i<6;i++){
 assert.equal(new Set(seen).size,seen.length,"recent random events should not repeat");
 
 const elite=G.createInitialState("精英",allocation,["scout_magnet","big_heart","box_instinct"]);
-Object.keys(elite.stats).forEach(k=>elite.stats[k]=88);
-Object.keys(elite.skills).forEach(k=>elite.skills[k]=88);
+ATTR_KEYS.forEach(k=>elite.attrs[k]=88);
 elite.scout=60;elite.totalMonth=24;
 const branch=G.routeChoice16(elite);
 assert.equal(branch.options.length,3,"elite 16-year-old gets three hard routes");
@@ -114,8 +142,7 @@ assert.ok(typeof wcMatch.won==="boolean"&&wcMatch.gf>=0,"a single world cup matc
 
 // 关键时刻：成功率永远夹在 15%~85%，任何职责/属性组合都能凑齐两个场景
 const weak=G.createInitialState("弱鸡",allocation,[]);
-Object.keys(weak.stats).forEach(k=>weak.stats[k]=1);
-Object.keys(weak.skills).forEach(k=>weak.skills[k]=1);
+ATTR_KEYS.forEach(k=>weak.attrs[k]=1);
 weak.form=0;weak.fitness=0;
 for(const m of G.MOMENTS)for(const o of m.options){
   const lo=G.momentSuccessRate(weak,m,o,99,true),hi=G.momentSuccessRate(elite,m,o,1,false);
