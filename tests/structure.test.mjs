@@ -188,6 +188,40 @@ assert.equal(defTrainers[0].id,"train_press");
 assert.equal(G.ACTIONS.find(x=>x.id==="train_press").style,"target");
 assert.equal(G.STYLES.length,4,"no fifth style route was added");
 
+// ===== 小满互动：陪伴回血、独处消耗 =====
+function runAction(id,patch){
+  const t=G.createInitialState("小满探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=50);
+  t.form=50;t.fitness=50;t.flags.intimateUnlocked=true;Object.assign(t,patch||{});
+  const before={form:t.form,fitness:t.fitness,WIL:t.attrs.WIL,love:t.relationship.love};
+  G.ACTIONS.find(x=>x.id===id).run(t);
+  return {form:t.form-before.form,fitness:t.fitness-before.fitness,
+          WIL:t.attrs.WIL-before.WIL,love:t.relationship.love-before.love};
+}
+const love=runAction("love_time");
+assert.ok(love.form>0,"陪小满 lifts form");
+assert.ok(love.fitness>0,"陪小满 restores stamina — she makes you rest");
+assert.ok(love.WIL>0,"陪小满 grows will");
+assert.ok(love.love>0,"陪小满 deepens the relationship");
+
+const alone=runAction("together");
+assert.ok(alone.form>love.form,"独处 is the bigger form swing");
+assert.ok(alone.fitness<0,"独处 costs stamina");
+assert.ok(alone.WIL>0,"独处 grows will");
+
+const gift=runAction("gift");
+assert.ok(gift.form>0&&gift.love>love.love,"礼物 buys more affection than time does");
+
+// ===== 行动的效果文案不得承诺已经不存在的东西 =====
+// 玩家是照着 effects 做决策的；文案里留着「心情」「技术」这类已删除的概念，
+// 等于让玩家按一张过期的说明书玩。
+const DEAD_WORDS=["心情","技术↑","创造力","爆发","耐力","视野","定位球","身高"];
+G.ACTIONS.forEach(a=>a.effects.forEach(e=>DEAD_WORDS.forEach(w=>
+  assert.ok(!e.includes(w),`ACTION ${a.id} 的效果文案「${e}」仍在承诺已删除的「${w}」`))));
+// 训练行动的 run 里也不该再直接写 morale——它已并入状态
+G.ACTIONS.forEach(a=>assert.ok(!/change\([^,]+,"morale"/.test(a.run.toString()),
+  `ACTION ${a.id} 仍在直接改 morale`));
+
 const seen=[];
 for(let i=0;i<6;i++){
   const e=G.chooseRandomEvent(state,()=>.13+i*.1);
