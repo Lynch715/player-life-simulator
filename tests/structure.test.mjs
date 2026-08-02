@@ -501,6 +501,25 @@ for(const [label,o] of Object.entries(BUILDS)){
 assert.equal(G.migrateV2toV3({version:2,stats:{height:"坏"},skills:{}}),null,"corrupt save migrates to null");
 assert.equal(G.migrateV2toV3(null),null,"null in, null out");
 
+// ===== 心情已彻底删除，并入状态 =====
+// 唯一的例外是 migrateV2toV3：那里的 morale 是 v2「磁盘上」的字段名（和 teamFit 一样），
+// 迁移必须读得到它，才能把旧档的心情折进 form 再删掉。除此之外源码里不许再出现。
+const migrateSrc=code.slice(code.indexOf("/* v2(stats+skills"),code.indexOf("function normalizeSave"));
+assert.ok(migrateSrc.includes("function migrateV2toV3"),"located the v2 migration block");
+assert.ok(!/\bmorale\b/.test(code.split(migrateSrc).join("")),"morale is gone from the source outside the v2 save migration");
+assert.equal((migrateSrc.match(/\bmorale\b/g)||[]).length,3,"the v2 migration names the legacy key only to read it, drop it, and warn about it");
+assert.equal("morale" in state,false,"new careers carry no morale field");
+assert.ok(!/心情/.test(code),"no player-facing text still promises 心情");
+const html2=fs.readFileSync(path.join(root,"index.html"),"utf8");
+assert.ok(!/moraleText|moraleBar|心情/.test(html2),"the morale row is gone from the page");
+
+// 关系好 → 状态基线更高（原本 loveSupport 是隐形战力加成，现在改为长期稳定性）
+assert.ok(G.loveSupport,"loveSupport still exists");
+const inLove=G.createInitialState("热恋",allocation,[],"standard","mid");
+const single=G.createInitialState("分手",allocation,[],"standard","mid");
+single.relationship.status="分手";single.relationship.love=0;
+assert.ok(G.loveSupport(inLove)>G.loveSupport(single),"a strong relationship lifts the form baseline");
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
