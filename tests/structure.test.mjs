@@ -148,6 +148,46 @@ assert.equal("styles" in state&&state.styles.box===0,true,"new careers start wit
 assert.equal(state.matchPlan,"box","a match role is always set, there is no neutral option");
 assert.equal(G.MATCH_PLANS.length,3,"exactly three match roles to choose from");
 
+// ===== 每条训练都必须真的推动它宣称的属性 =====
+const TRAIN_EXPECT={
+  train_box:{main:"SHO",also:["PAS","WIL"]},
+  train_burst:{main:"PAC",also:["DRI"]},
+  train_target:{main:"PHY",also:["WIL"]},
+  train_play:{main:"PAS",also:["DRI"]},
+  train_press:{main:"DEF",also:["PHY"]}
+};
+for(const [id,exp] of Object.entries(TRAIN_EXPECT)){
+  const a=G.ACTIONS.find(x=>x.id===id);
+  assert.ok(a,`${id} exists`);
+  const t=G.createInitialState("训练探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=50);
+  const before={...t.attrs};
+  a.run(t);
+  assert.ok(t.attrs[exp.main]>before[exp.main]+0.1,`${id} clearly raises ${exp.main}`);
+  exp.also.forEach(k=>assert.ok(t.attrs[k]>=before[k],`${id} does not hurt ${k}`));
+  assert.ok(t.fitness<90,`${id} costs stamina`);
+}
+// 合并属性只能涨一次：Task 1 保留了成对调用，导致 PAC/PHY/PAS 训练收益翻倍
+for(const [id,main] of [["train_burst","PAC"],["train_target","PHY"],["train_play","PAS"]]){
+  const t=G.createInitialState("翻倍探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=50);
+  const b=t.attrs[main];
+  G.ACTIONS.find(x=>x.id===id).run(t);
+  assert.ok(t.attrs[main]-b<0.9,`${id} must raise ${main} once, not twice (got +${(t.attrs[main]-b).toFixed(2)})`);
+}
+// DEF 有且只有一个专属训练入口
+const defTrainers=G.ACTIONS.filter(a=>{
+  const t=G.createInitialState("d",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=50);const b=t.attrs.DEF;
+  try{a.run(t)}catch(e){return false}
+  return t.attrs.DEF>b+0.1;
+});
+assert.equal(defTrainers.length,1,"exactly one action is the DEF growth path");
+assert.equal(defTrainers[0].id,"train_press");
+// 前场逆抢计入支点中锋，流派总数不变
+assert.equal(G.ACTIONS.find(x=>x.id==="train_press").style,"target");
+assert.equal(G.STYLES.length,4,"no fifth style route was added");
+
 const seen=[];
 for(let i=0;i<6;i++){
   const e=G.chooseRandomEvent(state,()=>.13+i*.1);
