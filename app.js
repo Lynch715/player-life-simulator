@@ -1201,10 +1201,43 @@ function checkAchievements(s){if(ageInfo(s).age<16&&overall(s)>=70)unlock("acade
 let S=null,modalQueue=[],modalBusy=false,prologueIndex=0,prologueClickAt=0,creatorAllocation={...START_ALLOC},creatorTalents=[],creatorDifficulty="standard",rerollsLeft=1,toastTimer=null;
 const $=id=>document.getElementById(id);
 function saveGame(){if(!S)return false;try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));return true}catch(e){return false}}
+/* v2(stats+skills 九个数) → v3(attrs 七项)。属性算不出数（NaN）就整档作废返回 null，
+   由 loadGame 回退到「清档重开」，绝不让半初始化的档进游戏——renderAll 直接读 S.attrs[k]。
+   form/morale 只是每月都在重算的软数值，缺了就按 v2 的初始值补，不值得为它丢掉整个生涯。 */
+function migrateV2toV3(d){
+  try{
+    if(!d||typeof d!=="object"||!d.stats||!d.skills)return null;
+    const st=d.stats,sk=d.skills,num=v=>typeof v==="number"&&Number.isFinite(v)?v:NaN,
+      soft=(v,dflt)=>typeof v==="number"&&Number.isFinite(v)?v:dflt;
+    const attrs={
+      PAC:(num(st.speed)+num(st.burst))/2,
+      SHO:num(sk.finishing),
+      PAS:num(sk.vision)*.65+num(sk.setPiece)*.35,
+      DRI:num(sk.dribble),
+      PHY:(num(st.height)+num(st.stamina))/2,
+      WIL:num(st.will),
+      DEF:20+num(st.stamina)*.35+num(st.will)*.15
+    };
+    for(const k of ATTR_KEYS){
+      if(!Number.isFinite(attrs[k]))return null;
+      attrs[k]=clamp(attrs[k],1,99);
+    }
+    const out={...d,version:3,attrs};
+    out.form=clamp(Math.round(soft(d.form,60)*.65+soft(d.morale,76)*.35));
+    if(!Number.isFinite(out.form))return null;
+    delete out.stats;delete out.skills;delete out.morale;delete out.teamFit;delete out.allocation;
+    if(!out.heightTier)out.heightTier="mid";
+    if(!Number.isFinite(out.heightCm))out.heightCm=182;
+    return out;
+  }catch(e){return null}
+}
 // 只补同版本存档缺失的字段，被删掉的旧训练 id 残留在 actionUsage 里无害。
-// 这里不做跨版本迁移：v2 的 stats/skills 形状由 VERSION 检查直接挡掉（迁移见 Task 3）。
+// v2 的 stats/skills 形状由 loadGame 先交给 migrateV2toV3 摊平，normalizeSave 自己不造 attrs。
 function normalizeSave(d){
   if(!d||typeof d!=="object")return d;
+  // 迁移已把心情并进状态，但 Task 10 之前 weightedStatScore 仍在直接读 s.morale，
+  // undefined*.08 会让整场比赛的 playerLevel 变 NaN。补一个同值影子，删心情时连这行一起删。
+  if(!Number.isFinite(d.morale)&&d.attrs)d.morale=Number.isFinite(d.form)?d.form:76;
   d.matchPlan=MATCH_PLANS.some(p=>p.id===d.matchPlan)?d.matchPlan:"box";
   d.styles=Object.assign({box:0,burst:0,target:0,play:0},d.styles||{});
   if(d.challenge===undefined)d.challenge=null;
@@ -1212,7 +1245,9 @@ function normalizeSave(d){
   if(!Array.isArray(d.combosHit))d.combosHit=[];
   return d;
 }
-function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return null;const data=JSON.parse(raw);if(data.version!==VERSION)return null;return normalizeSave(data)}catch(e){return null}}
+function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return null;let data=JSON.parse(raw);
+  if(data.version===2){data=migrateV2toV3(data);if(!data){localStorage.removeItem(SAVE_KEY);return null}}
+  if(data.version!==VERSION)return null;return normalizeSave(data)}catch(e){return null}}
 function toast(text){if(typeof document==="undefined")return;const el=$("toast");if(!el)return;el.textContent=text;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),1800)}
 
 function enqueueDecision(d,kicker="关键抉择"){if(!d)return;modalQueue.push({...d,kicker});pumpModal()}
@@ -1483,6 +1518,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

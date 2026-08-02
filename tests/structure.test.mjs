@@ -251,10 +251,44 @@ assert.equal(legacy.pendingMatch,null);
 assert.equal(legacy.combosHit.length,0);
 assert.equal(G.normalizeSave({matchPlan:"press"}).matchPlan,"press","a valid stored role survives normalisation");
 assert.equal(G.normalizeSave({matchPlan:"nonsense"}).matchPlan,"box","a bogus role falls back to the default");
-// v2 存档的形状与 v3 不兼容（stats/skills → attrs），必须被版本号挡在门外，
-// 否则玩家点“继续游戏”会直接抛 TypeError。
+// v2 存档的形状与 v3 不兼容（stats/skills → attrs），normalizeSave 自己不会造 attrs，
+// 所以 v2 必须先过 migrateV2toV3；否则玩家点“继续游戏”会直接抛 TypeError。
 assert.equal(G.VERSION,3,"the attrs migration is a breaking save-shape change");
-assert.equal(G.normalizeSave({}).attrs,undefined,"normalizeSave does not synthesise attrs, so a v2 save must be rejected by version");
+assert.equal(G.normalizeSave({}).attrs,undefined,"normalizeSave does not synthesise attrs, so a v2 save must go through migration first");
+
+// ===== 存档迁移 v2 → v3 =====
+function v2Save(o){
+  return {version:2,stats:{height:o.height,speed:o.speed,burst:o.burst,stamina:o.stamina,will:o.will},
+    skills:{finishing:o.finishing,dribble:o.dribble,vision:o.vision,setPiece:o.setPiece},
+    form:60,morale:76,teamFit:63,matchPlan:"box"};
+}
+const oldOVR=o=>Math.round(o.height*.1+o.speed*.15+o.burst*.18+o.stamina*.12+o.will*.15
+  +o.finishing*.16+o.dribble*.08+o.vision*.04+o.setPiece*.02);
+const BUILDS={
+  "新手14岁":{height:58,speed:58,burst:58,stamina:58,will:58,finishing:50,dribble:48,vision:43,setPiece:41},
+  "均衡型":{height:58,speed:70,burst:72,stamina:65,will:68,finishing:72,dribble:64,vision:55,setPiece:48},
+  "支点型":{height:82,speed:55,burst:58,stamina:78,will:75,finishing:76,dribble:52,vision:50,setPiece:45},
+  "速度型":{height:45,speed:85,burst:88,stamina:62,will:60,finishing:70,dribble:80,vision:52,setPiece:40},
+  "巅峰32岁":{height:70,speed:88,burst:90,stamina:84,will:92,finishing:93,dribble:86,vision:78,setPiece:70}
+};
+for(const [label,o] of Object.entries(BUILDS)){
+  const m=G.migrateV2toV3(v2Save(o));
+  assert.ok(m,`${label}: migrates to a usable save`);
+  assert.equal(m.version,3,`${label}: version bumped`);
+  ATTR_KEYS.forEach(k=>{
+    assert.ok(Number.isFinite(m.attrs[k]),`${label}: ${k} is finite`);
+    assert.ok(m.attrs[k]>=1&&m.attrs[k]<=99,`${label}: ${k} in range`);
+  });
+  assert.equal("stats" in m,false,`${label}: old stats dropped`);
+  assert.equal("skills" in m,false,`${label}: old skills dropped`);
+  assert.equal("morale" in m,false,`${label}: morale folded into form`);
+  assert.equal("teamFit" in m,false,`${label}: teamFit discarded`);
+  assert.ok(Math.abs(G.overall(m)-oldOVR(o))<=2,
+    `${label}: OVR drift ${G.overall(m)-oldOVR(o)} exceeds ±2`);
+}
+// 损坏的档不能带着 NaN 进游戏
+assert.equal(G.migrateV2toV3({version:2,stats:{height:"坏"},skills:{}}),null,"corrupt save migrates to null");
+assert.equal(G.migrateV2toV3(null),null,"null in, null out");
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
