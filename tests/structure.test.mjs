@@ -62,6 +62,21 @@ assert.ok(!/\bCORE_STATS\b/.test(code),"CORE_STATS is retired");
 assert.ok(!/\bgainStat\b|\bgainSkill\b/.test(code),"the two growth functions merged into gain()");
 assert.ok(!/s\.stats\.|s\.skills\./.test(code),"no source path still reads the old two-tier model");
 
+// ===== 合并属性的衰退系数 =====
+// 两个旧属性合成一个新属性时，衰退率必须取合并后的等效值，不能只搬其中一边。
+// PAC=(speed+burst)/2，旧衰退 1.6 与 1.5 → (1.6+1.5)/2=1.55
+// PHY=(height+stamina)/2，旧模型 height 根本不衰退 → (0+1.2)/2=.6
+assert.match(code,/s\.attrs\.PAC=clamp\(s\.attrs\.PAC-drop\(1\.55\)/,"PAC decays at the average of the old speed+burst rates");
+assert.match(code,/s\.attrs\.PHY=clamp\(s\.attrs\.PHY-drop\(\.6\)/,"PHY decays at half the old stamina rate because height never decayed");
+
+// ===== 创建页点数预算 =====
+// 显示用的常数和加减按钮守卫用的常数必须是同一个，否则加点按钮会被永久锁死、
+// 玩家一旦调整分配就再也无法开始游戏。
+const budgets=[...code.matchAll(/(\d+)-Object\.values\(creatorAllocation\)/g)].map(m=>Number(m[1]));
+assert.equal(budgets.length,2,"creator budget appears in both the display and the click guard");
+assert.equal(new Set(budgets).size,1,"display and click guard must share one budget constant");
+assert.equal(budgets[0],24,"seven attributes are allocated from 24 points");
+
 G.ACTIONS.find(x=>x.id==="train_box").run(state);
 assert.ok(state.attrs.SHO>shoBefore,"finishing training raises SHO");
 const pasBefore=state.attrs.PAS;
