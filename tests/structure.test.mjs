@@ -183,6 +183,26 @@ assert.equal(late.flags.pro18,true,"campus route re-enters professional loop at 
 assert.equal(late.club.league,"中超");
 
 function seeded(seed){let x=seed>>>0;return()=>((x=(x*1664525+1013904223)>>>0)/4294967296)}
+
+// ===== 逼抢是有条件的选择 =====
+// 本次玩法上最实质的改动：逼抢从无脑 +2.5 变成 (def-55)*.10。
+// 同一名球员、同一批随机种子，只改 DEF 与职责，比较净进球差。
+function xgUnder(attrsPatch,plan){
+  const p=G.createInitialState("逼抢探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>p.attrs[k]=70);Object.assign(p.attrs,attrsPatch);
+  p.totalMonth=48;p.flags.pro18=true;p.coachFavor=95;p.form=55;p.fitness=72;
+  let mine=0,theirs=0;
+  for(let i=0;i<60;i++){
+    const r=G.prepareMatch(p,seeded(i+100),{plan,opponent:{name:"测试队",strength:70},home:true});
+    mine+=r.gf;theirs+=r.ga;
+  }
+  return mine-theirs;
+}
+const strongPress=xgUnder({DEF:90},"press"),strongBox=xgUnder({DEF:90},"box");
+const weakPress=xgUnder({DEF:30},"press"),weakBox=xgUnder({DEF:30},"box");
+assert.ok(strongPress>strongBox,`a high-DEF player gains from pressing (${strongPress} vs ${strongBox})`);
+assert.ok(weakPress<weakBox,`a low-DEF player is punished for pressing (${weakPress} vs ${weakBox})`);
+
 const reports=[];
 for(let i=0;i<40;i++)reports.push(G.simulateMatchCore(elite,seeded(i+1)));
 assert.ok(new Set(reports.map(x=>`${x.gf}-${x.ga}`)).size>4,"match results retain random variance");
