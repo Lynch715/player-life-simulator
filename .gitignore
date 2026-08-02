@@ -3,3 +3,4 @@
 output/
 assets/*.png
 .superpowers/
+.claude/
