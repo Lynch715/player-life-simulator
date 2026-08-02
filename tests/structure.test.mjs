@@ -136,6 +136,27 @@ const shortP=G.createInitialState("矮个",allocation,[],"standard","short"),tal
 assert.ok(shortP.attrs.PAC>tallP.attrs.PAC&&shortP.attrs.DRI>tallP.attrs.DRI,"矮个 PAC/DRI 起步更高");
 assert.ok(tallP.attrs.PHY>shortP.attrs.PHY,"高个 PHY 起步更高");
 assert.ok(tallP.heightCm>shortP.heightCm,"身高档位决定 heightCm");
+
+// ===== 创建页承诺的成年身高必须兑现 =====
+// HEIGHT_TIERS[].cm 是「成年身高」，14 岁从更矮处起步，靠 14→18 每年 2~4cm
+// 长到那个数。曾经 tier.cm 被当成 14 岁身高，再叠 4 年发育，三档全部超标——
+// 高个每次都顶死在 200cm 硬上限，卡面写的 191 完全没有意义。
+for(const tier of ["short","mid","tall"]){
+  const promised=G.HEIGHT_TIERS[tier].cm;
+  const start=G.createInitialState("起步",allocation,[],"standard",tier);
+  assert.ok(start.heightCm<promised,`${tier}: 14 岁身高 ${start.heightCm} 应低于成年承诺 ${promised}`);
+  assert.equal(start.heightMax,promised,`${tier}: 发育上限就是卡面承诺的成年身高`);
+  let maxSeen=0;
+  for(let i=0;i<40;i++){
+    const t=G.createInitialState("发育",allocation,[],"standard",tier);
+    const orig=Math.random;let x=i*7919+13;Math.random=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+    try{for(let m=0;m<60&&!t.retired;m++){G.setState(t);G.advanceMonth()}}catch(e){}finally{Math.random=orig}
+    maxSeen=Math.max(maxSeen,t.heightCm);
+  }
+  assert.ok(maxSeen<=promised,`${tier}: 成年身高 ${maxSeen} 超过了卡面承诺的 ${promised}`);
+  assert.ok(maxSeen>=promised-4,`${tier}: 成年身高 ${maxSeen} 离承诺 ${promised} 太远，发育量不够`);
+}
+assert.match(code,/成年 \$\{t\.cm\}cm/,"身高卡明确标注这是成年身高，而不是 14 岁身高");
 assert.deepEqual(Object.entries(G.HEIGHT_TIERS.short.adj).map(([k,v])=>[k,-v]).sort(),Object.entries(G.HEIGHT_TIERS.tall.adj).sort(),"矮个与高个的属性修正必须互为镜像");
 assert.equal(G.createInitialState("乱码档位",allocation,[],"standard","constructor").heightTier,"mid","an unknown height tier falls back to mid");
 assert.ok(G.createInitialState("超额",{PAC:24},[],"standard","mid").attrs.PAC<=99,"starting attributes respect the 99 ceiling");
