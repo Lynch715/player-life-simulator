@@ -750,7 +750,6 @@ const STORY_BEATS={
 };
 
 function loveSupport(s){if(!["恋人","异地"].includes(s.relationship.status))return 0;const l=s.relationship.love;return l>=85?7:l>=65?5:l>=45?3:l>=25?1:0}
-function weightedStatScore(s){return overall(s)*.58+s.form*.18+s.fitness*.12+s.morale*.08+s.coachFavor*.04+loveSupport(s)}
 function poisson(lambda,rng=Math.random){let l=Math.exp(-Math.max(.08,lambda)),p=1,k=0;do{k++;p*=rng()}while(p>l&&k<9);return k-1}
 function rndFloat(rng,min,max){return min+rng()*(max-min)}
 function opponentPool(s){const c=currentClub(s);if(c.league==="英超")return PL_CLUBS.filter(x=>x.name!==c.name);if(s.club.league==="英超梯队")return PL_CLUBS.filter(x=>x.name!==s.club.name.replace(" U18","")).map(x=>({...x,name:`${x.name} U18`,strength:x.strength-11,league:"英超梯队"}));if(s.club.league==="中超梯队")return CSL_CLUBS.filter(x=>!s.club.name.includes(x.name)).map(x=>({...x,name:`${x.name} U16`,strength:x.strength-10,league:"中超梯队"}));if(s.club.league==="校园联赛")return CAMPUS_CLUBS.filter(x=>x.name!==s.club.name);return CSL_CLUBS.filter(x=>x.name!==c.name)}
@@ -777,6 +776,7 @@ function planOf(s){return MATCH_PLANS.find(p=>p.id===s.matchPlan)||MATCH_PLANS[0
    stat=关键属性；risk="safe"|"none"|"bold"；style=命中则加流派经验；
    need=需要的流派二级解锁；on成功/失败的后果由 outcome 字段描述。       */
 const MOMENT_RISK={safe:.08,none:0,bold:-.15};
+const ATTR_OF={finish:"SHO",dribble:"DRI",header:"PHY",setpiece:"PAS",pass:"PAS"};
 const MOMENTS=[
   {id:"counter_break",title:"反越位单刀",min:55,max:75,
    body:"第{minute}分钟，你贴着越位线启动，回身时已经甩开中卫两个身位。门将出击的角度还没站好——整座球场只剩你和他。",
@@ -889,8 +889,7 @@ const MOMENTS=[
 
 function momentOptions(s,m){return m.options.filter(o=>!o.need||styleOf(s,o.need)>=2)}
 function momentSuccessRate(s,m,o,opp,behind){
-  const statVal=s.attrs[o.stat]||50;
-  let p=.35+(statVal-opp)*.008+s.form/1000+s.fitness/2000+MOMENT_RISK[o.risk];
+  let p=.35+(eff(s,o.stat)-opp)*.008+MOMENT_RISK[o.risk];
   if(hasTalent(s,"box_instinct")&&o.stat==="SHO")p+=.06;
   if(hasTalent(s,"explosive_start")&&(o.stat==="DRI"||o.stat==="PAC"))p+=.06;
   if(hasTalent(s,"aerial_king")&&o.stat==="PHY")p+=.08;
@@ -920,13 +919,14 @@ function prepareMatch(s,rng=Math.random,opts={}){
   const club=currentClub(s),opp=opts.opponent||pick(opponentPool(s));
   const a=ageInfo(s),home=opts.home??rng()>.48,injured=s.injury.months>0||s.suspension>0;
   const plan=opts.plan||s.matchPlan||"box";
-  const rawStart=.42+(overall(s)-club.strength)/50+(s.coachFavor-50)/170+(s.form-50)/220+((s.teamFit||50)-50)/300+(hasTalent(s,"super_sub")?-.04:0);
+  const rawStart=.42+(overall(s)-club.strength)/50+(s.coachFavor-50)/170+(hasTalent(s,"super_sub")?-.04:0);
   const starts=!injured&&rng()<clamp(rawStart,.15,.9),plays=!injured&&(starts||rng()<.74+(hasTalent(s,"super_sub")?.15:0));
   const role=starts?"首发":plays?"替补":"未出场";
   const talentBonus=(hasTalent(s,"big_heart")&&opts.important?4:0)+(hasTalent(s,"home_favorite")&&home?3:0)+(hasTalent(s,"super_sub")&&!starts&&plays?4:0)+(hasTalent(s,"final_master")&&opts.final?5:0);
-  const playerLevel=weightedStatScore(s)+talentBonus+rndFloat(rng,-12,12);
-  let clubEdge=(club.strength-opp.strength)+(home?3:-2)+(plays?(playerLevel-club.strength)*.16:0);
-  if(plan==="press")clubEdge+=2.5;
+  const myAtk=atk(s)+talentBonus+rndFloat(rng,-12,12),myDef=def(s);
+  let clubEdge=(club.strength-opp.strength)+(home?3:-2);
+  if(plays)clubEdge+=(myAtk-club.strength)*.14+(myDef-club.strength)*.06;
+  if(plan==="press")clubEdge+=(myDef-55)*.10;
   if(styleOf(s,"play")>=3)clubEdge+=2;
   const myXg=clamp(1.25+clubEdge/18,0.25,3.6),oppXg=clamp(1.12-clubEdge/22,0.25,3.3);
   let gf=poisson(myXg,rng),ga=poisson(oppXg,rng);
@@ -942,12 +942,12 @@ function prepareMatch(s,rng=Math.random,opts={}){
     if(hasTalent(s,"aerial_king"))types.push("header","header");else types.push("header");
     if(hasTalent(s,"free_kick")||s.attrs.PAS>68)types.push("setpiece");
     for(let i=0;i<attempts;i++){
-      const type=types[Math.floor(rng()*types.length)],stat=type==="finish"?s.attrs.SHO:type==="dribble"?s.attrs.DRI:type==="header"?s.attrs.PHY:type==="setpiece"?s.attrs.PAS:s.attrs.PAS;
-      let p=.25+(stat-45)/90+(s.form-50)/260+talentBonus/100;
+      const type=types[Math.floor(rng()*types.length)],stat=eff(s,ATTR_OF[type]||"SHO");
+      let p=.25+(stat-45)/90+talentBonus/100;
       if(type==="finish"&&hasTalent(s,"box_instinct"))p+=.09;if(type==="header"&&hasTalent(s,"aerial_king"))p+=.13;if(type==="setpiece"&&hasTalent(s,"free_kick"))p+=.16;if(type==="dribble"&&hasTalent(s,"explosive_start"))p+=.08;
       const success=rng()<clamp(p,.16,.88);if(success)keyWins++;else failures++;
-      const isGoal=success&&["finish","header","setpiece"].includes(type)&&goals<gf&&rng()<clamp(.38+(stat-52)/100+goalBonus,.28,.82);
-      const isAssist=success&&["pass","dribble"].includes(type)&&assists+goals<gf&&rng()<clamp(.26+(s.attrs.PAS-45)/150+assistBonus,.18,.63);
+      const isGoal=success&&["finish","header","setpiece"].includes(type)&&goals<gf&&rng()<clamp(.38+(eff(s,"SHO")-52)/100+goalBonus,.28,.82);
+      const isAssist=success&&["pass","dribble"].includes(type)&&assists+goals<gf&&rng()<clamp(.26+(eff(s,"PAS")-45)/150+assistBonus,.18,.63);
       const minute=Math.min(88,Math.round(minuteStart+i*(80-minuteStart)/attempts+rndFloat(rng,0,6)));
       if(isGoal){goals++;timeline.push({minute,text:matchActionText(type,true,s),kind:"goal"})}
       else if(isAssist){assists++;timeline.push({minute,text:`助攻：${matchActionText(type,true,s)}`,kind:"good"})}
@@ -1157,8 +1157,8 @@ function challengeProgress(s,report){
 }
 function settleChallenge(s){
   const c=s.challenge;if(!c)return;
-  const def=CHALLENGE_TIERS.find(t=>t.tier===c.tier),met=challengeMet(c);
-  const effect=met?def.win(s):def.lose(s);
+  const tier=CHALLENGE_TIERS.find(t=>t.tier===c.tier),met=challengeMet(c);
+  const effect=met?tier.win(s):tier.lose(s);
   log(s,met?"good":"warn",met?`完成教练挑战（${c.text}）：${effect}。`:`没完成教练挑战（${c.text}）：${effect}。教练没多说什么。`);
   enqueueDecision({title:met?"教练挑战达成":"教练挑战未完成",
     body:`<p>${esc(c.text)}</p><p>最终进度：<b>${esc(challengeProgressText(c))}</b></p><p>${met?`兑现奖励：<b>${esc(effect)}</b>`:`代价：<b>${esc(effect)}</b>。信任没有额外扣减——下一轮重新来过。`}</p>`,
@@ -1243,8 +1243,8 @@ function migrateV2toV3(d){
 // v2 的 stats/skills 形状由 loadGame 先交给 migrateV2toV3 摊平，normalizeSave 自己不造 attrs。
 function normalizeSave(d){
   if(!d||typeof d!=="object")return d;
-  // 迁移已把心情并进状态，但 Task 10 之前 weightedStatScore 仍在直接读 s.morale，
-  // undefined*.08 会让整场比赛的 playerLevel 变 NaN。补一个同值影子，删心情时连这行一起删。
+  // 迁移已把心情并进状态，但 Task 10 之前月度结算与渲染仍在直接读 s.morale，
+  // 缺这个字段会让面板与事件判定拿到 undefined。补一个同值影子，删心情时连这行一起删。
   if(!Number.isFinite(d.morale)&&d.attrs)d.morale=Number.isFinite(d.form)?d.form:76;
   d.matchPlan=MATCH_PLANS.some(p=>p.id===d.matchPlan)?d.matchPlan:"box";
   d.styles=Object.assign({box:0,burst:0,target:0,play:0},d.styles||{});

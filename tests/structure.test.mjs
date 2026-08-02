@@ -291,6 +291,29 @@ probe.attrs.DEF=90;assert.ok(G.def(probe)>70,"DEF drives the defensive contribut
 probe.attrs.DEF=70;probe.attrs.SHO=99;
 assert.ok(Math.abs(G.def(probe)-70)<1e-9,"shooting never inflates the defensive score");
 
+// ===== 无双重计数 =====
+// eff() 已经吃掉状态与体能。若旧公式的 form/fitness 散项没删干净，
+// 状态从 30 拉到 90 会产生远超预期的涨幅。
+const dc=G.createInitialState("双计探针",allocation,[],"standard","mid");
+ATTR_KEYS.forEach(k=>dc.attrs[k]=70);
+const m0=G.MOMENTS.find(x=>x.id==="counter_break"),o0=m0.options[0];
+dc.form=30;dc.fitness=60;const rLo=G.momentSuccessRate(dc,m0,o0,60,false);
+dc.form=90;dc.fitness=60;const rHi=G.momentSuccessRate(dc,m0,o0,60,false);
+const lift=rHi-rLo;
+assert.ok(lift>0,"better form still helps");
+assert.ok(lift<0.06,`form 30→90 should lift success by <6pp via eff() alone, got ${(lift*100).toFixed(1)}pp`);
+
+// weightedStatScore 已被 atk()/def() 取代
+assert.equal(G.weightedStatScore,undefined,"weightedStatScore is gone");
+
+// 关键时刻仍夹在 15%~85%
+assert.ok(G.momentSuccessRate(dc,m0,o0,99,true)>=0.15);
+assert.ok(G.momentSuccessRate(dc,m0,o0,1,false)<=0.85);
+
+// 源码里不该再有任何 form/fitness 散项混进判定公式
+assert.ok(!/s\.form\/1000|s\.fitness\/2000|\(s\.form-50\)\/260|\(s\.form-50\)\/220/.test(code),
+  "no ad-hoc form/fitness term survives in a judgement formula");
+
 // ===== 存档迁移 v2 → v3 =====
 function v2Save(o){
   return {version:2,stats:{height:o.height,speed:o.speed,burst:o.burst,stamina:o.stamina,will:o.will},
