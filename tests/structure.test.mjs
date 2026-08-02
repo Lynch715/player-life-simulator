@@ -79,6 +79,15 @@ G.EVENTS.filter(e=>e.options).forEach(e=>{
 G.MOMENTS.forEach(m=>m.options.forEach(o=>
   assert.ok(ATTR_KEYS.includes(o.stat),
     `MOMENT ${m.id} option "${o.text}" points at stale stat "${o.stat}"`)));
+// 关键时刻的 tip 是玩家做不可撤销选择前读到的唯一线索：说「依赖X」就必须
+// 真的吃 X。这里不只是查旧词，而是把 tip 和 o.stat 对起来，杜绝以后再漂移。
+const ATTR_CN=Object.fromEntries(G.ATTRS.map(a=>[a.key,a.name]));
+G.MOMENTS.forEach(m=>m.options.forEach(o=>{
+  const dep=/依赖([^\s，,。]+)/.exec(o.tip||"");
+  if(!dep)return;
+  assert.equal(dep[1],ATTR_CN[o.stat],
+    `MOMENT ${m.id} 选项「${o.text}」提示依赖「${dep[1]}」，实际判定却吃 ${o.stat}（${ATTR_CN[o.stat]}）`);
+}));
 assert.ok(!/\bCORE_STATS\b/.test(code),"CORE_STATS is retired");
 assert.ok(!/\bgainStat\b|\bgainSkill\b/.test(code),"the two growth functions merged into gain()");
 assert.ok(!/\.(stats|skills)\s*[.[]/.test(code),"no source path still reads the old two-tier model");
