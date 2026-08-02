@@ -584,6 +584,19 @@ assert.match(html,/id="radarOvr"/,"the radar panel headlines OVR");
 assert.ok(!html.includes('id="heightCm"'),"height is no longer a sidebar headline");
 assert.ok(!html.includes('id="statBars"'),"the old five-bar list is gone");
 
+// ===== 本场职责：分段控件 =====
+// 三张大卡在移动端会塌成单列竖排、高度翻三倍。改成一条 segmented +
+// 只显示当前选中项的说明行；三段文案仍留在数据里，只是不再同时全渲染。
+assert.equal(G.MATCH_PLANS.length,3,"still exactly three match roles");
+G.MATCH_PLANS.forEach(p=>assert.ok(p.name&&p.desc&&Array.isArray(p.effects),
+  `${p.id} keeps its copy for the description row`));
+const css=fs.readFileSync(path.join(root,"style.css"),"utf8");
+assert.ok(!css.includes(".plan-grid"),"the three-card grid is gone");
+assert.ok(!/\.plan-card/.test(css),"no stale plan-card rules remain");
+assert.ok(css.includes(".plan-seg"),"the segmented control is styled");
+assert.match(code,/data-plan=/,"role buttons still carry data-plan for the click handler");
+assert.ok(!/plan-card|plan-grid/.test(code),"the renderer no longer emits the old card markup");
+
 assert.match(html,/id="attributeAllocator"/);
 assert.match(html,/data-tab="transfer"/);
 assert.match(html,/data-tab="national"/);

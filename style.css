@@ -25,13 +25,14 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 
 /* 本场职责三选一 */
-.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.plan-card{text-align:left;border:1px solid var(--line);background:linear-gradient(145deg,#12281f,#0b1b15);border-radius:17px;padding:15px;cursor:pointer;color:inherit;font:inherit;transition:border-color .15s,background .15s}
-.plan-card:hover{border-color:#31d98555}
-.plan-card.active{border-color:var(--gold);background:linear-gradient(145deg,#23301c,#141f14);box-shadow:inset 0 0 0 1px #f0bd5e33}
-.plan-card h3{font-size:13px;margin:11px 0 5px}
-.plan-card p{font-size:10px;line-height:1.55;color:var(--muted);margin:0}
-.plan-card.active .action-icon{background:#f0bd5e18;color:var(--gold)}
+.plan-seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0b1b15}
+.plan-seg button{flex:1;text-align:center;padding:9px 6px;font:inherit;font-size:12px;font-weight:800;color:var(--muted);background:none;border:0;border-right:1px solid var(--line);cursor:pointer;min-height:40px}
+.plan-seg button:last-child{border-right:0}
+.plan-seg button:hover{color:#dce6df}
+.plan-seg button.on{background:#f0bd5e14;color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
+.plan-seg-desc{display:flex;align-items:center;gap:8px;margin-top:7px;padding:0 2px;flex-wrap:wrap}
+.plan-seg-desc p{margin:0;font-size:10px;line-height:1.5;color:var(--muted);flex:1;min-width:180px}
+.plan-seg-desc .effect-line{margin:0;flex:0 0 auto}
 
 /* 三场挑战横幅 */
 .challenge-banner{border-color:#31d98544;background:#28d27d0d;color:#dcefe4;margin-top:9px}
@@ -52,7 +53,7 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .match-card.classic{border-color:#f0bd5e66;box-shadow:0 0 0 1px #f0bd5e22,0 8px 28px #f0bd5e0f}
 .classic-tag{display:inline-block;margin-bottom:10px;padding:5px 10px;border-radius:9px;background:#f0bd5e18;color:var(--gold);font-size:10px;font-weight:900;letter-spacing:.02em}
 
-@media (max-width:760px){.plan-grid{grid-template-columns:1fr}.plan-card{padding:12px}}
+@media (max-width:760px){.plan-seg button{font-size:11px;padding:9px 3px}}
 
 .radar-panel{margin-top:6px}
 .radar-panel svg{display:block}
