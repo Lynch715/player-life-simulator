@@ -215,9 +215,17 @@ assert.ok(gift.form>0&&gift.love>love.love,"礼物 buys more affection than time
 // ===== 行动的效果文案不得承诺已经不存在的东西 =====
 // 玩家是照着 effects 做决策的；文案里留着「心情」「技术」这类已删除的概念，
 // 等于让玩家按一张过期的说明书玩。
-const DEAD_WORDS=["心情","技术↑","创造力","爆发","耐力","视野","定位球","身高"];
+const DEAD_WORDS=["心情","技术↑","创造力","射术","爆发","耐力","视野","定位球","队内适应"];
 G.ACTIONS.forEach(a=>a.effects.forEach(e=>DEAD_WORDS.forEach(w=>
   assert.ok(!e.includes(w),`ACTION ${a.id} 的效果文案「${e}」仍在承诺已删除的「${w}」`))));
+G.MATCH_PLANS.forEach(p=>p.effects.forEach(e=>DEAD_WORDS.forEach(w=>
+  assert.ok(!e.includes(w),`MATCH_PLAN ${p.id} 的效果文案「${e}」仍在承诺已删除的「${w}」`))));
+// 事件选项的第 2 个参数就是玩家点选前读到的效果说明——它骗人的代价比 effects 更大，
+// 因为那是一次不可撤销的抉择。这里直接扫源码，覆盖全部 EVENTS 与剧情节点。
+const optEffects=[...code.matchAll(/option\("[^"]*","([^"]*)"/g)].map(m=>m[1]);
+assert.ok(optEffects.length>50,`sanity: 应该扫到大量 option 效果说明，实际 ${optEffects.length}`);
+optEffects.forEach(e=>DEAD_WORDS.forEach(w=>
+  assert.ok(!e.includes(w),`某个 option 的效果说明「${e}」仍在承诺已删除的「${w}」`)));
 // 训练行动的 run 里也不该再直接写 morale——它已并入状态
 G.ACTIONS.forEach(a=>assert.ok(!/change\([^,]+,"morale"/.test(a.run.toString()),
   `ACTION ${a.id} 仍在直接改 morale`));
@@ -510,6 +518,14 @@ assert.ok(!/\bmorale\b/.test(code.split(migrateSrc).join("")),"morale is gone fr
 assert.equal((migrateSrc.match(/\bmorale\b/g)||[]).length,3,"the v2 migration names the legacy key only to read it, drop it, and warn about it");
 assert.equal("morale" in state,false,"new careers carry no morale field");
 assert.ok(!/心情/.test(code),"no player-facing text still promises 心情");
+
+// ===== teamFit 同样已彻底删除 =====
+// 它曾以 ±16.7pp 左右首发概率，却从未初始化、三个默认值不一致（45/50/55）、
+// 且零 UI——玩家被一个看不见且有 bug 的变量左右。9 处事件效果已按语义
+// 拆到教练信任 / 状态 / 意志上。
+assert.ok(!/\bteamFit\b/.test(code.split(migrateSrc).join("")),"teamFit is gone outside the v2 save migration");
+assert.equal("teamFit" in state,false,"new careers carry no teamFit field");
+assert.ok(!/队内适应/.test(code),"no player-facing text still promises 队内适应");
 const html2=fs.readFileSync(path.join(root,"index.html"),"utf8");
 assert.ok(!/moraleText|moraleBar|心情/.test(html2),"the morale row is gone from the page");
 
