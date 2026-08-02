@@ -597,6 +597,21 @@ assert.ok(css.includes(".plan-seg"),"the segmented control is styled");
 assert.match(code,/data-plan=/,"role buttons still carry data-plan for the click handler");
 assert.ok(!/plan-card|plan-grid/.test(code),"the renderer no longer emits the old card markup");
 
+// ===== 创建页：身高档位独立选择 + 七项 24 点分配 =====
+// heightTier 从 Task 1 起就是 createInitialState 的第五个参数，却一直没有 UI 入口，
+// 于是那段档位修正是死代码。这里守的是「选得到、传得下去」这条链路。
+assert.match(html,/id="heightPicker"/,"creator hosts a height picker");
+assert.match(html,/id="pointsLeft">24</,"creator advertises the 24-point budget");
+assert.match(html,/把24点分给七项/,"the allocation copy names all seven attributes");
+assert.ok(css.includes(".height-picker"),"the height picker is styled");
+assert.match(code,/data-height=/,"height cards carry data-height for the click handler");
+assert.match(code,/creatorHeight=b\.dataset\.height/,"clicking a card writes the chosen tier back");
+assert.match(code,/createInitialState\(name,creatorAllocation,creatorTalents,creatorDifficulty,creatorHeight\)/,
+  "startNewGame hands the chosen tier to createInitialState");
+assert.equal((code.match(/creatorHeight="mid"/g)||[]).length,3,
+  "the tier is declared once and reset on both restart paths");
+assert.ok(!/const HEIGHT_TIERS=\[/.test(code),"the picker reads the single HEIGHT_TIERS table, not a copy of it");
+
 assert.match(html,/id="attributeAllocator"/);
 assert.match(html,/data-tab="transfer"/);
 assert.match(html,/data-tab="national"/);
