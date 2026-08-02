@@ -627,6 +627,15 @@ assert.ok(css.includes(".plan-seg"),"the segmented control is styled");
 assert.match(code,/data-plan=/,"role buttons still carry data-plan for the click handler");
 assert.ok(!/plan-card|plan-grid/.test(code),"the renderer no longer emits the old card markup");
 
+// ===== 侧栏进度条不留孤儿配色 =====
+// 删掉「心情」那一行之后，.mini-track.violet 成了没人引用的死规则。
+// 每个定义出来的配色都必须真有地方在用，否则就是删功能时漏掉的尾巴。
+const trackVariants=[...css.matchAll(/\.mini-track\.([a-z]+)\s*i\s*\{/g)].map(m=>m[1]);
+assert.ok(trackVariants.length>0,"sanity: 至少应扫到一个 mini-track 配色变体");
+trackVariants.forEach(v=>assert.ok(
+  new RegExp(`class="mini-track[^"]*\\b${v}\\b`).test(html)||new RegExp(`mini-track[^"\`]*\\b${v}\\b`).test(code),
+  `style.css 定义了 .mini-track.${v} 却没有任何地方在用——删功能时漏掉的尾巴`));
+
 // ===== 创建页：身高档位独立选择 + 七项 24 点分配 =====
 // heightTier 从 Task 1 起就是 createInitialState 的第五个参数，却一直没有 UI 入口，
 // 于是那段档位修正是死代码。这里守的是「选得到、传得下去」这条链路。
