@@ -1,6 +1,6 @@
 "use strict";
 
-const SAVE_KEY="player_life_save_v1",META_KEY="player_life_meta_v1",VERSION=2;
+const SAVE_KEY="player_life_save_v1",META_KEY="player_life_meta_v1",VERSION=3;
 // 同月重复行动的收益/风险修正。只在 applyAction 执行期间偏离 1，事件与剧情调用 gain 时不受影响。
 let actionMult=1,actionInjuryMult=1;
 const DIFFICULTIES={
@@ -20,6 +20,10 @@ const ATTRS=[
   {key:"WIL",name:"意志",sub:"抗压与临场",icon:"◆",w:.14}
 ];
 const ATTR_KEYS=ATTRS.map(a=>a.key);
+// 创建页点数预算只有这一份：显示、加减按钮守卫、重开重置都从这里取，避免两份常数漂移。
+const START_ALLOC={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4},ALLOC_BUDGET=Object.values(START_ALLOC).reduce((a,b)=>a+b,0);
+// 身高档位是一张受校验的表：矮个与高个互为镜像，未知档位一律回落到 mid。
+const HEIGHT_TIERS={short:{cm:174,adj:{PHY:-5,PAC:3,DRI:2}},mid:{cm:182,adj:{}},tall:{cm:191,adj:{PHY:5,PAC:-3,DRI:-2}}};
 const TALENTS=[
   {id:"explosive_start",icon:"ϟ",name:"一步先机",desc:"爆发训练收益+25%，突破第一步成功率提高。",tags:["burst","dribble"]},
   {id:"box_instinct",icon:"◎",name:"禁区嗅觉",desc:"禁区内射门与补射事件更容易转化为进球。",tags:["finish","goal"]},
@@ -212,23 +216,25 @@ function change(obj,key,n){obj[key]=clamp((obj[key]??0)+n);return obj[key]}
 function changeLove(s,n){if(["分手","反目"].includes(s.relationship.status))return s.relationship.love;const mult=hasTalent(s,"childhood_bond")&&n>0?1.25:1;s.relationship.love=clamp(s.relationship.love+n*mult);return s.relationship.love}
 function trainMult(s){return 1+assetTrain(s)}
 function gain(s,key,n,tag){
+  if(!(key in s.attrs)){console.warn("gain: 未知属性",key);return}
   const d=diffOf(s);let mult=1;
-  if(hasTalent(s,"explosive_start")&&(key==="PAC"||key==="DRI"))mult+=.25;
-  if(hasTalent(s,"engine")&&key==="PHY")mult+=.25;
-  if(hasTalent(s,"aerial_king")&&key==="PHY")mult+=.2;
-  if(hasTalent(s,"big_heart")&&key==="WIL")mult+=.18;
-  if(hasTalent(s,"football_iq")&&(key==="PAS"||tag==="tactics"))mult+=.25;
-  if(hasTalent(s,"free_kick")&&key==="PAS")mult+=.3;
-  if(hasTalent(s,"box_instinct")&&key==="SHO")mult+=.14;
-  if(hasTalent(s,"ambidextrous")&&(key==="SHO"||key==="DRI"))mult+=.12;
-  if(tag&&hasTalent(s,"training_rat")&&chance(.08))mult+=.5;
+  // 天赋只放大正收益：放在 if(n>0) 之外会让「训练模范」把扣分也加重。
   if(n>0){
+    if(hasTalent(s,"explosive_start")&&(key==="PAC"||key==="DRI"))mult+=.25;
+    if(hasTalent(s,"engine")&&key==="PHY")mult+=.25;
+    if(hasTalent(s,"aerial_king")&&key==="PHY")mult+=.2;
+    if(hasTalent(s,"big_heart")&&key==="WIL")mult+=.18;
+    if(hasTalent(s,"football_iq")&&(key==="PAS"||tag==="tactics"))mult+=.25;
+    if(hasTalent(s,"free_kick")&&key==="PAS")mult+=.3;
+    if(hasTalent(s,"box_instinct")&&key==="SHO")mult+=.14;
+    if(hasTalent(s,"ambidextrous")&&(key==="SHO"||key==="DRI"))mult+=.12;
+    if(tag&&hasTalent(s,"training_rat")&&chance(.08))mult+=.5;
     mult*=d.growth*softFactor(s.attrs[key],d,styleCapLevel(s,key))*trainMult(s)*actionMult;
     if(key==="SHO"&&s.flags&&s.flags.outOfPosition)mult*=.7;
   }
   s.attrs[key]=clamp(s.attrs[key]+n*mult,1,99);
 }
-function styleCapLevel(){return 0}   // Task 9 接入流派软上限
+function styleCapLevel(s,key){return 0}   // Task 9 接入流派软上限
 function overall(s){return Math.round(ATTRS.reduce((t,a)=>t+s.attrs[a.key]*a.w,0))}
 function ageInfo(s){return{age:14+Math.floor(s.totalMonth/12),month:s.totalMonth%12+1,season:Math.floor(s.totalMonth/12)+1}}
 function phaseOf(s){const a=ageInfo(s).age;if(a<16)return"academy";if(a<18)return s.route||"academy";return"pro"}
@@ -236,12 +242,12 @@ function currentClub(s){const base=[...CSL_CLUBS,...PL_CLUBS].find(c=>c.name===s
 function log(s,kind,text){s.log.unshift({id:`l${Date.now()}${Math.random()}`,month:s.totalMonth,kind,text});s.log=s.log.slice(0,80)}
 function fixtureLabel(s){const a=ageInfo(s);return`${a.age}岁 · 第${a.month}月`}
 
-function createInitialState(name="陈逐风",allocation={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4},talents=[],difficulty="standard",heightTier="mid"){
-  const attrs={};ATTRS.forEach(x=>attrs[x.key]=42+(allocation[x.key]||0)*4);
-  const tierAdj={short:{PHY:-4,PAC:3,DRI:2},mid:{},tall:{PHY:5,PAC:-3,DRI:-2}}[heightTier]||{};
-  Object.entries(tierAdj).forEach(([k,v])=>attrs[k]=clamp(attrs[k]+v,1,99));
-  const heightCm={short:174,mid:182,tall:191}[heightTier]||182;
-  const state={version:VERSION,runId:`r${Date.now()}${Math.random().toString(36).slice(2,7)}`,name:name.trim()||"陈逐风",position:"前锋",totalMonth:0,actionPoints:3,allocation:{...allocation},heightCm,heightTier,talents:[...talents],attrs,fitness:90,form:60,morale:76,coachFavor:50,family:86,study:55,language:8,scout:5,fame:3,money:0,salary:0,debt:0,assets:{house:false,gym:false,coach:false},difficulty:DIFFICULTIES[difficulty]?difficulty:"standard",seasonGoal:null,challenge:null,matchPlan:"box",styles:{box:0,burst:0,target:0,play:0},pendingMatch:null,combosHit:[],retired:false,peakOverall:0,route:"academy",club:{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58},relationship:{name:"林小满",status:"恋人",love:80,conflictShield:hasTalent({talents},"childhood_bond")?1:0},injury:{name:"",months:0,risk:0},risks:{gambling:0,health:0,media:0},flags:{route16:false,pro18:false,overseasBreakup:false,hivDiagnosed:false,bettingEver:false,captain:false,father_alive:true},statsCareer:{matches:0,starts:0,goals:0,assists:0,wins:0,draws:0,losses:0,nationalCaps:0,nationalGoals:0,bestRating:0,hatTricks:0},seasonStats:{matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0},national:{called:false,adapt:0,caps:0,goals:0,worldCups:0},honours:[],awards:[],transfers:[],offers:[],matches:[],usedEvents:[],recentEvents:[],actionUsage:{},log:[],tab:"actions",lastSeasonAward:null};
+function createInitialState(name="陈逐风",allocation=START_ALLOC,talents=[],difficulty="standard",heightTier="mid"){
+  const attrs={};ATTRS.forEach(x=>attrs[x.key]=clamp(42+(allocation[x.key]||0)*4,1,99));
+  const tier=Object.hasOwn(HEIGHT_TIERS,heightTier)?heightTier:"mid";
+  Object.entries(HEIGHT_TIERS[tier].adj).forEach(([k,v])=>attrs[k]=clamp(attrs[k]+v,1,99));
+  const heightCm=HEIGHT_TIERS[tier].cm;
+  const state={version:VERSION,runId:`r${Date.now()}${Math.random().toString(36).slice(2,7)}`,name:name.trim()||"陈逐风",position:"前锋",totalMonth:0,actionPoints:3,allocation:{...allocation},heightCm,heightTier:tier,talents:[...talents],attrs,fitness:90,form:60,morale:76,coachFavor:50,family:86,study:55,language:8,scout:5,fame:3,money:0,salary:0,debt:0,assets:{house:false,gym:false,coach:false},difficulty:DIFFICULTIES[difficulty]?difficulty:"standard",seasonGoal:null,challenge:null,matchPlan:"box",styles:{box:0,burst:0,target:0,play:0},pendingMatch:null,combosHit:[],retired:false,peakOverall:0,route:"academy",club:{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58},relationship:{name:"林小满",status:"恋人",love:80,conflictShield:hasTalent({talents},"childhood_bond")?1:0},injury:{name:"",months:0,risk:0},risks:{gambling:0,health:0,media:0},flags:{route16:false,pro18:false,overseasBreakup:false,hivDiagnosed:false,bettingEver:false,captain:false,father_alive:true},statsCareer:{matches:0,starts:0,goals:0,assists:0,wins:0,draws:0,losses:0,nationalCaps:0,nationalGoals:0,bestRating:0,hatTricks:0},seasonStats:{matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0},national:{called:false,adapt:0,caps:0,goals:0,worldCups:0},honours:[],awards:[],transfers:[],offers:[],matches:[],usedEvents:[],recentEvents:[],actionUsage:{},log:[],tab:"actions",lastSeasonAward:null};
   log(state,"story","你进入重庆铜梁龙U16梯队。父亲站在铁丝网外，小满把一瓶水塞进你包里。");
   return state;
 }
@@ -1192,10 +1198,11 @@ function unlock(id){if(META.unlocked[id])return;META.unlocked[id]=Date.now();sav
 function updateRanking(s){const a=ageInfo(s);const row={runId:s.runId,name:s.name,age:a.age,club:s.club.name,score:careerScore(s),goals:s.statsCareer.goals,awards:s.awards.length,date:new Date().toLocaleDateString("zh-CN")};META.rankings=META.rankings.filter(x=>x.runId!==s.runId);META.rankings.push(row);META.rankings.sort((x,y)=>y.score-x.score);META.rankings=META.rankings.slice(0,10);saveMeta()}
 function checkAchievements(s){if(ageInfo(s).age<16&&overall(s)>=70)unlock("academy_70");if(s.statsCareer.goals>=50)unlock("fifty_goals");if(s.statsCareer.goals>=100)unlock("hundred_goals");if(s.statsCareer.assists>=50)unlock("fifty_assists");if(ageInfo(s).age>=24&&s.relationship.status==="恋人"&&s.relationship.love>=70)unlock("loyal_love");if(["恋人","异地"].includes(s.relationship.status)&&s.relationship.love>=95)unlock("deep_bond");if(ageInfo(s).age>=23&&!s.flags.bettingEver)unlock("clean_career")}
 
-let S=null,modalQueue=[],modalBusy=false,prologueIndex=0,prologueClickAt=0,creatorAllocation={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4},creatorTalents=[],creatorDifficulty="standard",rerollsLeft=1,toastTimer=null;
+let S=null,modalQueue=[],modalBusy=false,prologueIndex=0,prologueClickAt=0,creatorAllocation={...START_ALLOC},creatorTalents=[],creatorDifficulty="standard",rerollsLeft=1,toastTimer=null;
 const $=id=>document.getElementById(id);
 function saveGame(){if(!S)return false;try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));return true}catch(e){return false}}
-// 不升 VERSION：老存档补上新字段就能无缝续玩，被删掉的旧训练 id 残留在 actionUsage 里无害。
+// 只补同版本存档缺失的字段，被删掉的旧训练 id 残留在 actionUsage 里无害。
+// 这里不做跨版本迁移：v2 的 stats/skills 形状由 VERSION 检查直接挡掉（迁移见 Task 3）。
 function normalizeSave(d){
   if(!d||typeof d!=="object")return d;
   d.matchPlan=MATCH_PLANS.some(p=>p.id===d.matchPlan)?d.matchPlan:"box";
@@ -1449,8 +1456,8 @@ function renderHonours(){const c=S.statsCareer;$("panel").innerHTML=`<section cl
 function renderRank(){updateRanking(S);const rankings=META.rankings;$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">LOCAL LEGENDS</span><h2>这台设备上的绿茵传奇</h2><p>排行只保存在本地浏览器，不上传姓名或存档。每个赛季和关键结算都会更新当前生涯的最好成绩。</p>${heroMetrics([[careerScore(S),"当前积分"],[rankings.findIndex(x=>x.runId===S.runId)+1||"—","本地名次"],[META.runs,"开档次数"],[Object.keys(META.unlocked).length,"已解锁成就"]])}</section><div class="section-head"><h2>本地生涯排行</h2><span>最多保留10档</span></div><article class="rank-card"><table class="rank-table"><thead><tr><th>排名</th><th>球员</th><th>俱乐部</th><th>年龄</th><th>进球</th><th>积分</th></tr></thead><tbody>${rankings.map((r,i)=>`<tr class="${r.runId===S.runId?"me":""}"><td>${i+1}</td><td>${esc(r.name)}</td><td>${esc(r.club)}</td><td>${r.age}</td><td>${r.goals}</td><td><b>${r.score}</b></td></tr>`).join("")}</tbody></table></article>`}
 
 function randomTalents(){return TALENTS.slice().sort(()=>Math.random()-.5).slice(0,3).map(t=>t.id)}
-function renderCreator(){const left=24-Object.values(creatorAllocation).reduce((a,b)=>a+b,0);$("pointsLeft").textContent=left;$("attributeAllocator").innerHTML=ATTRS.map(x=>`<div class="allocate-row"><div class="allocate-name"><b>${x.icon} ${x.name}</b><span>${x.sub}</span></div><div class="allocate-track"><i style="width:${creatorAllocation[x.key]*5}%"></i></div><button class="step-btn" data-stat="${x.key}" data-delta="-1" ${creatorAllocation[x.key]<=0?"disabled":""}>−</button><button class="step-btn" data-stat="${x.key}" data-delta="1" ${left<=0?"disabled":""}>＋</button><div class="allocate-value">${creatorAllocation[x.key]}</div></div>`).join("");$("talentDraft").innerHTML=creatorTalents.map(id=>{const t=talentById(id);return`<article class="talent-card"><span class="sigil">${t.icon}</span><b>${esc(t.name)}</b><p>${esc(t.desc)}</p></article>`}).join("");const dp=$("difficultyPicker");if(dp){dp.innerHTML=Object.values(DIFFICULTIES).map(d=>`<button class="diff-card ${creatorDifficulty===d.key?"active":""}" data-diff="${d.key}"><b>${esc(d.name)}</b><span class="diff-tag">${esc(d.tag)}</span><p>${esc(d.desc)}</p></button>`).join("");dp.querySelectorAll("[data-diff]").forEach(b=>b.addEventListener("click",()=>{creatorDifficulty=b.dataset.diff;renderCreator()}))}
-$("rerollTalents").disabled=rerollsLeft<=0;$("startGame").disabled=left!==0||creatorTalents.length!==3||!$("playerName").value.trim();$("attributeAllocator").querySelectorAll("[data-stat]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.stat,d=Number(b.dataset.delta),remaining=24-Object.values(creatorAllocation).reduce((a,v)=>a+v,0);if(d>0&&remaining<=0||d<0&&creatorAllocation[k]<=0)return;creatorAllocation[k]+=d;renderCreator()}))}
+function renderCreator(){const left=ALLOC_BUDGET-Object.values(creatorAllocation).reduce((a,b)=>a+b,0);$("pointsLeft").textContent=left;$("attributeAllocator").innerHTML=ATTRS.map(x=>`<div class="allocate-row"><div class="allocate-name"><b>${x.icon} ${x.name}</b><span>${x.sub}</span></div><div class="allocate-track"><i style="width:${creatorAllocation[x.key]*5}%"></i></div><button class="step-btn" data-stat="${x.key}" data-delta="-1" ${creatorAllocation[x.key]<=0?"disabled":""}>−</button><button class="step-btn" data-stat="${x.key}" data-delta="1" ${left<=0?"disabled":""}>＋</button><div class="allocate-value">${creatorAllocation[x.key]}</div></div>`).join("");$("talentDraft").innerHTML=creatorTalents.map(id=>{const t=talentById(id);return`<article class="talent-card"><span class="sigil">${t.icon}</span><b>${esc(t.name)}</b><p>${esc(t.desc)}</p></article>`}).join("");const dp=$("difficultyPicker");if(dp){dp.innerHTML=Object.values(DIFFICULTIES).map(d=>`<button class="diff-card ${creatorDifficulty===d.key?"active":""}" data-diff="${d.key}"><b>${esc(d.name)}</b><span class="diff-tag">${esc(d.tag)}</span><p>${esc(d.desc)}</p></button>`).join("");dp.querySelectorAll("[data-diff]").forEach(b=>b.addEventListener("click",()=>{creatorDifficulty=b.dataset.diff;renderCreator()}))}
+$("rerollTalents").disabled=rerollsLeft<=0;$("startGame").disabled=left!==0||creatorTalents.length!==3||!$("playerName").value.trim();$("attributeAllocator").querySelectorAll("[data-stat]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.stat,d=Number(b.dataset.delta),remaining=ALLOC_BUDGET-Object.values(creatorAllocation).reduce((a,v)=>a+v,0);if(d>0&&remaining<=0||d<0&&creatorAllocation[k]<=0)return;creatorAllocation[k]+=d;renderCreator()}))}
 
 function renderPrologue(){const p=PROLOGUE[prologueIndex];$("prologuePortrait").src=p.portrait;$("prologueKicker").textContent=p.kicker;$("prologueTitle").textContent=p.title;$("prologueBody").innerHTML=p.body.map(x=>`<p>${x}</p>`).join("");$("prologueProgress").style.width=`${(prologueIndex+1)/PROLOGUE.length*100}%`;$("nextPrologue").innerHTML=prologueIndex===PROLOGUE.length-1?"进入梯队 <span>→</span>":"继续 <span>→</span>"}
 function showGame(){$("menu")?.classList.add("hidden");$("creator").classList.add("hidden");$("prologue").classList.add("hidden");$("ending")?.classList.add("hidden");$("game").classList.remove("hidden");if(S.retired){showEnding(S);return}updateRanking(S);saveGame();renderAll();if(S.pendingMatch)setTimeout(()=>resumeMatchFlow(S),60)}
@@ -1461,9 +1468,9 @@ function showEnding(s){const e=buildEnding(s),el=$("ending");if(typeof document=
   <p class="ending-line">${e.loveEnd}</p>${e.coda?`<p class="ending-line">${e.coda}</p>`:""}
   ${e.honours.length?`<div class="section-head"><h2>奖杯陈列</h2><span>${e.honours.length}件</span></div><div class="trophy-shelf">${e.honours.map(h=>`<article class="honour-card"><div class="trophy-icon">${esc(h.icon||"♛")}</div><b>${esc(h.title)}</b><span>第${h.season}赛季 · ${esc(h.detail||"")}</span></article>`).join("")}</div>`:`<p class="ending-line">奖杯架空着，但父亲那只旧足球，一直摆在你家最显眼的位置。</p>`}
   <button id="endingRestart" class="primary-cta" type="button">开启新的生涯 <span>→</span></button>`;
-  $("endingRestart").addEventListener("click",()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;modalQueue=[];modalBusy=false;$("continueBtn")?.remove();creatorAllocation={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4};creatorTalents=randomTalents();rerollsLeft=1;el.classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()})}
+  $("endingRestart").addEventListener("click",()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;modalQueue=[];modalBusy=false;$("continueBtn")?.remove();creatorAllocation={...START_ALLOC};creatorTalents=randomTalents();rerollsLeft=1;el.classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()})}
 function startNewGame(){const name=$("playerName").value.trim();$("continueBtn")?.remove();modalBusy=false;modalQueue=[];S=createInitialState(name,creatorAllocation,creatorTalents,creatorDifficulty);META.runs=(META.runs||0)+1;saveMeta();saveGame();prologueIndex=0;$("creator").classList.add("hidden");$("prologue").classList.remove("hidden");renderPrologue()}
-function requestRestart(){if(!S){location.reload();return}enqueueDecision({title:"重新开始这段生涯？",body:`当前${ageInfo(S).age}岁的进度会被新存档覆盖。本地成就与历史排行会保留。`,options:[option("保留当前进度","返回游戏",()=>{}),option("确认重开","清除当前存档，回到创建球员",()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;modalQueue=[];modalBusy=false;$("continueBtn")?.remove();creatorAllocation={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4};creatorTalents=randomTalents();rerollsLeft=1;$("game").classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()},"danger")]},"重新开档")}
+function requestRestart(){if(!S){location.reload();return}enqueueDecision({title:"重新开始这段生涯？",body:`当前${ageInfo(S).age}岁的进度会被新存档覆盖。本地成就与历史排行会保留。`,options:[option("保留当前进度","返回游戏",()=>{}),option("确认重开","清除当前存档，回到创建球员",()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;modalQueue=[];modalBusy=false;$("continueBtn")?.remove();creatorAllocation={...START_ALLOC};creatorTalents=randomTalents();rerollsLeft=1;$("game").classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()},"danger")]},"重新开档")}
 
 function init(){
   creatorTalents=randomTalents();renderCreator();
@@ -1476,6 +1483,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

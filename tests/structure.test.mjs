@@ -43,7 +43,8 @@ assert.equal("clutch" in state.attrs,false,"key moments are derived rather than 
 const shoBefore=state.attrs.SHO;
 
 // ===== 防漏改：没有任何代码路径还在碰旧属性 =====
-G.ACTIONS.forEach(a=>{
+// 循环 30 次：不少 run 体内部按 chance() 分叉，只跑一次会漏掉一半的倒霉分支。
+for(let i=0;i<30;i++)G.ACTIONS.forEach(a=>{
   const t=G.createInitialState("漏网探针",allocation,[],"standard","mid");
   t.flags.intimateUnlocked=true;t.money=999;
   const keysBefore=Object.keys(t.attrs).sort().join(",");
@@ -55,33 +56,72 @@ G.ACTIONS.forEach(a=>{
   assert.equal("stats" in t,false,`${a.id} resurrected the stats layer`);
   assert.equal("skills" in t,false,`${a.id} resurrected the skills layer`);
 });
+// 86 个 gain() 调用点里有 60 个在 EVENTS 中，只扫 ACTIONS 等于放过大半。
+G.EVENTS.filter(e=>e.options).forEach(e=>{
+  const probe=()=>{const t=G.createInitialState("漏网探针",allocation,[],"standard","mid");t.flags.intimateUnlocked=true;t.money=999;return t};
+  const count=(typeof e.options==="function"?e.options(probe()):e.options).length;
+  for(let i=0;i<count;i++){
+    const t=probe(),opts=typeof e.options==="function"?e.options(t):e.options;
+    if(!opts[i]||!opts[i].apply)continue;
+    try{opts[i].apply()}catch(err){assert.fail(`EVENT ${e.id} 选项 ${i} 抛错: ${err.message}`)}
+    assert.equal(Object.keys(t.attrs).sort().join(","),ATTR_KEYS.slice().sort().join(","),`EVENT ${e.id} 选项 ${i} 增删了属性键`);
+    ATTR_KEYS.forEach(k=>assert.ok(Number.isFinite(t.attrs[k]),`EVENT ${e.id} 选项 ${i} 把 ${k} 变成 ${t.attrs[k]}`));
+  }
+});
 G.MOMENTS.forEach(m=>m.options.forEach(o=>
   assert.ok(ATTR_KEYS.includes(o.stat),
     `MOMENT ${m.id} option "${o.text}" points at stale stat "${o.stat}"`)));
 assert.ok(!/\bCORE_STATS\b/.test(code),"CORE_STATS is retired");
 assert.ok(!/\bgainStat\b|\bgainSkill\b/.test(code),"the two growth functions merged into gain()");
-assert.ok(!/s\.stats\.|s\.skills\./.test(code),"no source path still reads the old two-tier model");
+assert.ok(!/\.(stats|skills)\s*[.[]/.test(code),"no source path still reads the old two-tier model");
 
 // ===== 合并属性的衰退系数 =====
 // 两个旧属性合成一个新属性时，衰退率必须取合并后的等效值，不能只搬其中一边。
 // PAC=(speed+burst)/2，旧衰退 1.6 与 1.5 → (1.6+1.5)/2=1.55
 // PHY=(height+stamina)/2，旧模型 height 根本不衰退 → (0+1.2)/2=.6
-assert.match(code,/s\.attrs\.PAC=clamp\(s\.attrs\.PAC-drop\(1\.55\)/,"PAC decays at the average of the old speed+burst rates");
-assert.match(code,/s\.attrs\.PHY=clamp\(s\.attrs\.PHY-drop\(\.6\)/,"PHY decays at half the old stamina rate because height never decayed");
+// 用固定 Math.random 跑真实衰退：源码正则只能证明「写了」，证明不了「只写了一次」。
+const aged=G.createInitialState("老将",allocation,[],"standard","mid");
+aged.totalMonth=(31-14)*12;                      // standard 的 decayAge=31，yrs=1
+ATTR_KEYS.forEach(k=>aged.attrs[k]=80);
+const beforeAge={...aged.attrs},origRandom=Math.random;
+Math.random=()=>.5;try{G.applyAging(aged)}finally{Math.random=origRandom}
+assert.equal(+(beforeAge.PAC-aged.attrs.PAC).toFixed(6),+((1.55+.7)*.95).toFixed(6),"PAC 按 speed+burst 的合并速率衰退，且只掉一次");
+assert.equal(+(beforeAge.PHY-aged.attrs.PHY).toFixed(6),+((.6+.7)*.95).toFixed(6),"PHY 按 stamina 的一半衰退，因为 height 从不衰退");
+assert.equal(beforeAge.SHO,aged.attrs.SHO,"射门不随年龄衰退");
 
 // ===== 创建页点数预算 =====
 // 显示用的常数和加减按钮守卫用的常数必须是同一个，否则加点按钮会被永久锁死、
 // 玩家一旦调整分配就再也无法开始游戏。
-const budgets=[...code.matchAll(/(\d+)-Object\.values\(creatorAllocation\)/g)].map(m=>Number(m[1]));
-assert.equal(budgets.length,2,"creator budget appears in both the display and the click guard");
-assert.equal(new Set(budgets).size,1,"display and click guard must share one budget constant");
-assert.equal(budgets[0],24,"seven attributes are allocated from 24 points");
+assert.equal(G.ALLOC_BUDGET,24,"seven attributes are allocated from 24 points");
+assert.equal(Object.values(G.START_ALLOC).reduce((a,b)=>a+b,0),G.ALLOC_BUDGET,"the default allocation spends exactly the budget");
+assert.deepEqual([...Object.keys(G.START_ALLOC)].sort(),[...ATTR_KEYS].sort(),"default allocation covers exactly the seven attributes");
 
 G.ACTIONS.find(x=>x.id==="train_box").run(state);
 assert.ok(state.attrs.SHO>shoBefore,"finishing training raises SHO");
 const pasBefore=state.attrs.PAS;
 G.ACTIONS.find(x=>x.id==="train_box").run(state);
 assert.ok(state.attrs.PAS>pasBefore,"finishing training also feeds PAS via set pieces");
+
+// 天赋只应放大收益，不应放大惩罚
+const plain=G.createInitialState("素人",allocation,[],"standard","mid");
+const gifted=G.createInitialState("天才",allocation,["box_instinct","ambidextrous"],"standard","mid");
+const p0=plain.attrs.SHO,g0=gifted.attrs.SHO;
+G.gain(plain,"SHO",-1,"finish");G.gain(gifted,"SHO",-1,"finish");
+assert.equal(p0-plain.attrs.SHO,g0-gifted.attrs.SHO,"talents must not amplify a penalty");
+// 未知 key 必须被挡下：否则 clamp(undefined+n) 会写进 NaN 并凭空造一个属性键
+const typo=G.createInitialState("错字",allocation,[],"standard","mid");
+const origWarn=console.warn;console.warn=()=>{};try{G.gain(typo,"WILL",5,"will")}finally{console.warn=origWarn}
+assert.equal("WILL" in typo.attrs,false,"a misspelled key must not invent an attribute");
+assert.deepEqual(Object.keys(typo.attrs).sort(),[...ATTR_KEYS].sort(),"the attribute set stays closed");
+
+// 身高档位：矮个与高个互为镜像，未知档位回落 mid，起始属性受 99 上限约束
+const shortP=G.createInitialState("矮个",allocation,[],"standard","short"),tallP=G.createInitialState("高个",allocation,[],"standard","tall");
+assert.ok(shortP.attrs.PAC>tallP.attrs.PAC&&shortP.attrs.DRI>tallP.attrs.DRI,"矮个 PAC/DRI 起步更高");
+assert.ok(tallP.attrs.PHY>shortP.attrs.PHY,"高个 PHY 起步更高");
+assert.ok(tallP.heightCm>shortP.heightCm,"身高档位决定 heightCm");
+assert.deepEqual(Object.entries(G.HEIGHT_TIERS.short.adj).map(([k,v])=>[k,-v]).sort(),Object.entries(G.HEIGHT_TIERS.tall.adj).sort(),"矮个与高个的属性修正必须互为镜像");
+assert.equal(G.createInitialState("乱码档位",allocation,[],"standard","constructor").heightTier,"mid","an unknown height tier falls back to mid");
+assert.ok(G.createInitialState("超额",{PAC:24},[],"standard","mid").attrs.PAC<=99,"starting attributes respect the 99 ceiling");
 
 // 四条流派各有一个专项训练，天赋与流派保持独立
 assert.equal(G.STYLES.length,4,"four playing-style routes");
@@ -203,6 +243,10 @@ assert.equal(legacy.pendingMatch,null);
 assert.equal(legacy.combosHit.length,0);
 assert.equal(G.normalizeSave({matchPlan:"press"}).matchPlan,"press","a valid stored role survives normalisation");
 assert.equal(G.normalizeSave({matchPlan:"nonsense"}).matchPlan,"box","a bogus role falls back to the default");
+// v2 存档的形状与 v3 不兼容（stats/skills → attrs），必须被版本号挡在门外，
+// 否则玩家点“继续游戏”会直接抛 TypeError。
+assert.equal(G.VERSION,3,"the attrs migration is a breaking save-shape change");
+assert.equal(G.normalizeSave({}).attrs,undefined,"normalizeSave does not synthesise attrs, so a v2 save must be rejected by version");
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
