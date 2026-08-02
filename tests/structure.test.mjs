@@ -621,4 +621,27 @@ assert.match(code,/这个月你想怎么过/);
 assert.ok(!code.includes("拿什么"+"换未来"));
 assert.match(code,/关键球”不设单独数值/,"derived key-moment mechanic should be explained");
 
+// ===== 生涯页展示七维与流派属性标注 =====
+// 「技术属性（训练成长）」那张卡还停在两层模型上：把 PAS 印成「视野」和「定位球」两行，
+// 同一个数字出现两次。改成七项平铺，并给身高一个落脚点（它已经不在侧栏了）。
+const careerSrc=code.split("\n").find(l=>l.startsWith("function renderCareer()"));
+assert.ok(careerSrc,"renderCareer stays on one line so it can be checked in isolation");
+assert.match(careerSrc,/七项主属性/,"career page explains the flat attribute model");
+assert.ok(!careerSrc.includes("技术属性（训练成长）"),"the old two-tier wording is gone");
+["射术","爆发","耐力","视野","定位球","心情","队内适应"].forEach(w=>
+  assert.ok(!careerSrc.includes(w),`the career page no longer names the deleted「${w}」`));
+assert.match(careerSrc,/heightCm/,"height still shows somewhere as background info");
+assert.match(careerSrc,/体能见底时/,"the career page explains the condition coefficient");
+G.STYLES.forEach(st=>assert.ok(Array.isArray(st.attrs)&&st.attrs.every(k=>ATTR_KEYS.includes(k)),
+  `${st.key} declares which attributes it lifts`));
+assert.ok(careerSrc.includes('<small>${st.attrs.join("·")}</small>'),
+  "style cards print those abbreviations straight from STYLES, so the label can't drift");
+
+// README 得和七项模型对上，且不许把已删掉的变量名写回来
+const readme=fs.readFileSync(path.join(root,"README.md"),"utf8");
+assert.ok(!/心情|队内适应|五维/.test(readme),"README drops the deleted variables");
+ATTR_KEYS.forEach(k=>assert.ok(readme.includes(k),`README names ${k}`));
+assert.match(readme,/24点/,"README documents the 24-point budget");
+assert.match(readme,/身高档位/,"README documents the height tier choice");
+
 console.log("模拟球员 architecture test passed");

@@ -44,7 +44,7 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .style-row{margin:12px 0}
 .style-row.dim{opacity:.45}
 .style-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
-.style-head b{font-size:11px}
+.style-head b{font-size:11px}.style-head b small{font-size:9px;font-weight:800;letter-spacing:.04em;color:var(--gold);opacity:.85}
 .style-lv{font-size:9px;font-weight:900;color:var(--gold);border:1px solid #f0bd5e40;border-radius:6px;padding:2px 6px}
 .style-row.dim .style-lv{color:var(--muted);border-color:#ffffff1a}
 .style-row .bar-wide i{background:linear-gradient(90deg,#1d8f5a,var(--green))}
