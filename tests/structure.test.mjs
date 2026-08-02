@@ -23,6 +23,14 @@ assert.ok(G.CSL_CLUBS.some(x=>x.name==="重庆铜梁龙"));
 assert.ok(G.PL_CLUBS.some(x=>x.name==="Manchester United"));
 
 const ATTR_KEYS=["PAC","SHO","PAS","DRI","DEF","PHY","WIL"];
+
+// 天赋 tag 必须指向真实属性，否则 gain() 里的加成永远不会触发
+const TAG_WHITELIST=new Set([...ATTR_KEYS,"injury","fitness","goal","clutch","team","tactics","language","overseas","love","header","training","scout","money","media","transfer","recovery","sub","home","fame","national","final","coach"]);
+G.TALENTS.forEach(t=>t.tags.forEach(tag=>
+  assert.ok(TAG_WHITELIST.has(tag),`talent ${t.id} has unknown tag "${tag}"`)));
+const attrTagged=G.TALENTS.filter(t=>t.tags.some(x=>ATTR_KEYS.includes(x)));
+assert.ok(attrTagged.length>=8,"most talents should hang off a real attribute");
+
 const allocation={PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4};
 const state=G.createInitialState("测试前锋",allocation,G.TALENTS.slice(0,3).map(x=>x.id),"standard","mid");
 
