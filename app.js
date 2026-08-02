@@ -175,13 +175,13 @@ const COMBOS=[
 ];
 // 流派：天赋是出生特质，流派是后天踢法。两者独立累积，互不排斥。
 const STYLES=[
-  {key:"box",name:"禁区杀手",icon:"◎",desc:"强化射门、跑位与补射",
+  {key:"box",name:"禁区杀手",icon:"◎",desc:"抬高射门的成长上限",attrs:["SHO"],
    levels:["射门类关键时刻成功率 +5%","解锁比赛选项「抢前点」","落后时的绝杀机会成功率再 +8%，进球评分更高"]},
-  {key:"burst",name:"爆点前锋",icon:"»",desc:"强化速度、爆发与盘带",
+  {key:"burst",name:"爆点前锋",icon:"»",desc:"抬高速度与盘带的成长上限",attrs:["PAC","DRI"],
    levels:["单刀与逼抢场景成功率 +6%","解锁比赛选项「强行突破」","过人成功后额外 12% 概率直接形成进球"]},
-  {key:"target",name:"支点中锋",icon:"▲",desc:"强化对抗、耐力与意志",
+  {key:"target",name:"支点中锋",icon:"▲",desc:"抬高身体与防守的成长上限",attrs:["PHY","DEF"],
    levels:["头球争顶场景出现率提高","解锁比赛选项「背身护球」","支点选项成功后必定为队友创造机会"]},
-  {key:"play",name:"组织型前锋",icon:"▣",desc:"强化视野、盘带与定位球",
+  {key:"play",name:"组织型前锋",icon:"▣",desc:"抬高传球的成长上限",attrs:["PAS"],
    levels:["助攻转化率 +8%","解锁比赛选项「回撤直塞」","球队整体实力 +2"]}
 ];
 const STYLE_NUMERALS=["Ⅰ","Ⅱ","Ⅲ"];
@@ -243,7 +243,14 @@ function gain(s,key,n,tag){
   }
   s.attrs[key]=clamp(s.attrs[key]+n*mult,1,99);
 }
-function styleCapLevel(s,key){return 0}   // Task 9 接入流派软上限
+/* 流派等级抬高对应属性的成长软上限，每级 +5。WIL 不归任何流派——
+   它只从剧情选择、压力事件和小满那里长，练不出来。 */
+function styleCapLevel(s,key){
+  if(!s||!s.styles)return 0;
+  let lv=0;
+  for(const st of STYLES)if(st.attrs&&st.attrs.includes(key))lv=Math.max(lv,styleOf(s,st.key));
+  return lv;
+}
 function overall(s){return Math.round(ATTRS.reduce((t,a)=>t+s.attrs[a.key]*a.w,0))}
 /* 卡面 OVR 读裸值；教练选人读 effOverall——同一张权重表，但经 eff() 一次，
    于是状态与体能经内核影响首发，而不是再掺一个 form 散项。 */
@@ -1530,6 +1537,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,prepareMatch,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

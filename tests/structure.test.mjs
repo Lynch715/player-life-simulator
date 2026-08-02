@@ -222,6 +222,46 @@ G.ACTIONS.forEach(a=>a.effects.forEach(e=>DEAD_WORDS.forEach(w=>
 G.ACTIONS.forEach(a=>assert.ok(!/change\([^,]+,"morale"/.test(a.run.toString()),
   `ACTION ${a.id} 仍在直接改 morale`));
 
+// ===== 流派抬高对应属性的成长天花板 =====
+// 软上限只是把成长「压慢」，不是硬顶——练无限次谁都能到 99。所以要在
+// 一个真实的生涯投入量下比较：40 次训练 × 0.75，约等于一条流派练满的代价。
+function grindTo(styleExp,key,startAt){
+  const t=G.createInitialState("磨练",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=50);
+  t.attrs[key]=startAt;t.styles={box:0,burst:0,target:0,play:0,...styleExp};
+  for(let i=0;i<40;i++)G.gain(t,key,.75,"grind");
+  return t.attrs[key];
+}
+const noStyle=grindTo({},"SHO",80);
+const maxStyle=grindTo({box:120},"SHO",80);
+assert.ok(maxStyle-noStyle>5,`style III should push SHO meaningfully higher (${noStyle.toFixed(1)} → ${maxStyle.toFixed(1)})`);
+assert.ok(maxStyle>95,`style III should break past 95, got ${maxStyle.toFixed(1)}`);
+assert.ok(noStyle<92,`no style should stall below 92, got ${noStyle.toFixed(1)}`);
+// 机制本身：同一个属性值下，流派等级越高，softFactor 越大
+const sfs=[0,1,2,3].map(lv=>G.softFactor(88,G.DIFFICULTIES.standard,lv));
+assert.deepEqual(sfs,[.25,.4,.6,.8],"each style level lifts the growth multiplier one notch");
+
+// 每条流派声明自己抬高哪些属性，且全部是合法 key
+assert.deepEqual([...G.STYLES.map(s=>s.key)],["box","burst","target","play"]);
+G.STYLES.forEach(st=>{
+  assert.ok(Array.isArray(st.attrs)&&st.attrs.length>0,`${st.key} declares its attributes`);
+  st.attrs.forEach(k=>assert.ok(ATTR_KEYS.includes(k),`${st.key} attr ${k} is a real key`));
+});
+// 七项里只有 WIL 不归任何流派
+const covered=new Set(G.STYLES.flatMap(s=>s.attrs));
+assert.deepEqual(ATTR_KEYS.filter(k=>!covered.has(k)),["WIL"],"only WIL has no style route");
+// 流派等级正确映射到 cap level
+const t9=G.createInitialState("流派",allocation,[],"standard","mid");
+t9.styles={box:120,burst:0,target:60,play:20};
+assert.equal(G.styleCapLevel(t9,"SHO"),3,"box III caps SHO at level 3");
+assert.equal(G.styleCapLevel(t9,"PHY"),2,"target II caps PHY at level 2");
+assert.equal(G.styleCapLevel(t9,"DEF"),2,"target II also caps DEF");
+assert.equal(G.styleCapLevel(t9,"PAS"),1,"play I caps PAS at level 1");
+assert.equal(G.styleCapLevel(t9,"PAC"),0,"untrained burst leaves PAC uncapped");
+assert.equal(G.styleCapLevel(t9,"WIL"),0,"WIL never gets a style cap");
+// 流派卡面的 desc 必须说明它抬高哪些属性，否则玩家看不出投资回报
+G.STYLES.forEach(st=>assert.ok(/成长上限/.test(st.desc),`${st.key} desc explains the cap it raises`));
+
 const seen=[];
 for(let i=0;i<6;i++){
   const e=G.chooseRandomEvent(state,()=>.13+i*.1);
