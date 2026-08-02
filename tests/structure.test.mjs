@@ -314,6 +314,25 @@ assert.ok(G.momentSuccessRate(dc,m0,o0,1,false)<=0.85);
 assert.ok(!/s\.form\/1000|s\.fitness\/2000|\(s\.form-50\)\/260|\(s\.form-50\)\/220/.test(code),
   "no ad-hoc form/fitness term survives in a judgement formula");
 
+// ===== 首发概率仍看得见状态 =====
+// 删掉 rawStart 里的 (form-50)/220 之后，选人一度对状态完全失明（恒定 42%）。
+// 解法不是把散项加回去，而是让 rawStart 读 effOverall——同一张 OVR 权重表，
+// 但经 eff() 一次，状态与体能只被计入一遍。
+const selBase=()=>{const s=G.createInitialState("选人探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>s.attrs[k]=68);s.coachFavor=55;s.totalMonth=72;
+  s.club={name:"重庆铜梁龙",league:"中超",strength:70};return s};
+const calib=selBase();calib.form=55;calib.fitness=72;
+assert.ok(Math.abs(G.effOverall(calib)-G.overall(calib))<1e-9,"effOverall equals the card OVR at the calibration point");
+function startRate(f,fit){const s=selBase();s.form=f;s.fitness=fit;let n=0;
+  for(let i=1;i<=800;i++){let x=i>>>0;const rng=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+    if(G.prepareMatch(s,rng).role==="首发")n++}return n/800}
+const srLo=startRate(30,50),srMid=startRate(55,72),srHi=startRate(90,95);
+assert.ok(srHi>srMid&&srMid>srLo,`selection must track condition, got ${srLo.toFixed(2)}/${srMid.toFixed(2)}/${srHi.toFixed(2)}`);
+assert.ok(srHi-srLo>0.12,`condition should swing selection by >12pp, got ${((srHi-srLo)*100).toFixed(0)}pp`);
+// 防守型前锋也要被教练看见：DEF 参与选人，否则 DEF 成长毫无回报
+const dLo=selBase(),dHi=selBase();dLo.attrs.DEF=30;dHi.attrs.DEF=95;
+assert.ok(G.effOverall(dHi)>G.effOverall(dLo),"DEF contributes to how the coach rates you");
+
 // ===== 存档迁移 v2 → v3 =====
 function v2Save(o){
   return {version:2,stats:{height:o.height,speed:o.speed,burst:o.burst,stamina:o.stamina,will:o.will},
