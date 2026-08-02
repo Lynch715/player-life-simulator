@@ -520,6 +520,22 @@ const single=G.createInitialState("分手",allocation,[],"standard","mid");
 single.relationship.status="分手";single.relationship.love=0;
 assert.ok(G.loveSupport(inLove)>G.loveSupport(single),"a strong relationship lifts the form baseline");
 
+// ===== 状态的均衡点必须等于基线，不能被每月固定 +N 顶上去 =====
+// 合并「心情」时最容易犯的错：把原本每月 +N 的小加成 1:1 搬到 form 上。
+// form 每月回归 22%，一个固定 +N 会把均衡点推高 N/0.22≈4.5N——曾经实测
+// 均值飙到 68，四分之一的月份卡在 cond() 上限，状态管理彻底失去意义。
+assert.ok(!/change\(S,"form",\s*\d/.test(code),
+  "monthly settlement must not add a flat constant to form — raise the baseline instead");
+// 长跑验证：单身无房的均衡点应落在基线 52 附近，而不是 52+18
+{
+  const t=G.createInitialState("均衡",allocation,[],"standard","mid");
+  t.relationship.status="分手";t.relationship.love=0;t.assets.house=false;
+  t.form=52;
+  const origR=Math.random;let x=99;Math.random=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+  try{for(let m=0;m<180&&!t.retired;m++){G.setState(t);G.advanceMonth()}}catch(e){}finally{Math.random=origR}
+  assert.ok(t.form<66,`form equilibrium drifted to ${t.form}; a flat monthly bonus has crept back in`);
+}
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }

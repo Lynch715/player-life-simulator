@@ -1405,8 +1405,13 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
   S.totalMonth++;S.actionPoints=3;S.actionUsage={};S.combosHit=[];change(S,"fitness",16+Math.max(0,Math.round((60-S.fitness)*0.7)));
   // 每月状态只结算一次：向基线回归，外加恋爱与安家的小幅加成，合成一笔下发。
   // 基线由小满关系抬高——关系好不再折成隐形战力，而是让你的状态长期更稳；分手了，基线掉回 52。
-  const base=52+loveSupport(S),lift=(["恋人","异地"].includes(S.relationship.status)?(S.relationship.love>=65?2:1):0)+(S.assets&&S.assets.house?1:0);
-  change(S,"form",1+lift+Math.round((base-S.form)*0.22));
+  /* 状态每月回归基线。凡是「让你长期状态更好」的东西都必须抬高 base，
+     绝不能写成一个每月固定 +N——那会把均衡点推高 N/0.22≈4.5N。
+     合并前这些 +N 喂的是一个没有回归机制的旧字段，所以无害；直接搬到
+     form 上会把均衡点顶到 67，四分之一的月份卡在 cond() 上限，
+     状态管理就没意义了。关系的收益只走 loveSupport 一条路，不重复计。 */
+  const base=52+loveSupport(S)+(S.assets&&S.assets.house?2:0);
+  change(S,"form",Math.round((base-S.form)*0.22));
   S.peakOverall=Math.max(S.peakOverall||0,overall(S));S.lastActionFeedback=null;
   if(S.totalMonth%12===0&&ageInfo(S).age<=18){const grow=rand(2,4);S.heightCm=Math.min(200,S.heightCm+grow);log(S,"story",`身体又长开了一些，你现在${S.heightCm}cm。`)}
   const preSusp=S.suspension||0,preInjury=S.injury.months||0;
