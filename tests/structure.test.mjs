@@ -556,6 +556,34 @@ for(const file of ["index.html","style.css","app.js","assets/player.webp","asset
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+
+// ===== 七边形雷达图 =====
+const rs=G.createInitialState("雷达",allocation,[],"standard","mid");
+ATTR_KEYS.forEach((k,i)=>rs.attrs[k]=40+i*8);   // 40,48,56,64,72,80,88
+const svg=G.radarSVG(rs);
+assert.match(svg,/^<svg /,"radarSVG returns an svg element");
+assert.match(svg,/viewBox="0 0 240 215"/,"fixed viewBox keeps the sidebar layout stable");
+ATTR_KEYS.forEach(k=>assert.ok(svg.includes(">"+k+"<"),`${k} label is rendered`));
+ATTR_KEYS.forEach(k=>assert.ok(svg.includes(">"+Math.round(rs.attrs[k])+"<"),`${k} value is rendered`));
+// 七个顶点，四层网格环
+assert.equal((svg.match(/<polygon/g)||[]).length,5,"four grid rings plus one data polygon");
+assert.equal((svg.match(/<circle/g)||[]).length,7,"one dot per vertex");
+// 所有坐标都落在 viewBox 内，标签不会被裁掉
+const rcoords=[...svg.matchAll(/(?:x|cx|x1|x2)="([-\d.]+)"/g)].map(m=>+m[1]);
+assert.ok(Math.min(...rcoords)>=0&&Math.max(...rcoords)<=240,`x coords stay inside the viewBox (${Math.min(...rcoords)}~${Math.max(...rcoords)})`);
+const rys=[...svg.matchAll(/(?:y|cy|y1|y2)="([-\d.]+)"/g)].map(m=>+m[1]);
+assert.ok(Math.min(...rys)>=0&&Math.max(...rys)<=215,`y coords stay inside the viewBox (${Math.min(...rys)}~${Math.max(...rys)})`);
+// 极端值也不能戳出边框
+const rsMax=G.createInitialState("满值",allocation,[],"standard","mid");
+ATTR_KEYS.forEach(k=>rsMax.attrs[k]=99);
+const svgMax=G.radarSVG(rsMax);
+const rcMax=[...svgMax.matchAll(/(?:x|cx|x1|x2)="([-\d.]+)"/g)].map(m=>+m[1]);
+assert.ok(Math.min(...rcMax)>=0&&Math.max(...rcMax)<=240,"a maxed-out player still fits the viewBox");
+assert.match(html,/id="radarPanel"/,"sidebar hosts the radar");
+assert.match(html,/id="radarOvr"/,"the radar panel headlines OVR");
+assert.ok(!html.includes('id="heightCm"'),"height is no longer a sidebar headline");
+assert.ok(!html.includes('id="statBars"'),"the old five-bar list is gone");
+
 assert.match(html,/id="attributeAllocator"/);
 assert.match(html,/data-tab="transfer"/);
 assert.match(html,/data-tab="national"/);

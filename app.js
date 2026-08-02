@@ -1487,8 +1487,27 @@ function resolveMatch(s){
 
 function phaseCopy(s){const a=ageInfo(s).age,p=phaseOf(s);if(a<16)return["梯队成长期","通过训练和比赛争取留队"];if(a<18&&p==="firstteam")return["一线队学徒期","训练、替补和更衣室竞争都要适应"];if(a<18&&p==="overseas")return["海外青训期","先适应语言，再跟上训练强度"];if(a<18&&p==="campus")return["校园重启期","兼顾学业，为18岁的职业试训做准备"];return["职业生涯","转会、国家队和年度荣誉已经开放"]}
 
-function renderAll(){if(!S||typeof document==="undefined")return;const a=ageInfo(S),[phase,hint]=phaseCopy(S);$("playerNameText").textContent=S.name;$("clubText").textContent=S.club.name;$("overallText").textContent=overall(S);$("heightCm").textContent=`${S.heightCm}cm`;$("ageText").textContent=`${a.age}岁`;$("monthText").textContent=`第${a.month}月`;$("apText").textContent=`${S.actionPoints} / 3`;$("careerSubtitle").textContent=`第${a.season}赛季 · ${phase}`;$("phaseTitle").textContent=phase;$("phaseHint").textContent=`${hint} · ${S.totalMonth%2===0?"两个月后触发抉择":"下个月触发两月抉择"}`;$("fitnessText").textContent=Math.round(S.fitness);$("formText").textContent=Math.round(S.form);$("loveText").textContent=S.relationship.status==="分手"?"—":Math.round(S.relationship.love);$("fitnessBar").style.width=`${S.fitness}%`;$("formBar").style.width=`${S.form}%`;$("loveBar").style.width=`${S.relationship.love}%`;const moneyEl=$("moneyText");if(moneyEl){moneyEl.textContent=`${Math.round(S.money)}万`;moneyEl.style.color=S.money<0?"var(--bad)":"var(--gold)"}
-  $("talentMini").innerHTML=S.talents.map(id=>`<span>${esc(talentById(id)?.name||id)}</span>`).join("");$("statBars").innerHTML=ATTRS.map(x=>`<div class="stat-row"><span>${x.name}</span><div class="track"><i style="width:${S.attrs[x.key]}%"></i></div><b>${Math.round(S.attrs[x.key])}</b></div>`).join("");
+/* 七边形能力雷达。顶点顺序即 ATTRS 顺序，从正上方(-90°)顺时针每 360/7 度一个。
+   R=64 时标签落在 x 36~204、y 22~193，均在 240×215 的 viewBox 内。 */
+function radarSVG(s){
+  const R=64,cx=120,cy=108,N=ATTRS.length;
+  const pt=(i,k)=>{const t=(-90+i*360/N)*Math.PI/180;return[cx+R*k*Math.cos(t),cy+R*k*Math.sin(t)]};
+  const ring=k=>ATTRS.map((_,i)=>pt(i,k).map(v=>v.toFixed(1)).join(",")).join(" ");
+  let out=`<svg viewBox="0 0 240 215" width="100%" role="img" aria-label="能力雷达">`;
+  [.25,.5,.75,1].forEach(k=>{out+=`<polygon points="${ring(k)}" fill="none" stroke="#ffffff${k===1?"28":"12"}" stroke-width="1"/>`});
+  ATTRS.forEach((_,i)=>{const[x,y]=pt(i,1);out+=`<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#ffffff12" stroke-width="1"/>`});
+  const data=ATTRS.map((a,i)=>pt(i,clamp(s.attrs[a.key],1,99)/100));
+  out+=`<polygon points="${data.map(p=>p.map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="#28d27d33" stroke="#28d27d" stroke-width="2" stroke-linejoin="round"/>`;
+  data.forEach(([x,y])=>{out+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#28d27d"/>`});
+  ATTRS.forEach((a,i)=>{
+    const[x,y]=pt(i,1.34),mid=Math.abs(x-cx)<4,anchor=mid?"middle":(x>cx?"start":"end"),dx=mid?0:(x>cx?2:-2);
+    out+=`<text x="${(x+dx).toFixed(1)}" y="${(y-2).toFixed(1)}" fill="#9bb0a5" font-size="8.5" font-weight="800" text-anchor="${anchor}">${a.key}</text>`;
+    out+=`<text x="${(x+dx).toFixed(1)}" y="${(y+8).toFixed(1)}" fill="#f5f2e9" font-size="13" font-weight="900" text-anchor="${anchor}">${Math.round(s.attrs[a.key])}</text>`;
+  });
+  return out+`</svg>`;
+}
+function renderAll(){if(!S||typeof document==="undefined")return;const a=ageInfo(S),[phase,hint]=phaseCopy(S);$("playerNameText").textContent=S.name;$("clubText").textContent=S.club.name;$("overallText").textContent=overall(S);$("radarOvr").textContent=overall(S);$("ageText").textContent=`${a.age}岁`;$("monthText").textContent=`第${a.month}月`;$("apText").textContent=`${S.actionPoints} / 3`;$("careerSubtitle").textContent=`第${a.season}赛季 · ${phase}`;$("phaseTitle").textContent=phase;$("phaseHint").textContent=`${hint} · ${S.totalMonth%2===0?"两个月后触发抉择":"下个月触发两月抉择"}`;$("fitnessText").textContent=Math.round(S.fitness);$("formText").textContent=Math.round(S.form);$("loveText").textContent=S.relationship.status==="分手"?"—":Math.round(S.relationship.love);$("fitnessBar").style.width=`${S.fitness}%`;$("formBar").style.width=`${S.form}%`;$("loveBar").style.width=`${S.relationship.love}%`;const moneyEl=$("moneyText");if(moneyEl){moneyEl.textContent=`${Math.round(S.money)}万`;moneyEl.style.color=S.money<0?"var(--bad)":"var(--gold)"}
+  $("talentMini").innerHTML=S.talents.map(id=>`<span>${esc(talentById(id)?.name||id)}</span>`).join("");$("radarPanel").innerHTML=radarSVG(S);
   document.querySelectorAll("#gameNav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===S.tab));renderTab();}
 
 function renderTab(){const fn={actions:renderActions,story:renderStory,career:renderCareer,matches:renderMatches,transfer:renderTransfer,assets:renderAssets,national:renderNational,honours:renderHonours,rank:renderRank}[S.tab]||renderActions;fn()}
@@ -1544,6 +1563,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,prepareMatch,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

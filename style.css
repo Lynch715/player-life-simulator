@@ -53,3 +53,7 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .classic-tag{display:inline-block;margin-bottom:10px;padding:5px 10px;border-radius:9px;background:#f0bd5e18;color:var(--gold);font-size:10px;font-weight:900;letter-spacing:.02em}
 
 @media (max-width:760px){.plan-grid{grid-template-columns:1fr}.plan-card{padding:12px}}
+
+.radar-panel{margin-top:6px}
+.radar-panel svg{display:block}
+@media (max-width:760px){.radar-panel{margin-top:2px}.radar-panel svg{max-height:168px}}
