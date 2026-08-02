@@ -256,6 +256,41 @@ assert.equal(G.normalizeSave({matchPlan:"nonsense"}).matchPlan,"box","a bogus ro
 assert.equal(G.VERSION,3,"the attrs migration is a breaking save-shape change");
 assert.equal(G.normalizeSave({}).attrs,undefined,"normalizeSave does not synthesise attrs, so a v2 save must go through migration first");
 
+// ===== 判定内核：有效属性 =====
+const probe=G.createInitialState("探针",allocation,[],"standard","mid");
+ATTR_KEYS.forEach(k=>probe.attrs[k]=70);
+
+// 基准点：form 55 / fitness 72 时 cond 恰为 1，有效属性等于裸值
+probe.form=55;probe.fitness=72;
+assert.ok(Math.abs(G.cond(probe)-1)<1e-9,"cond is exactly 1 at the calibration point");
+ATTR_KEYS.forEach(k=>assert.ok(Math.abs(G.eff(probe,k)-70)<1e-9,`${k} unmodified at cond=1`));
+
+// 巅峰与崩盘都被 clamp 住
+probe.form=100;probe.fitness=100;assert.equal(G.cond(probe),1.08,"cond ceiling");
+probe.form=0;probe.fitness=0;assert.equal(G.cond(probe),.78,"cond floor");
+
+// 敏感度方向：体能崩盘时身体掉得比意志狠得多
+const phyLow=G.eff(probe,"PHY"),wilLow=G.eff(probe,"WIL");
+assert.ok(phyLow<wilLow,"PHY collapses harder than WIL when exhausted");
+assert.ok(phyLow<50&&phyLow>45,`PHY 70 should land near 48 at rock bottom, got ${phyLow.toFixed(1)}`);
+assert.ok(wilLow>62&&wilLow<66,`WIL 70 should hold near 64 at rock bottom, got ${wilLow.toFixed(1)}`);
+
+// 单调性：状态与体能上升，任何属性的有效值都不下降
+ATTR_KEYS.forEach(k=>{
+  probe.form=20;probe.fitness=30;const lo=G.eff(probe,k);
+  probe.form=90;probe.fitness=95;const hi=G.eff(probe,k);
+  assert.ok(hi>lo,`${k} improves with better condition`);
+});
+
+// 球队贡献分：权重合计为 1，全 70 时两个分值都回到 70
+probe.form=55;probe.fitness=72;
+assert.ok(Math.abs(G.atk(probe)-70)<1e-9,"atk weights sum to 1");
+assert.ok(Math.abs(G.def(probe)-70)<1e-9,"def weights sum to 1");
+// DEF 是防守分的主导项，SHO 完全不参与
+probe.attrs.DEF=90;assert.ok(G.def(probe)>70,"DEF drives the defensive contribution");
+probe.attrs.DEF=70;probe.attrs.SHO=99;
+assert.ok(Math.abs(G.def(probe)-70)<1e-9,"shooting never inflates the defensive score");
+
 // ===== 存档迁移 v2 → v3 =====
 function v2Save(o){
   return {version:2,stats:{height:o.height,speed:o.speed,burst:o.burst,stamina:o.stamina,will:o.will},

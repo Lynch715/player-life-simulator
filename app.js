@@ -10,6 +10,14 @@ const DIFFICULTIES={
 };
 function diffOf(s){return DIFFICULTIES[s&&s.difficulty]||DIFFICULTIES.standard}
 function softFactor(cur,d,lv=0){const t=lv*5;let f=cur>=88+t?.25:cur>=82+t?.4:cur>=75+t?.6:cur>=68+t?.8:1;if(cur>=68+t)f/=d.soft;return f}
+/* ========== 判定内核 ==========
+   cond() 把状态与体能压成一个 0.78~1.08 的系数；eff() 是所有判定读取属性的
+   唯一入口。任何判定公式都不得再单独掺 form/fitness——那会双重计数。      */
+function cond(s){return clamp(1+(s.form-55)/500+(s.fitness-72)/600,.78,1.08)}
+const COND_SENS={PHY:1.4,PAC:1.3,DEF:1.2,DRI:1.0,SHO:.7,PAS:.6,WIL:.4};
+function eff(s,k){return s.attrs[k]*(1+(cond(s)-1)*COND_SENS[k])}
+function atk(s){return eff(s,"SHO")*.35+eff(s,"PAC")*.25+eff(s,"DRI")*.20+eff(s,"PAS")*.20}
+function def(s){return eff(s,"DEF")*.60+eff(s,"PHY")*.25+eff(s,"WIL")*.15}
 const ATTRS=[
   {key:"PAC",name:"速度",sub:"冲刺与启动",icon:"»",w:.21},
   {key:"SHO",name:"射门",sub:"终结与打门",icon:"◎",w:.25},
@@ -1518,6 +1526,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,atk,def,COND_SENS,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,prepareMatch,finishMatch,styleLevel,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);
