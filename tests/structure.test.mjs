@@ -361,6 +361,34 @@ assert.ok(new Set(reports.map(x=>`${x.gf}-${x.ga}`)).size>4,"match results retai
 assert.ok(reports.some(x=>x.role==="首发")&&reports.some(x=>x.role!=="首发"),"selection is probabilistic");
 reports.forEach(r=>assert.ok(r.model.ability&&r.model.condition&&r.model.random));
 
+// 时间线文案：进球句式只能落在真进球上
+// 老 bug：判定成功但没换来比分时，else 分支照样输出"低射钻进远角！"——
+// 玩家读到"球进了"，比分却没动。用集合成员判定而不是正则，新加的文案自动纳入检查。
+assert.ok(G.MATCH_ACTION_LINES,"timeline prose tiers should be exported");
+const goalLines=new Set(),assistLines=new Set();
+for(const tier of Object.values(G.MATCH_ACTION_LINES)){
+  (tier.goal||[]).forEach(x=>goalLines.add(x));
+  (tier.assist||[]).forEach(x=>assistLines.add(x));
+}
+assert.ok(goalLines.size>=6,"each scoring action keeps its own goal prose");
+assert.ok(assistLines.size>=4,"each creating action keeps its own assist prose");
+let realGoals=0,scorelessWins=0;
+for(let i=0;i<200;i++){
+  const p=G.prepareMatch(elite,seeded(i+1));
+  let goalEntries=0;
+  for(const e of p.timeline){
+    const assisted=e.text.startsWith("助攻："),body=assisted?e.text.slice(3):e.text;
+    if(e.kind==="goal"){goalEntries++;realGoals++;assert.ok(goalLines.has(body),`a goal entry must read as a goal: ${e.text}`);continue}
+    assert.equal(goalLines.has(body),false,`a non-goal entry must not read as a goal: ${e.text}`);
+    if(assisted){assert.ok(assistLines.has(body),`an assist entry must describe the pass: ${e.text}`);continue}
+    assert.equal(assistLines.has(body),false,`only assists may use assist prose: ${e.text}`);
+    if(e.kind==="good")scorelessWins++;
+  }
+  assert.equal(goalEntries,p.goals,"goal entries agree with the goals the model awarded");
+}
+assert.ok(realGoals>0,"the sample contains real goals");
+assert.ok(scorelessWins>0,"the sample contains successful actions that did not score");
+
 elite.seasonStats={matches:20,goals:38,assists:13,wins:15,ratingTotal:158,trophies:2};
 const award=G.seasonAwardCheck(elite,()=>.5);
 assert.equal(award.ballon,true,"world-class season can win Ballon d'Or");

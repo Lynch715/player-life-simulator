@@ -767,13 +767,38 @@ function loveSupport(s){if(!["恋人","异地"].includes(s.relationship.status))
 function poisson(lambda,rng=Math.random){let l=Math.exp(-Math.max(.08,lambda)),p=1,k=0;do{k++;p*=rng()}while(p>l&&k<9);return k-1}
 function rndFloat(rng,min,max){return min+rng()*(max-min)}
 function opponentPool(s){const c=currentClub(s);if(c.league==="英超")return PL_CLUBS.filter(x=>x.name!==c.name);if(s.club.league==="英超梯队")return PL_CLUBS.filter(x=>x.name!==s.club.name.replace(" U18","")).map(x=>({...x,name:`${x.name} U18`,strength:x.strength-11,league:"英超梯队"}));if(s.club.league==="中超梯队")return CSL_CLUBS.filter(x=>!s.club.name.includes(x.name)).map(x=>({...x,name:`${x.name} U16`,strength:x.strength-10,league:"中超梯队"}));if(s.club.league==="校园联赛")return CAMPUS_CLUBS.filter(x=>x.name!==s.club.name);return CSL_CLUBS.filter(x=>x.name!==c.name)}
-function matchActionText(type,success,s){const rows={
-  dribble:success?["边路接球后连续变向，甩开防守送出倒三角。","在肋部突然加速，穿过两人之间的缝隙。"]:["试图从边路强行突破，被对手提前卡住线路。","第一脚触球稍大，突破机会被边后卫破坏。"],
-  finish:success?["禁区内抢到第二点，低射钻进远角！","反越位成功，冷静推射越过门将！"]:["获得单刀，但最后一脚擦着立柱偏出。","禁区前沿起脚，皮球被门将托出横梁。"],
-  header:success?["高高跃起压住中卫，头球砸进网窝！","后点冲顶改变方向，门将来不及反应！"]:["抢到落点但头球高出，制空优势没有变成比分。","被中卫贴住身体，头球没有顶上力量。"],
-  setpiece:success?["任意球越过人墙急速下坠，直挂死角！","定位球弧线绕过人墙，门将只能目送入网！"]:["任意球越过人墙，却被门将侧扑封出。","定位球打在人墙外侧，错过改写比分的机会。"],
-  pass:success?["回撤吸引防守后送出直塞，队友形成单刀。","抢下第二点送出横传，队友完成破门。"]:["想法很清楚，但直塞力量稍大滑出底线。","反击中传球慢了半拍，越位旗随即举起。"]
-};return pick(rows[type])}
+/* 时间线文案分四档：goal=真的进了，assist=真的做成了助攻，near=这球做成了但没换来比分，fail=没做成。
+   判定成功和转化成比分是两次掷骰，"成功"远多于"进球"——near 这一档就是给它们的，
+   少了它就会出现比分没动、简报却在描述进球的矛盾。缺档时回落到 near：
+   宁可把一脚好球说小，也不能凭空报一个记分牌上没有的进球。 */
+const MATCH_ACTION_LINES={
+  dribble:{
+    assist:["边路连续变向甩开防守，倒三角回敲，队友推射空门。","在肋部加速穿过两人的缝隙，横敲给插上的队友一脚打进。"],
+    near:["连续两次变向过掉边卫，最后的传中被回追的后腰挡了出去。","在肋部加速甩开盯防，等到起脚时角度已经被封死。"],
+    fail:["试图从边路强行突破，被对手提前卡住线路。","第一脚触球稍大，突破机会被边后卫破坏。"]
+  },
+  finish:{
+    goal:["禁区内抢到第二点，低射钻进远角！","反越位成功，冷静推射越过门将！"],
+    near:["跟上第二点果断起脚，门将封住近角，球弹出底线。","反越位形成单刀，推射被出击的门将用腿挡下。"],
+    fail:["获得单刀，但最后一脚擦着立柱偏出。","禁区前沿起脚，皮球被门将托出横梁。"]
+  },
+  header:{
+    goal:["高高跃起压住中卫，头球砸进网窝！","后点冲顶改变方向，门将来不及反应！"],
+    near:["高高跃起压住中卫，头球顶得很正，却被门将稳稳抱住。","后点冲顶蹭到方向，皮球贴着立柱滑出底线。"],
+    fail:["抢到落点但头球高出，制空优势没有变成比分。","被中卫贴住身体，头球没有顶上力量。"]
+  },
+  setpiece:{
+    goal:["任意球越过人墙急速下坠，直挂死角！","定位球弧线绕过人墙，门将只能目送入网！"],
+    near:["任意球绕过人墙直奔死角，门将指尖把球托上横梁。","定位球送到了最危险的位置，禁区里却没人抢到第一点。"],
+    fail:["任意球越过人墙，却被门将侧扑封出。","定位球打在人墙外侧，错过改写比分的机会。"]
+  },
+  pass:{
+    assist:["回撤吸引防守后送出直塞，队友单刀推空门得手。","抢下第二点送出横传，队友完成破门。"],
+    near:["直塞穿透了整条防线，队友的射门被门将挡了出来。","回撤接球后送出过顶球，队友抢点慢了半拍。"],
+    fail:["想法很清楚，但直塞力量稍大滑出底线。","反击中传球慢了半拍，越位旗随即举起。"]
+  }
+};
+function matchActionText(type,outcome){const rows=MATCH_ACTION_LINES[type]||MATCH_ACTION_LINES.finish;return pick(rows[outcome]||rows.near)}
 
 /* ========== 赛前职责：常驻设置，强制三选一，不消耗执行点 ========== */
 const MATCH_PLANS=[
@@ -963,9 +988,9 @@ function prepareMatch(s,rng=Math.random,opts={}){
       const isGoal=success&&["finish","header","setpiece"].includes(type)&&goals<gf&&rng()<clamp(.38+(eff(s,"SHO")-52)/100+goalBonus,.28,.82);
       const isAssist=success&&["pass","dribble"].includes(type)&&assists+goals<gf&&rng()<clamp(.26+(eff(s,"PAS")-45)/150+assistBonus,.18,.63);
       const minute=Math.min(88,Math.round(minuteStart+i*(80-minuteStart)/attempts+rndFloat(rng,0,6)));
-      if(isGoal){goals++;timeline.push({minute,text:matchActionText(type,true,s),kind:"goal"})}
-      else if(isAssist){assists++;timeline.push({minute,text:`助攻：${matchActionText(type,true,s)}`,kind:"good"})}
-      else timeline.push({minute,text:matchActionText(type,success,s),kind:success?"good":"turn"});
+      if(isGoal){goals++;timeline.push({minute,text:matchActionText(type,"goal"),kind:"goal"})}
+      else if(isAssist){assists++;timeline.push({minute,text:`助攻：${matchActionText(type,"assist")}`,kind:"good"})}
+      else timeline.push({minute,text:matchActionText(type,success?"near":"fail"),kind:success?"good":"turn"});
     }
   }else timeline.push({minute:62,text:injured?"你在看台上观看比赛，康复计划没有允许冒险。":"教练完成最后一次换人，你仍留在替补席。",kind:"bad"});
   let injuryChance=plays?Math.max(.005,(.016+(45-s.fitness)/500+(s.injury.risk||0)/900-(hasTalent(s,"iron_man")?.015:0))*diffOf(s).injury*assetInjuryFactor(s)):0;
@@ -1569,6 +1594,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);
