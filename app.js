@@ -1720,8 +1720,14 @@ function resolveMatch(s){
   const ctx=pm.ctx,report=finishMatch(s,pm.pending);
   s.pendingMatch=null;
   applyMatch(s,report);
-  if(pm.fixture){pm.fixture.status="played";
-    pm.fixture.result={gf:report.gf,ga:report.ga,goals:report.goals,assists:report.assists,rating:report.rating}}
+  /* 必须按 month 回查 s.schedule 里那个活对象，不能直接写 pm.fixture。
+     saveGame 把 pendingMatch.fixture 和 schedule.fixtures[i] 序列化成两份，
+     读档后它们就是两个对象；此时写 pm.fixture 等于写给一个孤儿副本，
+     赛程上那场永远停在 upcoming，还会变成「月份在过去却未开打」的幽灵场次。
+     点球的 penMatch 踩过一模一样的坑。 */
+  if(pm.fixture){const fx=(s.schedule&&s.schedule.fixtures.find(f=>f.month===pm.fixture.month))||pm.fixture;
+    fx.status="played";
+    fx.result={gf:report.gf,ga:report.ga,goals:report.goals,assists:report.assists,rating:report.rating}}
   challengeProgress(s,report);
   ctx.matchReportModal={...buildMatchReportModal(report),kicker:report.classic?"经典之战":"比赛简报"};
   finishMonth(ctx);
@@ -1811,6 +1817,6 @@ const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
-  getModalQueue:()=>modalQueue,clearModalQueue:()=>{modalQueue=[];modalBusy=false}};
+  getModalQueue:()=>modalQueue,clearModalQueue:()=>{modalQueue=[];modalBusy=false},resumeMatchFlow};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

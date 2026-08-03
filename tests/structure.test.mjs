@@ -1037,4 +1037,33 @@ async function driveMatch(t,pick,cap=300){
   assert.equal(G.shouldPlayMatch(t),false,"伤停不上场");
 }
 
+// ===== 刷新之后，比赛结果仍要写回赛程表 =====
+// saveGame 把 pendingMatch.fixture 和 schedule.fixtures[i] 序列化成两份，
+// 读档后它们是两个对象。写 pm.fixture 等于写给孤儿副本，赛程上那场
+// 永远停在 upcoming，还会变成「月份在过去却未开打」的幽灵场次。
+// 点球的 penMatch 踩过一模一样的坑。
+{
+  const t=G.createInitialState("刷新写回",allocation,[],"standard","mid");
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();                       // 进到第49月，停在关键时刻弹窗
+
+  // 此刻刷新：存档往返，两个引用就此脱钩
+  const rt=JSON.parse(JSON.stringify(t));
+  assert.equal(rt.pendingMatch&&rt.pendingMatch.fixture!==undefined,true,"sanity: 刷新时确实有待决比赛");
+  assert.equal(rt.pendingMatch.fixture===rt.schedule.fixtures.find(f=>f.month===rt.pendingMatch.fixture.month),
+    false,"sanity: 存档往返后两者必然是两个对象——这正是 bug 的来源，先钉住前提");
+
+  G.setState(rt);G.clearModalQueue();
+  G.resumeMatchFlow(rt);
+  await driveMatch(rt,()=>0);
+
+  const fx=rt.schedule.fixtures.find(f=>f.month===49);
+  assert.equal(fx.status,"played",
+    `刷新后比赛结果必须写回 schedule.fixtures，实际 ${fx.status}——写进孤儿副本了`);
+  assert.ok(fx.result&&Number.isFinite(fx.result.gf),"刷新后比分也要写回，不能只改状态");
+}
+
 console.log("模拟球员 architecture test passed");
