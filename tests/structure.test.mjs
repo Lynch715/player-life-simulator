@@ -610,6 +610,214 @@ assert.ok(!/change\(S,"form",\s*\d/.test(code),
   assert.ok(t.form<66,`form equilibrium drifted to ${t.form}; a flat monthly bonus has crept back in`);
 }
 
+// ===== 世界杯必须能跨刷新续上 =====
+// 点球是多步交互；若 wcRun 不持久化，第四轮刷一下页面整届世界杯就没了。
+assert.ok(!/wcRun=null;\$\("menu"\)/.test(code),"读档不再无条件清空进行中的世界杯");
+assert.equal(typeof G.resumeWorldCup,"function","有一个恢复入口");
+const wcSave=G.createInitialState("世界杯",allocation,[],"standard","mid");
+wcSave.national.wcRun={stage:4,group:[{name:"A",strength:70}],ko:[{name:"B",strength:80}],
+  results:[{opp:"A",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:0}],
+  groupWins:1,groupPts:3,alive:true};
+const wcRound=JSON.parse(JSON.stringify(wcSave));
+assert.equal(JSON.stringify(wcRound.national.wcRun),JSON.stringify(wcSave.national.wcRun),
+  "wcRun 是纯 JSON，round-trip 不丢字段");
+assert.equal(G.normalizeSave(wcRound).national.wcRun.stage,4,"normalizeSave 保留进行中的世界杯");
+
+// ===== 点球：主罚轮次由意志决定 =====
+// 赛前的教练决策，取决于你是什么样的球员，而不是此刻多累——所以读裸 WIL。
+const pk=(wil)=>{const t=G.createInitialState("点球",allocation,[],"standard","mid");t.attrs.WIL=wil;return G.penaltyKickerRound(t)};
+assert.equal(pk(80),5,"意志强的人被交付最后一脚");
+assert.equal(pk(65),3,"中段");
+assert.equal(pk(40),1,"先踢，卸掉压力");
+
+// ===== 点球：三个选项的真实关系 =====
+assert.equal(G.PENALTY_OPTIONS.length,3,"三选一");
+G.PENALTY_OPTIONS.forEach(o=>{
+  assert.ok(["SHO","WIL"].includes(o.stat),`${o.text} 指向真实属性`);
+  assert.ok(o.text&&o.tip,`${o.stat} 选项有文案`);
+});
+function pRate(sho,wil,fitness,id){
+  const t=G.createInitialState("罚球",allocation,[],"standard","mid");
+  t.attrs.SHO=sho;t.attrs.WIL=wil;t.form=55;t.fitness=fitness;
+  return G.penaltyRate(t,G.PENALTY_OPTIONS.find(o=>o.id===id));
+}
+// 均衡 build：正常体能稳推最优，体能见底等门将反超
+assert.ok(pRate(75,75,72,"steady")>pRate(75,75,72,"wait"),"均衡 build 正常体能下稳推更优");
+assert.ok(pRate(75,75,0,"wait")>pRate(75,75,0,"steady"),"均衡 build 体能见底时等门将反超");
+// 射手型：两种体能下稳推都最优——极端 build 不该被体能翻盘
+assert.ok(pRate(85,60,72,"steady")>pRate(85,60,72,"wait"),"射手型正常体能下稳推最优");
+assert.ok(pRate(85,60,0,"steady")>pRate(85,60,0,"wait"),"射手型体能见底时稳推仍最优");
+// 抽死角靠附加价值立足，成功率本就低于稳推
+assert.ok(pRate(75,75,72,"bold")<pRate(75,75,72,"steady"),"抽死角成功率低于稳推，靠附加取胜");
+assert.equal(G.PENALTY_OPTIONS.find(o=>o.id==="bold").bold,true,"抽死角被标为高风险");
+// 成功率永远夹在 35%~92%
+[[1,1,0],[99,99,100]].forEach(([a,b,f])=>G.PENALTY_OPTIONS.forEach(o=>{
+  const r=pRate(a,b,f,o.id);
+  assert.ok(r>=.35&&r<=.92,`${o.id} 在极端属性下仍被夹住，实际 ${r}`);
+}));
+
+// ===== 点球：队友与对手的成功率 =====
+assert.ok(G.teamPenaltyRate(60)<G.teamPenaltyRate(90),"球队越强罚得越准");
+assert.ok(G.teamPenaltyRate(1)>=.55&&G.teamPenaltyRate(200)<=.88,"队友成功率被夹在 55%~88%");
+
+// ===== 点球状态机 =====
+const soState=G.createInitialState("大战",allocation,[],"standard","mid");
+soState.attrs.WIL=80;
+const so=G.newShootout(soState,{name:"对手",strength:78});
+assert.equal(so.round,1,"从第一轮开始");
+assert.equal(so.myRound,5,"WIL 80 主罚第五轮");
+assert.equal(so.myScore,0);assert.equal(so.oppScore,0);
+assert.equal(so.done,false);
+assert.equal(JSON.stringify(JSON.parse(JSON.stringify(so))),JSON.stringify(so),
+  "点球状态是纯 JSON，刷新不丢");
+let guard=0;
+while(!so.done&&so.round<so.myRound&&guard++<20)G.shootoutAdvance(soState,so,()=>.5);
+assert.equal(so.round,so.myRound,"推进到玩家那轮就停");
+assert.ok(so.kicks.length>0,"前面几轮留下了记录");
+so.kicks.forEach(k=>assert.ok(["me","opp"].includes(k.side)&&typeof k.scored==="boolean",
+  "每一脚都记了是谁踢的、进没进"));
+
+const soBefore={my:so.myScore,opp:so.oppScore,round:so.round};
+const scored=G.shootoutPlayerKick(soState,so,"steady",()=>0);
+assert.equal(scored,true,"rng=0 时必进");
+assert.equal(so.myScore,soBefore.my+1,"进了就加分");
+assert.equal(so.round,soBefore.round+1,"主罚后推进一轮");
+const soMiss=G.newShootout(soState,{name:"对手",strength:78});
+G.shootoutPlayerKick(soState,soMiss,"steady",()=>0.999);
+assert.equal(soMiss.myMiss,true,"罚丢会被记下来");
+
+// ===== 点球结果必须写回那场比赛的胜负 =====
+const drawn=G.createInitialState("平局",allocation,[],"standard","mid");
+ATTR_KEYS.forEach(k=>drawn.attrs[k]=80);drawn.totalMonth=96;drawn.flags.pro18=true;
+let sawNull=false;
+for(let i=1;i<=200;i++){
+  let x=i>>>0;const rng=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+  const mm=G.wcMatchSim(drawn,{name:"对手",strength:80},"均衡",4,rng);
+  if(mm.gf===mm.ga&&mm.won===null&&mm.pen)sawNull=true;
+  else assert.ok(typeof mm.won==="boolean",`非平局场次 won 必须是布尔，实际 ${mm.won}`);
+}
+assert.ok(sawNull,"淘汰赛平局时 won 置 null 交给点球决出");
+
+// ===== 无头驱动弹窗队列 =====
+// 上面全是纯函数断言，碰不到 enqueueFront 之后的任何东西。点球接入时发现的
+// 两个 bug（penMatch 在存档后与 results 脱钩、done 那一刻刷新丢掉整场点球）
+// 都藏在这一层，纯函数测试永远抓不到。
+// 无 document 时 pumpModal 直接返回，弹窗只进队列不消费——正好让测试自己跑完。
+const KO_POOL=[{name:"日本",strength:80},{name:"德国",strength:84},{name:"法国",strength:87},{name:"巴西",strength:89}];
+function wcProbe(wil,stage=4){
+  const t=G.createInitialState("点球探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=82);t.attrs.WIL=wil;
+  t.totalMonth=96;t.flags.pro18=true;
+  const opp=KO_POOL[stage-3];
+  t.national.wcRun={stage,group:[],ko:KO_POOL,results:[],groupWins:2,groupPts:6,alive:true};
+  const m={opp:opp.name,strength:opp.strength,gf:1,ga:1,goals:0,assists:0,
+    won:null,pen:true,mentality:"均衡",stage};
+  t.national.wcRun.results.push(m);t.national.wcRun.penMatch=m;
+  t.national.wcRun.shootout=G.newShootout(t,opp);
+  G.setState(t);G.clearModalQueue();
+  return t;
+}
+// 把队列跑完，沿途记下每一屏标题和当时的赛果快照
+function driveModals(t,pick,cap=300){
+  const q=G.getModalQueue(),seen=[];let n=0,last=[];
+  while(q.length&&n++<cap){
+    const m=q.shift();seen.push(m.title);
+    const run=t.national.wcRun;
+    if(run&&run.results.length)last=run.results.map(x=>({stage:x.stage,won:x.won,pen:x.pen,penScore:x.penScore}));
+    const opts=typeof m.options==="function"?m.options(t):m.options;
+    const chosen=opts[pick(m,opts)]||opts[0];
+    if(chosen&&chosen.apply)chosen.apply();
+  }
+  return {steps:n,seen,last};
+}
+const savedS=G.getState();
+try{
+  // WIL 80 → 主罚第五轮，所以前四屏必须是队友轮次，第五屏才轮到你
+  const p1=wcProbe(80);G.resumeWorldCup(p1);
+  const r1=driveModals(p1,()=>0);
+  assert.ok(r1.steps<300,"点球流程必须终止");
+  assert.ok(/轮到你了/.test(r1.seen[4]||""),`WIL 80 应在第五屏主罚，实际流程 ${r1.seen.slice(0,6).join(" / ")}`);
+  assert.ok(r1.last.every(x=>x.won!==null),"跑完后不能还有 won===null 的场次");
+  assert.ok(r1.last.every(x=>!x.pen||x.penScore),"点球场次必须写回比分");
+
+  // 三种 WIL 各随机点，检查终止性与结果写回
+  let nullLeft=0,noTerm=0,penWritten=0,total=0;
+  for(const wil of [80,65,40])for(let i=0;i<12;i++){
+    const t=wcProbe(wil);G.resumeWorldCup(t);
+    const rr=driveModals(t,(m,o)=>Math.floor(Math.random()*o.length));
+    total++;
+    if(rr.steps>=300)noTerm++;
+    if(rr.last.some(x=>x.won===null))nullLeft++;
+    if(rr.last.some(x=>x.pen&&x.penScore))penWritten++;
+  }
+  assert.equal(noTerm,0,"任何点击组合都必须终止");
+  assert.equal(nullLeft,0,"任何路径都不能留下 won===null");
+  assert.equal(penWritten,total,"每一场点球都要把比分写回 results");
+
+  // 存档往返：penMatch 与 results 会被 JSON 拆成两个对象，
+  // 胜负必须写进 results 而不是那个孤儿副本
+  const p2=wcProbe(80);
+  const rt=JSON.parse(JSON.stringify(p2));
+  assert.equal(rt.national.wcRun.penMatch===rt.national.wcRun.results[0],false,
+    "存档往返后 penMatch 与 results[0] 必然是两个对象——这是 bug 的来源，先钉住前提");
+  G.setState(rt);G.clearModalQueue();
+  G.resumeWorldCup(rt);
+  const r2=driveModals(rt,()=>0);
+  assert.ok(r2.steps>0,"刷新后能重新进入点球，而不是跳过");
+  assert.ok(r2.last.every(x=>x.won!==null),"刷新后胜负仍要写回 results，不能写进孤儿副本");
+
+  // 最刁钻的时点：最后一轮把 shootout 判成 done，收尾弹窗刚入队，saveGame 就在
+  // pumpModal 的 finally 里触发。此刻刷新，若恢复逻辑带 !done 守卫就会跳过整场
+  // 点球、直接进下一轮——胜负永远写不回去。构造这个瞬间。
+  const p3=wcProbe(40);                       // WIL 40 → 主罚第一轮，好推进
+  const so3=p3.national.wcRun.shootout;
+  G.shootoutPlayerKick(p3,so3,"steady",()=>0);
+  let g3=0;while(!so3.done&&!so3.sudden&&g3++<20)G.shootoutAdvance(p3,so3,()=>.5);
+  if(so3.sudden){so3.won=true;so3.done=true}       // 突然死亡也归一到 done
+  assert.equal(so3.done,true,"已构造出 done=true 的瞬间");
+  const rt3=JSON.parse(JSON.stringify(p3));        // 此刻刷新
+  G.setState(rt3);G.clearModalQueue();
+  G.resumeWorldCup(rt3);
+  const r3=driveModals(rt3,()=>0);
+  assert.ok(/点球/.test(r3.seen[0]||""),
+    `done=true 时刷新必须回到点球收尾，实际首屏是「${r3.seen[0]}」——恢复逻辑跳过了整场点球`);
+  assert.ok(r3.last.every(x=>x.won!==null),"done=true 时刷新后胜负仍要写回 results");
+
+// ===== 人物必须出现在世界杯 =====
+assert.ok(/assets\/father\.webp/.test(code),"出线后父亲出场");
+assert.equal(typeof G.wcFinalEve,"function","决赛前夜有专属场景");
+const eveLove=G.createInitialState("热恋",allocation,[],"standard","mid");
+const eveA=G.wcFinalEve(eveLove);
+assert.match(eveA.portrait,/lin-xiaoman/,"恋爱中是小满");
+assert.equal(eveA.options.length,2,"决赛前夜是一个带取舍的二选一");
+const eveGone=G.createInitialState("分手",allocation,[],"standard","mid");
+eveGone.relationship.status="分手";eveGone.relationship.love=0;
+assert.match(G.wcFinalEve(eveGone).portrait,/coach-zhou/,"分手后换成周骁，避免尴尬");
+const t1=G.createInitialState("选A",allocation,[],"standard","mid");t1.form=50;t1.fitness=50;
+G.wcFinalEve(t1).options[0].apply();
+assert.ok(t1.form>50&&t1.fitness<50,"给她打电话：状态↑ 体能↓");
+const t2=G.createInitialState("选B",allocation,[],"standard","mid");t2.form=50;t2.fitness=50;
+G.wcFinalEve(t2).options[1].apply();
+assert.ok(t2.fitness>50&&t2.form===50,"早点睡：体能↑ 状态不变");
+
+// ===== 夺冠与淘汰都要有分量 =====
+const champ=G.createInitialState("冠军",allocation,[],"standard","mid");
+champ.national.wcRun={stage:7,group:[],ko:[],results:[{opp:"巴西",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:6}],groupWins:2,groupPts:6,alive:true};
+G.clearModalQueue();G.wcFinish(champ,true);G.clearModalQueue();
+assert.equal(champ.flags.worldChampion,true,"夺冠置位生涯标记");
+assert.ok(champ.honours.some(h=>/世界杯/.test(h.title)),"荣誉里有世界杯");
+const endChamp=G.buildEnding(champ);
+assert.match(endChamp.coda,/世界杯|奖杯/,"退役结局为夺冠单独写一段");
+const endPlain=G.buildEnding(G.createInitialState("普通",allocation,[],"standard","mid"));
+assert.ok(!/大力神|那只奖杯/.test(endPlain.coda),"没夺过冠的结局不该出现夺冠文案");
+const out=G.createInitialState("止步",allocation,[],"standard","mid");
+out.national.wcRun={stage:5,group:[],ko:[],results:[{opp:"法国",gf:0,ga:1,goals:0,assists:0,won:false,pen:false,stage:4}],groupWins:1,groupPts:4,alive:false,missedDecisivePenalty:false};
+const outScene=G.wcOutroScene(out);
+assert.ok(outScene.portrait,"淘汰收尾带立绘，不是空收尾");
+const missed={...out,national:{...out.national,wcRun:{...out.national.wcRun,missedDecisivePenalty:true}}};
+assert.notEqual(G.wcOutroScene(missed).body,outScene.body,"踢飞与常规淘汰的收尾文案不同");
+}finally{G.setState(savedS);G.clearModalQueue()}
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
