@@ -1390,7 +1390,7 @@ function ensureSchedule(s,rng=Math.random){
 }
 function fixtureOfMonth(s){const sc=s.schedule;return sc?sc.fixtures.find(f=>f.month===s.totalMonth&&f.status==="upcoming")||null:null}
 function nextFixture(s){const sc=s.schedule;return sc?sc.fixtures.find(f=>f.month>=s.totalMonth&&f.status==="upcoming")||null:null}
-function shouldPlayMatch(s){if(s.flags&&s.flags.washedOut)return false;if((s.injury.months||0)>0)return false;const a=ageInfo(s).age,p=phaseOf(s);if(a<16)return s.totalMonth%3===0;if(p==="campus")return s.totalMonth%2===0;return true}
+function shouldPlayMatch(s){if(s.flags&&s.flags.washedOut)return false;if((s.injury.months||0)>0)return false;return !!fixtureOfMonth(s)}
 // 返回 modal 对象而不直接入队——finishMonth 需要把它排在月度小结之前。
 function buildMatchReportModal(report){return{kicker:report.classic?"经典之战":"比赛简报",title:`${report.competition} · ${report.club} ${report.gf}-${report.ga} ${report.opponent}`,body:`${report.classic?'<div class="classic-tag">这场球会被记很久</div>':""}<div class="match-score"><span class="match-team">${esc(report.club)}</span><strong>${report.gf} : ${report.ga}</strong><span class="match-team">${esc(report.opponent)}</span></div><p>你${report.role}${report.rating?`，评分 <b>${report.rating}</b>`:""}；${report.goals}球，${report.assists}助攻。</p><div class="timeline-list">${report.timeline.map(t=>`<div class="timeline-row"><b>${t.minute}'</b><span>${esc(t.text)}</span></div>`).join("")}</div><div class="factor-row"><div class="factor"><b>${report.model.ability}</b><span>能力基础 · 约60%</span></div><div class="factor"><b>${report.model.condition}</b><span>状态体能 · 约25%</span></div><div class="factor"><b>${report.model.random}</b><span>临场波动 · 约15%</span></div></div>`,options:[option("收下这场比赛","数据已计入生涯统计",()=>{})]}}
 function queueMatchReport(s,report){enqueueDecision(buildMatchReportModal(report),report.classic?"经典之战":"比赛简报")}
@@ -1648,6 +1648,7 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
   if(justTurned18)enterProAt18(S);
   if(a.age>=16&&S.salary>0){const d=diffOf(S),wage=Math.round(S.salary*d.income),expense=Math.round((1.5+S.fame/28)*d.expense);addMoney(S,wage-expense);if(S.debt>0&&S.totalMonth%6===0){S.debt=Math.round(S.debt*1.05);log(S,"warn","欠款利息又滚了一点，早点还清。")}}
   const passive=assetPassive(S);if(passive)addMoney(S,passive);if(S.assets&&S.assets.image_team&&S.totalMonth%3===0)change(S,"fame",1);
+  ensureSchedule(S);
   const _ctx={snap:_snap,preSusp,preInjury,justTurned16,matchReportModal:null};
   if(!S.retired&&shouldPlayMatch(S)){startMatchFlow(S,_ctx);return}
   finishMonth(_ctx);
@@ -1670,17 +1671,29 @@ function finishMonth(ctx){
   if(!S.retired){const r=shouldRetire(S);if(r){retirePlayer(S,r);saveGame();return}}
   modalBusy=false;saveGame();renderAll();setTimeout(pumpModal,0)}
 
-/* ========== 比赛流程：赛前已定职责 → 2个关键时刻 → 结算 → 交回月末段 ========== */
+/* ========== 比赛流程：赛前预告 → 2个关键时刻 → 结算 → 交回月末段 ========== */
 function startMatchFlow(s,ctx){
-  const pending=prepareMatch(s);
-  s.pendingMatch={pending,ctx,index:0};
-  if(!pending.plays){resolveMatch(s);return}
-  modalBusy=false;stepKeyMoment(s);
-}
-// 中断恢复：pumpModal 每次点击都存档，所以刷新页面必须能回到同一个关键时刻。
-function resumeMatchFlow(s){
-  if(!s.pendingMatch||!s.pendingMatch.pending)return false;
+  const fx=fixtureOfMonth(s);
+  if(!fx){finishMonth(ctx);return}
+  s.pendingMatch={stage:"preview",fixture:fx,ctx,index:0,pending:null};
   modalBusy=false;
+  stepMatchPreview(s);
+}
+function stepMatchPreview(s){beginMatch(s,s.matchPlan||"box")}
+function beginMatch(s,plan){
+  const pm=s.pendingMatch,fx=pm.fixture;
+  s.matchPlan=plan;
+  pm.pending=prepareMatch(s,Math.random,{opponent:{name:fx.opponent,strength:fx.strength},
+    home:fx.home,plan,competition:fx.competition});
+  pm.stage="moments";
+  if(!pm.pending.plays){resolveMatch(s);return}
+  stepKeyMoment(s);
+}
+// 中断恢复：pumpModal 每次点击都存档，所以刷新页面必须能回到同一步。
+function resumeMatchFlow(s){
+  if(!s.pendingMatch)return false;
+  modalBusy=false;
+  if(s.pendingMatch.stage==="preview"||!s.pendingMatch.pending){stepMatchPreview(s);return true}
   if(!s.pendingMatch.pending.plays){resolveMatch(s);return true}
   stepKeyMoment(s);return true;
 }
@@ -1707,6 +1720,8 @@ function resolveMatch(s){
   const ctx=pm.ctx,report=finishMatch(s,pm.pending);
   s.pendingMatch=null;
   applyMatch(s,report);
+  if(pm.fixture){pm.fixture.status="played";
+    pm.fixture.result={gf:report.gf,ga:report.ga,goals:report.goals,assists:report.assists,rating:report.rating}}
   challengeProgress(s,report);
   ctx.matchReportModal={...buildMatchReportModal(report),kicker:report.classic?"经典之战":"比赛简报"};
   finishMonth(ctx);

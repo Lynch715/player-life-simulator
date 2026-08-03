@@ -988,4 +988,38 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
   assert.ok(future.every(f=>/第\d+轮/.test(f.competition)),"未来场次都要有轮次标签");
 }
 
+// ===== 比赛必须打赛程表上那一场，而不是另抽一个对手 =====
+{
+  const t=G.createInitialState("对上表",allocation,[],"standard","mid");
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";        // 18岁职业期，每月一场
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  const fx=G.fixtureOfMonth(t);
+  assert.ok(fx,"职业期每个月都该有比赛");
+  assert.equal(G.shouldPlayMatch(t),true,"有 fixture 就该踢");
+
+  // ⚠️ advanceMonth 里 S.totalMonth++（app.js:1632）在 shouldPlayMatch（:1652）之前，
+  // 所以从第48月「结束本月」，踢的是第49月那场。
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  driveModals(t,()=>0);
+  assert.equal(t.totalMonth,49,"sanity: 结束本月后月份已经前进");
+  const done=t.schedule.fixtures.find(f=>f.month===49);
+  assert.ok(done,"第49月该有一场比赛");
+  assert.equal(done.status,"played",`第49月那场应标记 played，实际 ${done.status}`);
+  assert.ok(done.result&&Number.isFinite(done.result.gf),"结果必须写回赛程表");
+  assert.equal(t.schedule.fixtures.find(f=>f.month===48).status,"upcoming",
+    "第48月那场没打过（它是「结束本月」之前的当月），不该被误标成已打");
+}
+
+// 伤停时不上场
+{
+  const t=G.createInitialState("伤停",allocation,[],"standard","mid");
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  t.injury={name:"脚踝扭伤",months:2,risk:0};
+  assert.equal(G.shouldPlayMatch(t),false,"伤停不上场");
+}
+
 console.log("模拟球员 architecture test passed");
