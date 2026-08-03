@@ -1377,6 +1377,30 @@ function simulateQualifiers(s,rng){
   const threshold=11+diffOf(s).threshold;
   return {matches,points,threshold,qualified:points>=threshold};
 }
+/* ========== 点球大战 ==========
+   三个选项刻意不是「同一条曲线上的三个点」：稳推对 SHO 最敏感、等门将
+   走 WIL 且对体能最钝、抽死角成功率最低但成功会被记住。因为点球是二元
+   结果，若三者只差成功率，最高的那个必然严格占优、另外两个就是死选项。 */
+const PENALTY_OPTIONS=[
+  {id:"bold",text:"抽死角",tip:"成功率最低，但这一脚会被记住",stat:"SHO",bold:true},
+  {id:"steady",text:"稳稳推一侧",tip:"最不容易出洋相",stat:"SHO"},
+  {id:"wait",text:"等门将先动",tip:"最不受体能影响",stat:"WIL"}
+];
+/* 主罚轮次是赛前的教练决策：取决于你是什么样的球员，而不是此刻多累，
+   所以读裸 WIL 而非 eff()。 */
+function penaltyKickerRound(s){const w=s.attrs.WIL;return w>=75?5:w>=55?3:1}
+/* 稳推与等门将共用 .68 的基准，差别全在斜率与读哪条属性——不是配平出来的，
+   是被 cond() 的量程逼出来的：form 55 时 fitness 归零也只把 cond 压到 .88
+   （fitness 项量程仅 -0.12），75/75 的 build 因此只掉 6.3 点 effSHO / 3.6 点
+   effWIL。要让「体能见底时等门将反超」成立，两者截距差必须小于 1.4/300+1.3/160
+   ≈ .0128；给稳推留任何可见的先手都会把反超点推到 cond 够不着的地方。
+   截距取平，反超落在 fitness≈34，正好是「体能见底」该有的位置。 */
+function penaltyRate(s,o){
+  const e=eff(s,o.stat);
+  const base=o.id==="bold"?.58+(e-70)/200:o.id==="steady"?.68+(e-70)/160:.68+(e-70)/300;
+  return clamp(base+(hasTalent(s,"big_heart")?.06:0),.35,.92);
+}
+function teamPenaltyRate(strength){return clamp(.72+(strength-74)/200,.55,.88)}
 function wcMatchSim(s,opp,mentality,i,rng){
   const men={"稳守":{a:.85,d:.68},"均衡":{a:1,d:1},"强攻":{a:1.28,d:1.32}}[mentality]||{a:1,d:1};
   const team=74+(overall(s)-72)*.72+(s.national.adapt||0)*.06+(hasTalent(s,"red_shirt")?2:0)+(hasTalent(s,"big_heart")&&i>=3?3:0)+(hasTalent(s,"final_master")&&i===6?5:0);
@@ -1604,6 +1628,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

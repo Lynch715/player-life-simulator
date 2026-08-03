@@ -623,6 +623,43 @@ assert.equal(JSON.stringify(wcRound.national.wcRun),JSON.stringify(wcSave.nation
   "wcRun 是纯 JSON，round-trip 不丢字段");
 assert.equal(G.normalizeSave(wcRound).national.wcRun.stage,4,"normalizeSave 保留进行中的世界杯");
 
+// ===== 点球：主罚轮次由意志决定 =====
+// 赛前的教练决策，取决于你是什么样的球员，而不是此刻多累——所以读裸 WIL。
+const pk=(wil)=>{const t=G.createInitialState("点球",allocation,[],"standard","mid");t.attrs.WIL=wil;return G.penaltyKickerRound(t)};
+assert.equal(pk(80),5,"意志强的人被交付最后一脚");
+assert.equal(pk(65),3,"中段");
+assert.equal(pk(40),1,"先踢，卸掉压力");
+
+// ===== 点球：三个选项的真实关系 =====
+assert.equal(G.PENALTY_OPTIONS.length,3,"三选一");
+G.PENALTY_OPTIONS.forEach(o=>{
+  assert.ok(["SHO","WIL"].includes(o.stat),`${o.text} 指向真实属性`);
+  assert.ok(o.text&&o.tip,`${o.stat} 选项有文案`);
+});
+function pRate(sho,wil,fitness,id){
+  const t=G.createInitialState("罚球",allocation,[],"standard","mid");
+  t.attrs.SHO=sho;t.attrs.WIL=wil;t.form=55;t.fitness=fitness;
+  return G.penaltyRate(t,G.PENALTY_OPTIONS.find(o=>o.id===id));
+}
+// 均衡 build：正常体能稳推最优，体能见底等门将反超
+assert.ok(pRate(75,75,72,"steady")>pRate(75,75,72,"wait"),"均衡 build 正常体能下稳推更优");
+assert.ok(pRate(75,75,0,"wait")>pRate(75,75,0,"steady"),"均衡 build 体能见底时等门将反超");
+// 射手型：两种体能下稳推都最优——极端 build 不该被体能翻盘
+assert.ok(pRate(85,60,72,"steady")>pRate(85,60,72,"wait"),"射手型正常体能下稳推最优");
+assert.ok(pRate(85,60,0,"steady")>pRate(85,60,0,"wait"),"射手型体能见底时稳推仍最优");
+// 抽死角靠附加价值立足，成功率本就低于稳推
+assert.ok(pRate(75,75,72,"bold")<pRate(75,75,72,"steady"),"抽死角成功率低于稳推，靠附加取胜");
+assert.equal(G.PENALTY_OPTIONS.find(o=>o.id==="bold").bold,true,"抽死角被标为高风险");
+// 成功率永远夹在 35%~92%
+[[1,1,0],[99,99,100]].forEach(([a,b,f])=>G.PENALTY_OPTIONS.forEach(o=>{
+  const r=pRate(a,b,f,o.id);
+  assert.ok(r>=.35&&r<=.92,`${o.id} 在极端属性下仍被夹住，实际 ${r}`);
+}));
+
+// ===== 点球：队友与对手的成功率 =====
+assert.ok(G.teamPenaltyRate(60)<G.teamPenaltyRate(90),"球队越强罚得越准");
+assert.ok(G.teamPenaltyRate(1)>=.55&&G.teamPenaltyRate(200)<=.88,"队友成功率被夹在 55%~88%");
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
