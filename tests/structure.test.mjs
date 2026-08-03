@@ -945,4 +945,47 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
   assert.equal(again,sc,"签名未变时 ensureSchedule 必须返回同一个对象，不能每次重排");
 }
 
+// ===== 赛程重建：只换未来，已打的战绩必须留住 =====
+// ensureSchedule 存在的全部理由就是这个分支——赛季中途转会不能抹掉半个赛季的比分。
+// 幂等那条已经有测试了，这条守的是另一半。
+{
+  const t=G.createInitialState("重建",allocation,[],"standard","mid");
+  t.totalMonth=12;t.route="firstteam";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  const before=G.ensureSchedule(t);
+  const months=[...before.fixtures.map(f=>f.month)];
+  assert.ok(months.length>=2,"sanity: 这个赛季要有至少两场");
+
+  // 打掉前两场，留下真实战绩
+  before.fixtures[0].status="played";before.fixtures[0].result={gf:1,ga:0,goals:1,assists:0,rating:7.2};
+  before.fixtures[1].status="played";before.fixtures[1].result={gf:2,ga:2,goals:0,assists:1,rating:6.8};
+  const playedMonths=[before.fixtures[0].month,before.fixtures[1].month];
+  const oldOpponents=[before.fixtures[0].opponent,before.fixtures[1].opponent];
+
+  // 赛季中途转会 → 签名变化 → 触发重建
+  t.totalMonth=months[2];
+  t.club={name:"上海海港",league:"中超",strength:79};
+  const after=G.ensureSchedule(t);
+  assert.notEqual(after,before,"签名变了就必须重建，不能返回老对象");
+
+  // 已打的两场：原样保留，对手和比分都不能被换掉
+  playedMonths.forEach((m,i)=>{
+    const f=after.fixtures.find(x=>x.month===m);
+    assert.ok(f,`第${m}月那场打过了，重建后不能消失`);
+    assert.equal(f.status,"played",`第${m}月那场的 played 状态不能被重置`);
+    assert.equal(f.opponent,oldOpponents[i],`第${m}月的对手不能被换掉——那场已经踢完了`);
+    assert.ok(f.result&&Number.isFinite(f.result.gf),`第${m}月的比分必须留住`);
+  });
+
+  // 月份不重复、且严格递增
+  const after月 = [...after.fixtures.map(f=>f.month)];
+  assert.equal(new Set(after月).size,after月.length,`重建后不能出现重复月份：${after月.join(",")}`);
+  assert.deepEqual(after月,[...after月].sort((a,b)=>a-b),"赛程必须按月份升序——nextFixture 靠 find 取第一个未来场次");
+
+  // 未来场次要反映新东家的联赛
+  const future=after.fixtures.filter(f=>f.month>=t.totalMonth&&f.status==="upcoming");
+  assert.ok(future.length>0,"转会后还该有未来的比赛");
+  assert.ok(future.every(f=>/第\d+轮/.test(f.competition)),"未来场次都要有轮次标签");
+}
+
 console.log("模拟球员 architecture test passed");
