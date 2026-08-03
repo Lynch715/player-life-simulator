@@ -698,6 +698,92 @@ for(let i=1;i<=200;i++){
 }
 assert.ok(sawNull,"淘汰赛平局时 won 置 null 交给点球决出");
 
+// ===== 无头驱动弹窗队列 =====
+// 上面全是纯函数断言，碰不到 enqueueFront 之后的任何东西。点球接入时发现的
+// 两个 bug（penMatch 在存档后与 results 脱钩、done 那一刻刷新丢掉整场点球）
+// 都藏在这一层，纯函数测试永远抓不到。
+// 无 document 时 pumpModal 直接返回，弹窗只进队列不消费——正好让测试自己跑完。
+const KO_POOL=[{name:"日本",strength:80},{name:"德国",strength:84},{name:"法国",strength:87},{name:"巴西",strength:89}];
+function wcProbe(wil,stage=4){
+  const t=G.createInitialState("点球探针",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=82);t.attrs.WIL=wil;
+  t.totalMonth=96;t.flags.pro18=true;
+  const opp=KO_POOL[stage-3];
+  t.national.wcRun={stage,group:[],ko:KO_POOL,results:[],groupWins:2,groupPts:6,alive:true};
+  const m={opp:opp.name,strength:opp.strength,gf:1,ga:1,goals:0,assists:0,
+    won:null,pen:true,mentality:"均衡",stage};
+  t.national.wcRun.results.push(m);t.national.wcRun.penMatch=m;
+  t.national.wcRun.shootout=G.newShootout(t,opp);
+  G.setState(t);G.clearModalQueue();
+  return t;
+}
+// 把队列跑完，沿途记下每一屏标题和当时的赛果快照
+function driveModals(t,pick,cap=300){
+  const q=G.getModalQueue(),seen=[];let n=0,last=[];
+  while(q.length&&n++<cap){
+    const m=q.shift();seen.push(m.title);
+    const run=t.national.wcRun;
+    if(run&&run.results.length)last=run.results.map(x=>({stage:x.stage,won:x.won,pen:x.pen,penScore:x.penScore}));
+    const opts=typeof m.options==="function"?m.options(t):m.options;
+    const chosen=opts[pick(m,opts)]||opts[0];
+    if(chosen&&chosen.apply)chosen.apply();
+  }
+  return {steps:n,seen,last};
+}
+const savedS=G.getState();
+try{
+  // WIL 80 → 主罚第五轮，所以前四屏必须是队友轮次，第五屏才轮到你
+  const p1=wcProbe(80);G.resumeWorldCup(p1);
+  const r1=driveModals(p1,()=>0);
+  assert.ok(r1.steps<300,"点球流程必须终止");
+  assert.ok(/轮到你了/.test(r1.seen[4]||""),`WIL 80 应在第五屏主罚，实际流程 ${r1.seen.slice(0,6).join(" / ")}`);
+  assert.ok(r1.last.every(x=>x.won!==null),"跑完后不能还有 won===null 的场次");
+  assert.ok(r1.last.every(x=>!x.pen||x.penScore),"点球场次必须写回比分");
+
+  // 三种 WIL 各随机点，检查终止性与结果写回
+  let nullLeft=0,noTerm=0,penWritten=0,total=0;
+  for(const wil of [80,65,40])for(let i=0;i<12;i++){
+    const t=wcProbe(wil);G.resumeWorldCup(t);
+    const rr=driveModals(t,(m,o)=>Math.floor(Math.random()*o.length));
+    total++;
+    if(rr.steps>=300)noTerm++;
+    if(rr.last.some(x=>x.won===null))nullLeft++;
+    if(rr.last.some(x=>x.pen&&x.penScore))penWritten++;
+  }
+  assert.equal(noTerm,0,"任何点击组合都必须终止");
+  assert.equal(nullLeft,0,"任何路径都不能留下 won===null");
+  assert.equal(penWritten,total,"每一场点球都要把比分写回 results");
+
+  // 存档往返：penMatch 与 results 会被 JSON 拆成两个对象，
+  // 胜负必须写进 results 而不是那个孤儿副本
+  const p2=wcProbe(80);
+  const rt=JSON.parse(JSON.stringify(p2));
+  assert.equal(rt.national.wcRun.penMatch===rt.national.wcRun.results[0],false,
+    "存档往返后 penMatch 与 results[0] 必然是两个对象——这是 bug 的来源，先钉住前提");
+  G.setState(rt);G.clearModalQueue();
+  G.resumeWorldCup(rt);
+  const r2=driveModals(rt,()=>0);
+  assert.ok(r2.steps>0,"刷新后能重新进入点球，而不是跳过");
+  assert.ok(r2.last.every(x=>x.won!==null),"刷新后胜负仍要写回 results，不能写进孤儿副本");
+
+  // 最刁钻的时点：最后一轮把 shootout 判成 done，收尾弹窗刚入队，saveGame 就在
+  // pumpModal 的 finally 里触发。此刻刷新，若恢复逻辑带 !done 守卫就会跳过整场
+  // 点球、直接进下一轮——胜负永远写不回去。构造这个瞬间。
+  const p3=wcProbe(40);                       // WIL 40 → 主罚第一轮，好推进
+  const so3=p3.national.wcRun.shootout;
+  G.shootoutPlayerKick(p3,so3,"steady",()=>0);
+  let g3=0;while(!so3.done&&!so3.sudden&&g3++<20)G.shootoutAdvance(p3,so3,()=>.5);
+  if(so3.sudden){so3.won=true;so3.done=true}       // 突然死亡也归一到 done
+  assert.equal(so3.done,true,"已构造出 done=true 的瞬间");
+  const rt3=JSON.parse(JSON.stringify(p3));        // 此刻刷新
+  G.setState(rt3);G.clearModalQueue();
+  G.resumeWorldCup(rt3);
+  const r3=driveModals(rt3,()=>0);
+  assert.ok(/点球/.test(r3.seen[0]||""),
+    `done=true 时刷新必须回到点球收尾，实际首屏是「${r3.seen[0]}」——恢复逻辑跳过了整场点球`);
+  assert.ok(r3.last.every(x=>x.won!==null),"done=true 时刷新后胜负仍要写回 results");
+}finally{G.setState(savedS);G.clearModalQueue()}
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
