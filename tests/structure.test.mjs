@@ -799,6 +799,23 @@ assert.ok(t1.form>50&&t1.fitness<50,"给她打电话：状态↑ 体能↓");
 const t2=G.createInitialState("选B",allocation,[],"standard","mid");t2.form=50;t2.fitness=50;
 G.wcFinalEve(t2).options[1].apply();
 assert.ok(t2.fitness>50&&t2.form===50,"早点睡：体能↑ 状态不变");
+
+// ===== 夺冠与淘汰都要有分量 =====
+const champ=G.createInitialState("冠军",allocation,[],"standard","mid");
+champ.national.wcRun={stage:7,group:[],ko:[],results:[{opp:"巴西",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:6}],groupWins:2,groupPts:6,alive:true};
+G.clearModalQueue();G.wcFinish(champ,true);G.clearModalQueue();
+assert.equal(champ.flags.worldChampion,true,"夺冠置位生涯标记");
+assert.ok(champ.honours.some(h=>/世界杯/.test(h.title)),"荣誉里有世界杯");
+const endChamp=G.buildEnding(champ);
+assert.match(endChamp.coda,/世界杯|奖杯/,"退役结局为夺冠单独写一段");
+const endPlain=G.buildEnding(G.createInitialState("普通",allocation,[],"standard","mid"));
+assert.ok(!/大力神|那只奖杯/.test(endPlain.coda),"没夺过冠的结局不该出现夺冠文案");
+const out=G.createInitialState("止步",allocation,[],"standard","mid");
+out.national.wcRun={stage:5,group:[],ko:[],results:[{opp:"法国",gf:0,ga:1,goals:0,assists:0,won:false,pen:false,stage:4}],groupWins:1,groupPts:4,alive:false,missedDecisivePenalty:false};
+const outScene=G.wcOutroScene(out);
+assert.ok(outScene.portrait,"淘汰收尾带立绘，不是空收尾");
+const missed={...out,national:{...out.national,wcRun:{...out.national.wcRun,missedDecisivePenalty:true}}};
+assert.notEqual(G.wcOutroScene(missed).body,outScene.body,"踢飞与常规淘汰的收尾文案不同");
 }finally{G.setState(savedS);G.clearModalQueue()}
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){

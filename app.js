@@ -1233,7 +1233,8 @@ function endingGrade(s){const c=s.statsCareer,peak=s.peakOverall||overall(s);if(
   return{tier:"未竟的绿茵梦",line:"你没能真正踢进职业赛场，但那只旧足球陪你走过的日子，不会因此作废。"}}
 function buildEnding(s){const c=s.statsCareer,a=ageInfo(s),g=endingGrade(s),love=s.relationship.status;
   const loveEnd=love==="恋人"?`你回到家的时候厨房灯亮着，餐桌上放着一碗绿豆汤，还是烫的。<span class="dialogue">“洗完手再喝。”</span>她在厨房里说，没有抬头。你坐下来了——这是你这么多年来第一次，不用再赶时间。`:love==="异地"?`你收到一条消息：<span class="dialogue">“今天的比赛我看了。那个拖时间有点丢人，不像是你。”</span>你笑了一下，回了两个字：老了。她回了一个表情，没再多说。你们的对话框还留着，上一次聊天是两个月前的生日。`:`你路过那家面馆，透过玻璃看见里面靠窗的位置坐着一个长发的人。你停了一步，然后继续走了。你没有回头，也不知道那是不是她。但你知道，就算是她，你也不会进去了。`;
-  const coda=s.national.called?`退役后你把那封征召信从包底翻出来过一次，折痕快把纸磨穿了。你没告诉任何人，只是读了一遍，重新叠好放回去。<br><br>有一天你收拾东西时发现它不见了，你没有找，只是在原地坐了一会儿。很多年后，有人在你老家那间卧室的墙缝里发现一张泛黄的纸，上面还看得清几个字——<span class="dialogue">“经研究决定……征召……”</span>字迹被潮气洇花了，但那张纸被叠得很整齐，像是有人曾经很认真地保管过它。`:"";
+  let coda=s.national.called?`退役后你把那封征召信从包底翻出来过一次，折痕快把纸磨穿了。你没告诉任何人，只是读了一遍，重新叠好放回去。<br><br>有一天你收拾东西时发现它不见了，你没有找，只是在原地坐了一会儿。很多年后，有人在你老家那间卧室的墙缝里发现一张泛黄的纸，上面还看得清几个字——<span class="dialogue">“经研究决定……征召……”</span>字迹被潮气洇花了，但那张纸被叠得很整齐，像是有人曾经很认真地保管过它。`:"";
+  if(s.flags&&s.flags.worldChampion)coda=`有一年夏天，你们赢到了最后一场。那只奖杯你只抱了很短的时间就要交回去，但那天晚上它的重量，后来很多年你都还记得。<br><br>`+coda;
   return{grade:g.tier,line:g.line,loveEnd,coda,age:a.age,peak:s.peakOverall||overall(s),score:careerScore(s),
     metrics:[[c.matches,"生涯出场"],[c.goals,"进球"],[c.assists,"助攻"],[c.nationalCaps,"国家队出场"],[s.honours.length,"奖杯/大赛荣誉"],[s.awards.length,"金球奖"]],
     honours:s.honours.slice(),difficulty:diffOf(s).name}}
@@ -1558,12 +1559,29 @@ function wcPlayMatch(s,mentality){
   const resultLine=i>=3?(m.won?"晋级下一轮！":"止步于此。"):(i===2?(advance?"小组出线！":"小组赛出局。"):(m.gf>m.ga?"拿下三分。":m.gf===m.ga?"逼平对手。":"惜败。"));
   enqueueFront({title:`${WC_STAGE_NAMES[i]} · 中国 ${m.gf}-${m.ga} ${esc(m.opp)}${m.pen?"（点球）":""}`,body:`<div class="match-score"><span class="match-team">中国</span><strong>${m.gf} : ${m.ga}</strong><span class="match-team">${esc(m.opp)}</span></div><p>你贡献 <b>${m.goals}</b> 球 ${m.assists} 助。${resultLine}</p>${(i>=3&&mentality!=="均衡")?`<p class="dialogue">本场基调：${mentality}。</p>`:""}`,options:[option(champion?"捧起大力神杯":advance?"继续":"接受结果","",()=>{run.stage++;if(champion)wcFinish(s,true);else if(!advance){run.alive=false;wcFinish(s,false);}else wcNext(s);})]},"世界杯");
 }
+/* 淘汰收尾。大多数玩家的世界杯记忆是输，所以这条线不能是空收尾。
+   踢飞那一脚会被专门写出来。 */
+function wcOutroScene(s){
+  const run=s.national.wcRun,age=ageInfo(s).age,again=age+4<=diffOf(s).retireAge;
+  const tail=again?`四年后你${age+4}岁。还来得及。`:`四年后你${age+4}岁。你知道那意味着什么。`;
+  if(run&&run.missedDecisivePenalty)return {title:"那一脚",portrait:"assets/father.webp",
+    body:`<p>更衣室里没有人说话。有人在解鞋带，解了很久也没解开。</p><p>你父亲的消息进来得很晚：<span class="dialogue">“我在电视上看见你走回去了。”</span>就这一句，没有别的。</p><p>${tail}</p>`};
+  return {title:"回家的航班",portrait:"assets/lin-xiaoman.webp",
+    body:`<p>行李在传送带上转了两圈你才认出自己那个。出口外面人不多，她举着的牌子上什么也没写。</p><p>她说：<span class="dialogue">“我看完了。全部。”</span></p><p>${tail}</p>`};
+}
+
 function wcFinish(s,champion){
   const run=s.national.wcRun;
-  if(champion){s.honours.unshift({title:"世界杯冠军",season:ageInfo(s).season,icon:"世",detail:"中国国家队"});s.seasonStats.trophies++;unlock("world_cup");change(s,"fame",25);}
+  if(champion){s.honours.unshift({title:"世界杯冠军",season:ageInfo(s).season,icon:"世",detail:"中国国家队"});s.seasonStats.trophies++;unlock("world_cup");change(s,"fame",25);s.flags.worldChampion=true;}
   const short=["小组1","小组2","小组3","十六强","八强","半决赛","决赛"];
   const wcGoals=run.results.reduce((p,x)=>p+x.goals,0);
-  enqueueFront({title:champion?"中国队，世界冠军！":"世界杯之旅结束",body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option("记住这一届","国家队数据已更新",()=>{s.national.wcRun=null;})]},"世界杯");
+  enqueueFront({title:champion?"中国队，世界冠军！":"世界杯之旅结束",body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option(champion?"走上领奖台":"离开球场","",()=>{
+  if(champion)return enqueueFront({title:"大力神杯",portrait:"assets/player.webp",body:`<p>队长把奖杯递过来的时候你没有马上接。你先把手在球衣上擦了两下——手心全是汗，你怕滑。</p><p>金属是凉的。比你想象中重。</p>`,options:[option("找看台","",()=>{
+    enqueueFront({title:"看台",portrait:"assets/father.webp",body:`<p>你在人群里一排排地找。找到的时候他正把眼镜摘下来擦，擦了很久。</p><p>旁边那个位置上的人一直在挥手，从终场哨响到现在，没停过。</p>`,options:[option("记住这一届","这一届会写进你的生涯",()=>{s.national.wcRun=null})]},"世界杯冠军");
+  })]},"世界杯冠军");
+  const sc=wcOutroScene(s);
+  enqueueFront({...sc,options:[option("记住这一届","国家队数据已更新",()=>{s.national.wcRun=null})]},"世界杯");
+})]},"世界杯");
 }
 function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actionPoints>0&&!force){const n=S.actionPoints;enqueueDecision({title:"还有执行点没有使用",body:`本月还剩 <b>${n}</b> 点。剩下的时间会自动用来休息：<b>体能 +${6*n}</b>、<b>伤病风险 −${3*n}</b>，但不会有任何属性成长。`,options:[option("继续安排本月","返回行动面板",()=>{}),option("休息，进入下个月",`体能+${6*n}，伤病风险−${3*n}`,()=>setTimeout(()=>advanceMonth(true),120))]},"时间确认");return}
   modalBusy=true;
@@ -1732,7 +1750,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
