@@ -1348,6 +1348,48 @@ function applyAction(id){if(!S||S.actionPoints<=0)return;const a=ACTIONS.find(x=
   if(a.style)addStyleExp(S,a.style,used>=1?6:10);
   unlock("first_action");if(S.flags.weeklyPromise&&id==="train_play"&&used===0){gain(S,"SHO",-.08,"finish")};const fb=actionFeedback(a);S.lastActionFeedback={name:a.name,text:fb,effects:a.effects.join("、")};log(S,"action",fb);checkCombos(S);checkAchievements(S);saveGame();renderAll()}
 
+/* ========== 赛程表 ==========
+   对手必须在赛季初就定下来，否则「下一场打谁」这个信息不存在，
+   主界面、日程页、赛前预告全都无从谈起。
+   月份节奏在这里是唯一定义，shouldPlayMatch 改成查表。 */
+function shuffled(arr,rng){const c=[...arr];for(let i=c.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[c[i],c[j]]=[c[j],c[i]]}return c}
+function matchMonthsOfSeason(s,seasonStart){
+  const out=[];
+  for(let m=seasonStart;m<seasonStart+12;m++){
+    const age=14+Math.floor(m/12),p=age<16?"academy":age<18?(s.route||"academy"):"pro";
+    if(age<16){if(m%3===0)out.push(m)}
+    else if(p==="campus"){if(m%2===0)out.push(m)}
+    else out.push(m);
+  }
+  return out;
+}
+function scheduleSig(s){return{season:ageInfo(s).season,clubKey:s.club.name,route:s.route||"",nationalCalled:!!s.national.called}}
+function buildSchedule(s,rng=Math.random){
+  const seasonStart=Math.floor(s.totalMonth/12)*12,pool=opponentPool(s);
+  let bag=[];
+  const fixtures=matchMonthsOfSeason(s,seasonStart).map((month,i)=>{
+    if(!bag.length)bag=shuffled(pool,rng);
+    const opp=bag.shift()||pick(pool);
+    return {month,type:"club",opponent:opp.name,strength:opp.strength,home:i%2===0,
+      competition:`${s.club.league}第${i+1}轮`,status:"upcoming",result:null};
+  });
+  return {...scheduleSig(s),fixtures};
+}
+/* 只重排未来。转会发生在赛季中途时，已打过的战绩必须留住——
+   否则换一次东家就抹掉半个赛季的比分。 */
+function ensureSchedule(s,rng=Math.random){
+  const sig=scheduleSig(s),sc=s.schedule;
+  if(sc&&sc.season===sig.season&&sc.clubKey===sig.clubKey&&sc.route===sig.route&&sc.nationalCalled===sig.nationalCalled)return sc;
+  const fresh=buildSchedule(s,rng);
+  if(sc){
+    const past=sc.fixtures.filter(f=>f.status!=="upcoming"||f.month<s.totalMonth);
+    const taken=new Set(past.map(f=>f.month));
+    fresh.fixtures=[...past,...fresh.fixtures.filter(f=>!taken.has(f.month))].sort((a,b)=>a.month-b.month);
+  }
+  s.schedule=fresh;return fresh;
+}
+function fixtureOfMonth(s){const sc=s.schedule;return sc?sc.fixtures.find(f=>f.month===s.totalMonth&&f.status==="upcoming")||null:null}
+function nextFixture(s){const sc=s.schedule;return sc?sc.fixtures.find(f=>f.month>=s.totalMonth&&f.status==="upcoming")||null:null}
 function shouldPlayMatch(s){if(s.flags&&s.flags.washedOut)return false;if((s.injury.months||0)>0)return false;const a=ageInfo(s).age,p=phaseOf(s);if(a<16)return s.totalMonth%3===0;if(p==="campus")return s.totalMonth%2===0;return true}
 // 返回 modal 对象而不直接入队——finishMonth 需要把它排在月度小结之前。
 function buildMatchReportModal(report){return{kicker:report.classic?"经典之战":"比赛简报",title:`${report.competition} · ${report.club} ${report.gf}-${report.ga} ${report.opponent}`,body:`${report.classic?'<div class="classic-tag">这场球会被记很久</div>':""}<div class="match-score"><span class="match-team">${esc(report.club)}</span><strong>${report.gf} : ${report.ga}</strong><span class="match-team">${esc(report.opponent)}</span></div><p>你${report.role}${report.rating?`，评分 <b>${report.rating}</b>`:""}；${report.goals}球，${report.assists}助攻。</p><div class="timeline-list">${report.timeline.map(t=>`<div class="timeline-row"><b>${t.minute}'</b><span>${esc(t.text)}</span></div>`).join("")}</div><div class="factor-row"><div class="factor"><b>${report.model.ability}</b><span>能力基础 · 约60%</span></div><div class="factor"><b>${report.model.condition}</b><span>状态体能 · 约25%</span></div><div class="factor"><b>${report.model.random}</b><span>临场波动 · 约15%</span></div></div>`,options:[option("收下这场比赛","数据已计入生涯统计",()=>{})]}}
@@ -1750,7 +1792,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,shouldPlayMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

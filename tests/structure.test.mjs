@@ -919,4 +919,30 @@ ATTR_KEYS.forEach(k=>assert.ok(readme.includes(k),`README names ${k}`));
 assert.match(readme,/24点/,"README documents the 24-point budget");
 assert.match(readme,/身高档位/,"README documents the height tier choice");
 
+// ===== 赛程表：对手必须提前排定 =====
+// 改动前对手是月末 pick(opponentPool(s)) 现抽的，「下一场打谁」这个信息
+// 在系统里根本不存在。主界面、日程页、赛前预告全部卡在这一点上。
+{
+  const t=G.createInitialState("赛程",allocation,[],"standard","mid");
+  const sc=G.ensureSchedule(t);
+  assert.ok(sc&&Array.isArray(sc.fixtures),"ensureSchedule 返回带 fixtures 的赛程");
+  assert.ok(sc.fixtures.length>0,"新档第一赛季就该有比赛");
+  // 14岁梯队每3个月一场：第1赛季应落在 totalMonth 0,3,6,9
+  // ⚠️ 外面那层 [...] 不能省：app.js 跑在 vm 沙箱里，沙箱内数组的原型与
+  // 外部 realm 不同，deepStrictEqual 会报 "same structure but not reference-equal"。
+  // 测试文件 :39 与 :426 已有同样的处理，照它们的做法。
+  assert.deepEqual([...sc.fixtures.filter(f=>f.type==="club").map(f=>f.month)],[0,3,6,9],
+    "梯队期每3个月一场，月份节奏必须与旧 shouldPlayMatch 一致");
+  sc.fixtures.forEach(f=>{
+    assert.ok(typeof f.opponent==="string"&&f.opponent.length>0,"每场都有对手名");
+    assert.ok(Number.isFinite(f.strength),"每场都有对手实力");
+    assert.equal(typeof f.home,"boolean","每场都有主客");
+    assert.equal(f.status,"upcoming","新排的赛程都是未开始");
+    assert.equal(f.result,null,"未开始的比赛没有结果");
+  });
+  // 幂等：签名没变就不该重排
+  const again=G.ensureSchedule(t);
+  assert.equal(again,sc,"签名未变时 ensureSchedule 必须返回同一个对象，不能每次重排");
+}
+
 console.log("模拟球员 architecture test passed");
