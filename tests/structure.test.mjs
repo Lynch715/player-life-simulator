@@ -782,6 +782,23 @@ try{
   assert.ok(/点球/.test(r3.seen[0]||""),
     `done=true 时刷新必须回到点球收尾，实际首屏是「${r3.seen[0]}」——恢复逻辑跳过了整场点球`);
   assert.ok(r3.last.every(x=>x.won!==null),"done=true 时刷新后胜负仍要写回 results");
+
+// ===== 人物必须出现在世界杯 =====
+assert.ok(/assets\/father\.webp/.test(code),"出线后父亲出场");
+assert.equal(typeof G.wcFinalEve,"function","决赛前夜有专属场景");
+const eveLove=G.createInitialState("热恋",allocation,[],"standard","mid");
+const eveA=G.wcFinalEve(eveLove);
+assert.match(eveA.portrait,/lin-xiaoman/,"恋爱中是小满");
+assert.equal(eveA.options.length,2,"决赛前夜是一个带取舍的二选一");
+const eveGone=G.createInitialState("分手",allocation,[],"standard","mid");
+eveGone.relationship.status="分手";eveGone.relationship.love=0;
+assert.match(G.wcFinalEve(eveGone).portrait,/coach-zhou/,"分手后换成周骁，避免尴尬");
+const t1=G.createInitialState("选A",allocation,[],"standard","mid");t1.form=50;t1.fitness=50;
+G.wcFinalEve(t1).options[0].apply();
+assert.ok(t1.form>50&&t1.fitness<50,"给她打电话：状态↑ 体能↓");
+const t2=G.createInitialState("选B",allocation,[],"standard","mid");t2.form=50;t2.fitness=50;
+G.wcFinalEve(t2).options[1].apply();
+assert.ok(t2.fitness>50&&t2.form===50,"早点睡：体能↑ 状态不变");
 }finally{G.setState(savedS);G.clearModalQueue()}
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){

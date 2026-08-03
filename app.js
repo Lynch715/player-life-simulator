@@ -1452,7 +1452,7 @@ function wcMatchSim(s,opp,mentality,i,rng){
 }
 function startWorldCup(s){
   const q=simulateQualifiers(s,Math.random);
-  enqueueDecision({title:q.qualified?"世预赛出线！":"世预赛出局",body:`<div class="story-list">${q.matches.map(m=>`<div class="story-log"><time>${m.gf>m.ga?"胜":m.gf===m.ga?"平":"负"}</time><div><h3>中国 ${m.gf}-${m.ga} ${esc(m.opp)}</h3></div></div>`).join("")}</div><p>八场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${q.qualified?"中国队闯进世界杯决赛圈！":"差一口气，四年后再来——提升综合能力能带动全队实力。"}</p>`,options:[q.qualified?option("进入决赛圈抽签","",()=>setupWcFinals(s)):option("接受结果","",()=>{})]},"世界杯预选赛");
+  enqueueDecision({title:q.qualified?"世预赛出线！":"世预赛出局",body:`<div class="story-list">${q.matches.map(m=>`<div class="story-log"><time>${m.gf>m.ga?"胜":m.gf===m.ga?"平":"负"}</time><div><h3>中国 ${m.gf}-${m.ga} ${esc(m.opp)}</h3></div></div>`).join("")}</div><p>八场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${q.qualified?"中国队闯进世界杯决赛圈！":"差一口气，四年后再来——提升综合能力能带动全队实力。"}</p>`,options:[q.qualified?option("给家里打电话","",()=>enqueueFront({title:"父亲要去看世界杯",portrait:"assets/father.webp",body:`<p>电话响到第七声他才接，背景里有机器的声音——他还在厂里。</p><p>你说队伍出线了。他“嗯”了一声，隔了两秒，问的是：<span class="dialogue">“去那边看一场，要花多少钱。”</span></p><p>你说我给你买票。他说那不用，你比赛要紧。然后又问了一遍：<span class="dialogue">“多少钱。”</span></p>`,options:[option("进入决赛圈抽签","",()=>setupWcFinals(s))]},"世界杯")):option("接受结果","",()=>{})]},"世界杯预选赛");
 }
 function setupWcFinals(s){
   s.national.worldCups++;
@@ -1473,6 +1473,22 @@ function resumeWorldCup(s){
   if(run.shootout){wcShootoutStep(s);return}
   wcNext(s);
 }
+/* 决赛前夜。两个选择都对——这正是本作一贯的取舍手感，落在最该纠结的时刻。
+   分手状态下换成周骁，避免出现一个不该出现的人。 */
+function wcFinalEve(s){
+  const together=["恋人","异地"].includes(s.relationship.status)||s.flags.married;
+  if(together)return {title:"决赛前夜",portrait:"assets/lin-xiaoman.webp",
+    body:`<p>酒店的窗帘拉不严，走廊的灯从缝里透进来一条。你把手机拿起来又放下，放下又拿起来。</p><p>屏幕上是她三个小时前发的：<span class="dialogue">“睡了吗。”</span>你没回。</p>`,
+    options:[
+      option("给她打电话","状态+5，体能-6",()=>{change(s,"form",5);change(s,"fitness",-6)}),
+      option("明天再说，先睡","体能+6",()=>{change(s,"fitness",6)})]};
+  return {title:"决赛前夜",portrait:"assets/coach-zhou.webp",
+    body:`<p>周骁的消息在凌晨一点进来，只有一句：<span class="dialogue">“十四岁那年你在铁丝网外面站了多久，还记得吗。”</span></p><p>你记得。你还记得那天他连头都没回。</p>`,
+    options:[
+      option("回他一条长的","状态+5，体能-6",()=>{change(s,"form",5);change(s,"fitness",-6)}),
+      option("放下手机，先睡","体能+6",()=>{change(s,"fitness",6)})]};
+}
+
 /* 点球流程的唯一入口，也是刷新后的恢复点：每次都从当前 shootout 状态
    重新算该显示什么，因此中途刷新能原地接上。 */
 function wcShootoutStep(s){
@@ -1519,7 +1535,9 @@ function wcShootoutFinish(s){
       else wcNext(s);
     })]},"点球大战");
 }
-function wcNext(s){const run=s.national.wcRun;if(!run||!run.alive)return;if(run.stage<3)wcPlayMatch(s,"均衡");else wcKnockoutChoice(s);}
+function wcNext(s){const run=s.national.wcRun;if(!run||!run.alive)return;
+  if(run.stage===6&&!run.eveShown){run.eveShown=true;const d=wcFinalEve(s);return enqueueFront({...d,options:d.options.map(o=>option(o.text,o.effect,()=>{o.apply();wcNext(s)}))},"决赛前夜")}
+  if(run.stage<3)wcPlayMatch(s,"均衡");else wcKnockoutChoice(s);}
 function wcKnockoutChoice(s){
   const run=s.national.wcRun,opp=run.ko[run.stage-3];
   enqueueFront({title:`${WC_STAGE_NAMES[run.stage]} · 对阵 ${esc(opp.name)}`,body:`<p>对手 <b>${esc(opp.name)}</b>（实力 ${opp.strength}）。选择本场基调：</p><p class="dialogue">稳守：少丢也少进，利于以弱抗强、拖进点球；全力压上：进球更多但后防更险；均衡：居中。</p>`,options:[option("稳守反击","降低失球与进球，利于爆冷",()=>wcPlayMatch(s,"稳守")),option("攻守均衡","中规中矩",()=>wcPlayMatch(s,"均衡")),option("全力压上","多进球，风险更高",()=>wcPlayMatch(s,"强攻"))]},"世界杯");
@@ -1714,7 +1732,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
