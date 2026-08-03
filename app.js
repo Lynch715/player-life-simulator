@@ -1400,6 +1400,16 @@ function setupWcFinals(s){
   s.national.wcRun={stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true};
   enqueueFront({title:"世界杯抽签",body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,options:[option("开始小组赛","",()=>wcNext(s))]},"世界杯");
 }
+/* 读档后把进行中的世界杯接回来。点球打到一半就回点球，否则回到下一场。
+   stage>6 或 alive 为假说明这届已经结束，直接清掉。 */
+function resumeWorldCup(s){
+  const run=s&&s.national&&s.national.wcRun;
+  if(!run||!run.alive){if(run)s.national.wcRun=null;return}
+  if(run.stage>6){s.national.wcRun=null;return}
+  if(run.shootout&&!run.shootout.done){wcShootoutStep(s);return}
+  wcNext(s);
+}
+function wcShootoutStep(s){wcNext(s)}   // Task 3 接入真正的点球流程
 function wcNext(s){const run=s.national.wcRun;if(!run||!run.alive)return;if(run.stage<3)wcPlayMatch(s,"均衡");else wcKnockoutChoice(s);}
 function wcKnockoutChoice(s){
   const run=s.national.wcRun,opp=run.ko[run.stage-3];
@@ -1586,7 +1596,7 @@ function requestRestart(){if(!S){location.reload();return}enqueueDecision({title
 function init(){
   creatorTalents=randomTalents();renderCreator();
   const saved=loadGame();
-  if(saved){$("menuContinue").classList.remove("hidden");$("menuContinue").innerHTML=`继续 · ${esc(saved.name)} · ${ageInfo(saved).age}岁 <span>→</span>`;$("menuContinue").addEventListener("click",()=>{if(!loadGame())return;S=saved;if(S.national&&S.national.wcRun)S.national.wcRun=null;$("menu").classList.add("hidden");showGame()})}else{$("menuNew").className="primary-cta"}
+  if(saved){$("menuContinue").classList.remove("hidden");$("menuContinue").innerHTML=`继续 · ${esc(saved.name)} · ${ageInfo(saved).age}岁 <span>→</span>`;$("menuContinue").addEventListener("click",()=>{if(!loadGame())return;S=saved;$("menu").classList.add("hidden");showGame();resumeWorldCup(S)})}else{$("menuNew").className="primary-cta"}
   $("menuNew").addEventListener("click",()=>{$("menu").classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()});
   ["gesturestart","gesturechange","gestureend"].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
   $("playerName").addEventListener("input",renderCreator);$("rerollTalents").addEventListener("click",()=>{if(rerollsLeft<=0)return;creatorTalents=randomTalents();rerollsLeft--;renderCreator()});$("startGame").addEventListener("click",startNewGame);$("nextPrologue").addEventListener("click",()=>{const now=Date.now();if(now-prologueClickAt<300)return;prologueClickAt=now;if(prologueIndex<PROLOGUE.length-1){prologueIndex++;renderPrologue()}else showGame()});
@@ -1594,6 +1604,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

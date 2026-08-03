@@ -610,6 +610,19 @@ assert.ok(!/change\(S,"form",\s*\d/.test(code),
   assert.ok(t.form<66,`form equilibrium drifted to ${t.form}; a flat monthly bonus has crept back in`);
 }
 
+// ===== 世界杯必须能跨刷新续上 =====
+// 点球是多步交互；若 wcRun 不持久化，第四轮刷一下页面整届世界杯就没了。
+assert.ok(!/wcRun=null;\$\("menu"\)/.test(code),"读档不再无条件清空进行中的世界杯");
+assert.equal(typeof G.resumeWorldCup,"function","有一个恢复入口");
+const wcSave=G.createInitialState("世界杯",allocation,[],"standard","mid");
+wcSave.national.wcRun={stage:4,group:[{name:"A",strength:70}],ko:[{name:"B",strength:80}],
+  results:[{opp:"A",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:0}],
+  groupWins:1,groupPts:3,alive:true};
+const wcRound=JSON.parse(JSON.stringify(wcSave));
+assert.equal(JSON.stringify(wcRound.national.wcRun),JSON.stringify(wcSave.national.wcRun),
+  "wcRun 是纯 JSON，round-trip 不丢字段");
+assert.equal(G.normalizeSave(wcRound).national.wcRun.stage,4,"normalizeSave 保留进行中的世界杯");
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
