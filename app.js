@@ -1353,9 +1353,13 @@ function applyAction(id){if(!S||S.actionPoints<=0)return;const a=ACTIONS.find(x=
    主界面、日程页、赛前预告全都无从谈起。
    月份节奏在这里是唯一定义，shouldPlayMatch 改成查表。 */
 function shuffled(arr,rng){const c=[...arr];for(let i=c.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[c[i],c[j]]=[c[j],c[i]]}return c}
+/* 从 max(1,seasonStart) 起：advanceMonth 是先 S.totalMonth++ 再判定有没有比赛
+   （app.js:1632 在 :1652 之前），所以第一次判定发生在 totalMonth=1，
+   第0月的比赛永远打不到。生成它只会在赛程页留一个永远「未打」的幽灵场次，
+   还会让主界面的「下一场·本月末」说谎。旧的 shouldPlayMatch 同样从不打第0月。 */
 function matchMonthsOfSeason(s,seasonStart){
   const out=[];
-  for(let m=seasonStart;m<seasonStart+12;m++){
+  for(let m=Math.max(1,seasonStart);m<seasonStart+12;m++){
     const age=14+Math.floor(m/12),p=age<16?"academy":age<18?(s.route||"academy"):"pro";
     if(age<16){if(m%3===0)out.push(m)}
     else if(p==="campus"){if(m%2===0)out.push(m)}

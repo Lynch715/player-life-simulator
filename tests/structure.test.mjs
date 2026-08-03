@@ -927,12 +927,15 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
   const sc=G.ensureSchedule(t);
   assert.ok(sc&&Array.isArray(sc.fixtures),"ensureSchedule 返回带 fixtures 的赛程");
   assert.ok(sc.fixtures.length>0,"新档第一赛季就该有比赛");
-  // 14岁梯队每3个月一场：第1赛季应落在 totalMonth 0,3,6,9
+  // 14岁梯队每3个月一场。第0月不排——advanceMonth 先 S.totalMonth++ 再判定
+  // （app.js:1632 在 :1652 之前），第一次判定就是 totalMonth=1，第0月永远打不到。
   // ⚠️ 外面那层 [...] 不能省：app.js 跑在 vm 沙箱里，沙箱内数组的原型与
   // 外部 realm 不同，deepStrictEqual 会报 "same structure but not reference-equal"。
   // 测试文件 :39 与 :426 已有同样的处理，照它们的做法。
-  assert.deepEqual([...sc.fixtures.filter(f=>f.type==="club").map(f=>f.month)],[0,3,6,9],
-    "梯队期每3个月一场，月份节奏必须与旧 shouldPlayMatch 一致");
+  assert.deepEqual([...sc.fixtures.filter(f=>f.type==="club").map(f=>f.month)],[3,6,9],
+    "梯队期每3个月一场，且不含打不到的第0月");
+  assert.ok(!sc.fixtures.some(f=>f.month===0),
+    "第0月永远打不到，排了它只会留一个永远未打的幽灵场次，主界面还会跟着说谎");
   sc.fixtures.forEach(f=>{
     assert.ok(typeof f.opponent==="string"&&f.opponent.length>0,"每场都有对手名");
     assert.ok(Number.isFinite(f.strength),"每场都有对手实力");
@@ -1043,16 +1046,21 @@ async function driveMatch(t,pick,cap=300){
 // 永远停在 upcoming，还会变成「月份在过去却未开打」的幽灵场次。
 // 点球的 penMatch 踩过一模一样的坑。
 {
-  const t=G.createInitialState("刷新写回",allocation,[],"standard","mid");
-  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
-  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
-  G.ensureSchedule(t);
-  G.setState(t);G.clearModalQueue();
-  G.advanceMonth();                       // 进到第49月，停在关键时刻弹窗
-
-  // 此刻刷新：存档往返，两个引用就此脱钩
-  const rt=JSON.parse(JSON.stringify(t));
-  assert.equal(rt.pendingMatch&&rt.pendingMatch.fixture!==undefined,true,"sanity: 刷新时确实有待决比赛");
+  // prepareMatch 有约 22% 的概率判定球员未出场，那种局面下比赛当场结算、
+  // 没有可供「刷新」的待决状态。重试直到拿到一个真的停在关键时刻的存档，
+  // 否则这条测试每五次就会随机翻车一次。
+  let rt=null;
+  for(let attempt=0;attempt<40&&!rt;attempt++){
+    const t=G.createInitialState("刷新写回",allocation,[],"standard","mid");
+    t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+    t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+    G.ensureSchedule(t);
+    G.setState(t);G.clearModalQueue();
+    G.advanceMonth();                       // 进到第49月
+    if(t.pendingMatch&&t.pendingMatch.fixture)rt=JSON.parse(JSON.stringify(t));  // 此刻刷新
+    G.clearModalQueue();
+  }
+  assert.ok(rt,"40次尝试都没造出「停在关键时刻」的存档——prepareMatch 的出场判定可能坏了");
   assert.equal(rt.pendingMatch.fixture===rt.schedule.fixtures.find(f=>f.month===rt.pendingMatch.fixture.month),
     false,"sanity: 存档往返后两者必然是两个对象——这正是 bug 的来源，先钉住前提");
 
