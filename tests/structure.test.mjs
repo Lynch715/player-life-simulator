@@ -988,6 +988,21 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
   assert.ok(future.every(f=>/第\d+轮/.test(f.competition)),"未来场次都要有轮次标签");
 }
 
+/* 俱乐部比赛流程是异步的：关键时刻的选项里是 setTimeout(()=>stepKeyMoment(s),0)。
+   同步的 driveModals 消费完第一个关键时刻就会因队列空而退出，比赛永远不结算。
+   这个驱动器在队列空时让出一个宏任务，等定时器把下一屏排进来，再继续。 */
+async function driveMatch(t,pick,cap=300){
+  const q=G.getModalQueue(),seen=[];let n=0;
+  while(n++<cap){
+    if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+    const m=q.shift();seen.push(m.title);
+    const opts=typeof m.options==="function"?m.options(t):m.options;
+    const c=opts[pick(m,opts)]||opts[0];
+    if(c&&c.apply)c.apply();
+  }
+  return {steps:n,seen};
+}
+
 // ===== 比赛必须打赛程表上那一场，而不是另抽一个对手 =====
 {
   const t=G.createInitialState("对上表",allocation,[],"standard","mid");
@@ -1002,7 +1017,7 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
   // 所以从第48月「结束本月」，踢的是第49月那场。
   G.setState(t);G.clearModalQueue();
   G.advanceMonth();
-  driveModals(t,()=>0);
+  await driveMatch(t,()=>0);          // 必须是 driveMatch，不是同步的 driveModals
   assert.equal(t.totalMonth,49,"sanity: 结束本月后月份已经前进");
   const done=t.schedule.fixtures.find(f=>f.month===49);
   assert.ok(done,"第49月该有一场比赛");
