@@ -660,6 +660,44 @@ assert.equal(G.PENALTY_OPTIONS.find(o=>o.id==="bold").bold,true,"抽死角被标
 assert.ok(G.teamPenaltyRate(60)<G.teamPenaltyRate(90),"球队越强罚得越准");
 assert.ok(G.teamPenaltyRate(1)>=.55&&G.teamPenaltyRate(200)<=.88,"队友成功率被夹在 55%~88%");
 
+// ===== 点球状态机 =====
+const soState=G.createInitialState("大战",allocation,[],"standard","mid");
+soState.attrs.WIL=80;
+const so=G.newShootout(soState,{name:"对手",strength:78});
+assert.equal(so.round,1,"从第一轮开始");
+assert.equal(so.myRound,5,"WIL 80 主罚第五轮");
+assert.equal(so.myScore,0);assert.equal(so.oppScore,0);
+assert.equal(so.done,false);
+assert.equal(JSON.stringify(JSON.parse(JSON.stringify(so))),JSON.stringify(so),
+  "点球状态是纯 JSON，刷新不丢");
+let guard=0;
+while(!so.done&&so.round<so.myRound&&guard++<20)G.shootoutAdvance(soState,so,()=>.5);
+assert.equal(so.round,so.myRound,"推进到玩家那轮就停");
+assert.ok(so.kicks.length>0,"前面几轮留下了记录");
+so.kicks.forEach(k=>assert.ok(["me","opp"].includes(k.side)&&typeof k.scored==="boolean",
+  "每一脚都记了是谁踢的、进没进"));
+
+const soBefore={my:so.myScore,opp:so.oppScore,round:so.round};
+const scored=G.shootoutPlayerKick(soState,so,"steady",()=>0);
+assert.equal(scored,true,"rng=0 时必进");
+assert.equal(so.myScore,soBefore.my+1,"进了就加分");
+assert.equal(so.round,soBefore.round+1,"主罚后推进一轮");
+const soMiss=G.newShootout(soState,{name:"对手",strength:78});
+G.shootoutPlayerKick(soState,soMiss,"steady",()=>0.999);
+assert.equal(soMiss.myMiss,true,"罚丢会被记下来");
+
+// ===== 点球结果必须写回那场比赛的胜负 =====
+const drawn=G.createInitialState("平局",allocation,[],"standard","mid");
+ATTR_KEYS.forEach(k=>drawn.attrs[k]=80);drawn.totalMonth=96;drawn.flags.pro18=true;
+let sawNull=false;
+for(let i=1;i<=200;i++){
+  let x=i>>>0;const rng=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+  const mm=G.wcMatchSim(drawn,{name:"对手",strength:80},"均衡",4,rng);
+  if(mm.gf===mm.ga&&mm.won===null&&mm.pen)sawNull=true;
+  else assert.ok(typeof mm.won==="boolean",`非平局场次 won 必须是布尔，实际 ${mm.won}`);
+}
+assert.ok(sawNull,"淘汰赛平局时 won 置 null 交给点球决出");
+
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }

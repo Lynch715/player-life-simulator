@@ -1401,6 +1401,43 @@ function penaltyRate(s,o){
   return clamp(base+(hasTalent(s,"big_heart")?.06:0),.35,.92);
 }
 function teamPenaltyRate(strength){return clamp(.72+(strength-74)/200,.55,.88)}
+function newShootout(s,opp){
+  return {round:1,myScore:0,oppScore:0,kicks:[],myRound:penaltyKickerRound(s),
+    oppStrength:opp.strength,oppName:opp.name,sudden:false,done:false,won:null,myMiss:false};
+}
+/* 推进一轮：先中国后对手。轮到玩家主罚就原地返回，等 UI 拿选择回来。
+   五轮打平进突然死亡（单次判定，不做多轮，避免流程冗长）。 */
+function shootoutAdvance(s,so,rng){
+  if(so.done||so.round===so.myRound)return so;
+  const teamStrength=74+(overall(s)-72)*.72+(s.national.adapt||0)*.06;
+  const mine=rng()<teamPenaltyRate(teamStrength);
+  so.kicks.push({side:"me",round:so.round,scored:mine});
+  if(mine)so.myScore++;
+  const theirs=rng()<teamPenaltyRate(so.oppStrength);
+  so.kicks.push({side:"opp",round:so.round,scored:theirs});
+  if(theirs)so.oppScore++;
+  so.round++;
+  shootoutSettle(so);
+  return so;
+}
+/* 五轮结束后判定；平局则进突然死亡标记，由 wcShootoutStep 收尾。 */
+function shootoutSettle(so){
+  if(so.round<=5)return;
+  if(so.myScore!==so.oppScore){so.done=true;so.won=so.myScore>so.oppScore}
+  else so.sudden=true;
+}
+function shootoutPlayerKick(s,so,optId,rng){
+  const o=PENALTY_OPTIONS.find(x=>x.id===optId)||PENALTY_OPTIONS[1];
+  const scored=rng()<penaltyRate(s,o);
+  so.kicks.push({side:"me",round:so.round,scored,mine:true,opt:o.id});
+  if(scored){so.myScore++;if(o.bold)change(s,"fame",4)}else so.myMiss=true;
+  const theirs=rng()<teamPenaltyRate(so.oppStrength);
+  so.kicks.push({side:"opp",round:so.round,scored:theirs});
+  if(theirs)so.oppScore++;
+  so.round++;
+  shootoutSettle(so);
+  return scored;
+}
 function wcMatchSim(s,opp,mentality,i,rng){
   const men={"稳守":{a:.85,d:.68},"均衡":{a:1,d:1},"强攻":{a:1.28,d:1.32}}[mentality]||{a:1,d:1};
   const team=74+(overall(s)-72)*.72+(s.national.adapt||0)*.06+(hasTalent(s,"red_shirt")?2:0)+(hasTalent(s,"big_heart")&&i>=3?3:0)+(hasTalent(s,"final_master")&&i===6?5:0);
@@ -1410,7 +1447,7 @@ function wcMatchSim(s,opp,mentality,i,rng){
   const goals=gf>0&&rng()<clamp(.30+(player-65)/80,.2,.75)?Math.min(gf,rng()<.18?2:1):0;
   const assists=(gf-goals>0&&rng()<.32)?1:0;
   let won=gf>ga,pen=false;
-  if(i>=3&&gf===ga){pen=true;won=rng()<clamp(.42+edge/40+(hasTalent(s,"big_heart")?.08:0),.18,.82)}
+  if(i>=3&&gf===ga){pen=true;won=null}
   return {opp:opp.name,strength:opp.strength,gf,ga,goals,assists,won,pen,mentality,stage:i};
 }
 function startWorldCup(s){
@@ -1424,16 +1461,64 @@ function setupWcFinals(s){
   s.national.wcRun={stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true};
   enqueueFront({title:"世界杯抽签",body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,options:[option("开始小组赛","",()=>wcNext(s))]},"世界杯");
 }
-/* 读档后把进行中的世界杯接回来。点球打到一半就回点球，否则回到下一场。
+/* 读档后把进行中的世界杯接回来。只要 shootout 还挂着就回点球，否则回到下一场。
+   这里不能再看 done：最后一轮罚完时 done 已是 true，而结果弹窗还没点，
+   saveGame() 恰好在这个空档存盘——漏掉它就等于把那场比赛的胜负永远丢在 null。
+   done 的收尾由 wcShootoutStep 自己转交给 wcShootoutFinish。
    stage>6 或 alive 为假说明这届已经结束，直接清掉。 */
 function resumeWorldCup(s){
   const run=s&&s.national&&s.national.wcRun;
   if(!run||!run.alive){if(run)s.national.wcRun=null;return}
   if(run.stage>6){s.national.wcRun=null;return}
-  if(run.shootout&&!run.shootout.done){wcShootoutStep(s);return}
+  if(run.shootout){wcShootoutStep(s);return}
   wcNext(s);
 }
-function wcShootoutStep(s){wcNext(s)}   // Task 3 接入真正的点球流程
+/* 点球流程的唯一入口，也是刷新后的恢复点：每次都从当前 shootout 状态
+   重新算该显示什么，因此中途刷新能原地接上。 */
+function wcShootoutStep(s){
+  const run=s.national.wcRun,so=run&&run.shootout;
+  if(!so)return wcNext(s);
+  const board=()=>`<div class="match-score"><span class="match-team">中国</span><strong>${so.myScore} : ${so.oppScore}</strong><span class="match-team">${esc(so.oppName)}</span></div><p class="dialogue">第 ${Math.min(so.round,5)} 轮${so.sudden?" · 突然死亡":""}</p>`;
+  if(so.done)return wcShootoutFinish(s);
+  if(so.sudden){
+    const p=clamp(.46+(eff(s,"WIL")-70)/260+(hasTalent(s,"big_heart")?.06:0),.25,.75);
+    return enqueueFront({title:"突然死亡",body:`${board()}<p>五轮罚完，比分还是平的。谁先罚丢谁出局。</p>`,
+      options:[option("走上点球点","一脚定生死",()=>{so.won=Math.random()<p;so.done=true;if(!so.won)so.myMiss=true;wcShootoutFinish(s)})]},"点球大战");
+  }
+  if(so.round===so.myRound){
+    return enqueueFront({title:`第 ${so.round} 轮 · 轮到你了`,
+      body:`${board()}<p>裁判把球摆在点球点上，然后退开。走过去的这十几米，看台的声音忽然离你很远。</p>`,
+      options:PENALTY_OPTIONS.map(o=>option(o.text,`成功率约 ${Math.round(penaltyRate(s,o)*100)}% · ${o.tip}`,()=>{
+        shootoutPlayerKick(s,so,o.id,Math.random);wcShootoutStep(s);
+      },o.bold?"danger":""))},"点球大战");
+  }
+  shootoutAdvance(s,so,Math.random);
+  const last=so.kicks.slice(-2);
+  enqueueFront({title:`点球大战 · 第 ${Math.min(so.round-1,5)} 轮`,
+    body:`${board()}<p>${last[0]&&last[0].scored?"队友稳稳罚进。":"队友那一脚被扑了出来。"}${last[1]&&last[1].scored?"对方也进了。":"对方罚丢了！"}</p>`,
+    options:[option("继续","",()=>wcShootoutStep(s))]},"点球大战");
+}
+/* 点球结束：把胜负写回那场比赛，然后交还给正常的世界杯流程。 */
+function wcShootoutFinish(s){
+  /* 认准 results 的最后一条，而不是 penMatch：存档往返会把两者拆成两个对象，
+     那时写进 penMatch 的胜负是写给一个孤儿副本的，results 里会永远留着 won:null。
+     点球期间不会再有别的比赛写进来，最后一条必然就是待决的这场。 */
+  const run=s.national.wcRun,so=run.shootout,m=run.results[run.results.length-1]||run.penMatch;
+  m.won=so.won;m.penScore=`${so.myScore}-${so.oppScore}`;
+  /* wcPlayMatch 里那笔「赢球 +2 声望」是在 won 还是 null 时结算的，补在这里。 */
+  if(so.won)change(s,"fame",2);
+  if(so.myMiss)run.missedDecisivePenalty=!so.won;
+  run.shootout=null;run.penMatch=null;
+  const champion=m.stage===6&&m.won;
+  enqueueFront({title:so.won?`点球 ${so.myScore}-${so.oppScore}，晋级！`:`点球 ${so.myScore}-${so.oppScore}，出局`,
+    body:`<p>${so.won?"最后一个球进网的瞬间，替补席上的人全冲了进来。":"你站在中圈没有动。有人过来拍你的背，你没有抬头。"}</p>`,
+    options:[option(champion?"捧起大力神杯":so.won?"继续":"接受结果","",()=>{
+      run.stage++;
+      if(champion)wcFinish(s,true);
+      else if(!so.won){run.alive=false;wcFinish(s,false)}
+      else wcNext(s);
+    })]},"点球大战");
+}
 function wcNext(s){const run=s.national.wcRun;if(!run||!run.alive)return;if(run.stage<3)wcPlayMatch(s,"均衡");else wcKnockoutChoice(s);}
 function wcKnockoutChoice(s){
   const run=s.national.wcRun,opp=run.ko[run.stage-3];
@@ -1447,6 +1532,7 @@ function wcPlayMatch(s,mentality){
   if(m.goals)unlock("national_goal");
   change(s,"fitness",-10);change(s,"fame",m.goals*3+(m.won?2:0));
   run.results.push(m);
+  if(m.pen&&m.won===null){run.shootout=newShootout(s,{name:m.opp,strength:m.strength});run.penMatch=m;wcShootoutStep(s);return}
   let advance;
   if(i<3){run.groupWins+=(m.gf>m.ga?1:0);run.groupPts+=(m.gf>m.ga?3:m.gf===m.ga?1:0);advance=i<2?true:(run.groupWins>=1||run.groupPts>=4);}
   else advance=m.won;
@@ -1628,6 +1714,6 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s}};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);
