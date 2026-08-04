@@ -1212,4 +1212,35 @@ async function driveMatch(t,pick,cap=300){
     "第48月是进职业队的月份，不该排联赛");
 }
 
+// ===== 主界面必须显示下一场的对手与时间 =====
+{
+  assert.ok(/id="nextMatch"/.test(html),"now-strip 里要有下一场信息的挂载点");
+  assert.ok(/nextMatch/.test(code),"renderAll 要填充下一场信息");
+  // 移动端有一条 .now-strip span:not(.live-dot){display:none}，
+  // 下一场挂在裸 span 上会被整条藏掉，必须有自己的样式规则
+  assert.ok(/\.next-match/.test(css),"下一场需要自己的样式类，不能挂裸 span");
+}
+{
+  const t=G.createInitialState("下一场",allocation,[],"standard","mid");
+  G.ensureSchedule(t);
+  const nf=G.nextFixture(t);
+  assert.ok(nf,"新档就该有下一场");
+  assert.equal(nf.month,3,"第一场在第3月——第0月打不到，不排");
+  t.totalMonth=4;
+  assert.equal(G.nextFixture(t).month,6,"第4月时下一场是第6月");
+}
+// 「还有几个月」必须按玩家点几次「结束本月」来数，不能差一位
+{
+  const t=G.createInitialState("倒计时",allocation,[],"standard","mid");
+  G.ensureSchedule(t);
+  // advanceMonth 先 ++ 再判定：totalMonth=5 时下一场在第6月，
+  // 点一次「结束本月」就开打——那是「本月末」，不是「还有1个月」。
+  t.totalMonth=5;
+  const nf=G.nextFixture(t);
+  assert.equal(nf.month,6,"sanity");
+  assert.equal(G.fixtureCountdown(t,nf),0,"下一次点结束本月就开打 → 倒计时0（显示「本月末」）");
+  t.totalMonth=4;
+  assert.equal(G.fixtureCountdown(t,G.nextFixture(t)),1,"隔一个月 → 倒计时1");
+}
+
 console.log("模拟球员 architecture test passed");

@@ -57,3 +57,9 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .radar-panel{margin-top:6px}
 .radar-panel svg{display:block}
 @media (max-width:760px){.radar-panel{margin-top:2px}.radar-panel svg{max-height:168px}}
+
+/* 主界面下一场：移动端 .now-strip span 被整体隐藏，这里必须自己撑住 */
+.next-match{display:flex;align-items:center;gap:6px;font-size:11px;color:#c5d2cb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.next-match b{color:var(--gold);font-size:11px}
+.next-match .nm-when{color:var(--muted);font-size:10px}
+@media (max-width:760px){.now-strip .next-match{display:flex;font-size:10px}}
