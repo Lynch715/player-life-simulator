@@ -1677,3 +1677,25 @@ console.log("模拟球员 architecture test passed");
   assert.ok(/两年后就是世界杯/.test(mk("asian").body),"亚洲杯之后是两年后的世界杯，不是四年");
   assert.ok(/四年后/.test(mk("world").body),"世界杯之后才是四年");
 }
+
+// ===== 一届大赛只能开一次 =====
+// 出线只是把决赛圈排进日程，真正开踢由那个月的 type:"cup" fixture 触发。
+// 曾经两边都开：世预赛结算时先打一遍（还提前两个月），到了世界杯月又打一遍，
+// worldCups 计数翻倍，整届比赛玩两次。
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<600){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("只开一次",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=90);
+  t.totalMonth=83;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
+  for(let i=0;i<16;i++){G.setState(t);G.advanceMonth();await drive(t)}
+  assert.ok((t.national.worldCups||0)<=1,
+    `一届世界杯最多只能计一次，实际 ${t.national.worldCups} 次——多半是世预赛结算和日程 fixture 两边都开了赛`);
+  assert.ok(!/setupCupFinals/.test(code),
+    "setupCupFinals 是那条重复入口，已经没人用了，不该留着诱导下一个人再接一次");
+}
+

@@ -1542,7 +1542,10 @@ function settleQualifiers(s){
     body:`<div class="story-list">${q.results.map(m=>`<div class="story-log"><time>${m.gf>m.ga?"胜":m.gf===m.ga?"平":"负"}</time><div><h3>中国 ${m.gf}-${m.ga} ${esc(m.opp)}</h3><p>你 ${m.goals} 球 ${m.assists} 助</p></div></div>`).join("")}</div>`+
       `<p>${q.rounds}场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${qualified?"中国队闯进世界杯决赛圈！":""}</p>`,
     options:[qualified
-      ?option("给家里打电话","",()=>enqueueFront({title:"父亲要去看世界杯",portrait:"assets/father.webp",body:`<p>电话响到第七声他才接，背景里有机器的声音——他还在厂里。</p><p>你说队伍出线了。他"嗯"了一声，隔了两秒，问的是：<span class="dialogue">"去那边看一场，要花多少钱。"</span></p><p>你说我给你买票。他说那不用，你比赛要紧。然后又问了一遍：<span class="dialogue">"多少钱。"</span></p>`,options:[option("记住这一天","决赛圈的日程已经排上",()=>{s.national.wcQual=null;setupCupFinals(s)})]},"世界杯"))
+      ?option("给家里打电话","",()=>enqueueFront({title:"父亲要去看世界杯",portrait:"assets/father.webp",body:`<p>电话响到第七声他才接，背景里有机器的声音——他还在厂里。</p><p>你说队伍出线了。他"嗯"了一声，隔了两秒，问的是：<span class="dialogue">"去那边看一场，要花多少钱。"</span></p><p>你说我给你买票。他说那不用，你比赛要紧。然后又问了一遍：<span class="dialogue">"多少钱。"</span></p>`,/* 这里绝不能直接开赛：出线只是把决赛圈排进了日程（qualifiedFor + ensureSchedule），
+   真正开踢由那个月的 type:"cup" fixture 触发。两边都开会把整届世界杯打两遍，
+   而且第一遍还提前两个月。 */
+options:[option("记住这一天","决赛圈已排进日程，到那个月自然开赛",()=>{s.national.wcQual=null})]},"世界杯"))
       :option("走出球场","",()=>enqueueFront({title:"最后一轮的终场哨",portrait:"assets/father.webp",
         body:`<p>积分榜挂在更衣室走廊的电视上，没有人去关。差的那几分是哪一场丢的，每个人心里都有一本账，但谁都没说。</p>`+
           `<p>你换衣服的时候手机震了一下。是你爸：<span class="dialogue">“看完了。”</span>隔了很久又来一条：<span class="dialogue">“下次还有。”</span></p>`+
@@ -1622,7 +1625,6 @@ function cupMatchSim(s,opp,mentality,i,rng){
   if(i>=3&&gf===ga){pen=true;won=null}
   return {opp:opp.name,strength:opp.strength,gf,ga,goals,assists,won,pen,mentality,stage:i};
 }
-function setupCupFinals(s){startCupFinals(s,{cup:"world",status:"upcoming",result:null},null)}
 /* 读档后把进行中的世界杯接回来。只要 shootout 还挂着就回点球，否则回到下一场。
    这里不能再看 done：最后一轮罚完时 done 已是 true，而结果弹窗还没点，
    saveGame() 恰好在这个空档存盘——漏掉它就等于把那场比赛的胜负永远丢在 null。
