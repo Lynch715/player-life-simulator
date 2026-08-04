@@ -44,7 +44,7 @@ const TALENTS=[
   {id:"football_iq",icon:"◇",name:"高球商",desc:"录像、战术与助攻类行动收益+25%。",tags:["PAS","tactics"]},
   {id:"engine",icon:"∞",name:"永动机",desc:"身体训练收益+25%，比赛后体能消耗降低。",tags:["PHY","fitness"]},
   {id:"pressure_proof",icon:"▣",name:"抗压体质",desc:"替补、舆论和打压造成的状态损失减半。",tags:["WIL","media"]},
-  {id:"scout_magnet",icon:"◉",name:"伯乐缘",desc:"人脉事件与高一级俱乐部报价概率提高。",tags:["scout","transfer"]},
+  {id:"scout_magnet",icon:"◉",name:"伯乐缘",desc:"球探事件与高一级俱乐部报价概率提高。",tags:["scout","transfer"]},
   {id:"language_gift",icon:"A",name:"语言天分",desc:"英语学习收益翻倍，海外适应更快。",tags:["language","overseas"]},
   {id:"childhood_bond",icon:"♥",name:"青梅羁绊",desc:"与林小满相处时关系收益提高，冲突缓冲一次。",tags:["love","WIL"]},
   {id:"quick_healer",icon:"✚",name:"伤愈加速",desc:"伤停时间减少1个月，康复行动额外恢复。",tags:["recovery","injury"]},
@@ -1291,7 +1291,7 @@ function normalizeSave(d){
   if(d.challenge===undefined)d.challenge=null;
   if(d.pendingMatch===undefined)d.pendingMatch=null;
   if(!Array.isArray(d.combosHit))d.combosHit=[];
-  /* scout 已删，后门改读 fame。老档不迁移的话，一个练了一年 scout 的
+  /* 球探字段已删，后门改读 fame。老档不迁移的话，一个攒了一年球探关注的
      存档会在16岁突然撞墙——而且不升 VERSION，它不会被清档。 */
   if("scout" in d){d.fame=clamp((d.fame||0)+((d.scout||5)-5));delete d.scout}
   return d;

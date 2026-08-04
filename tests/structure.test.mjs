@@ -1293,9 +1293,15 @@ async function driveMatch(t,pick,cap=300){
   assert.ok(/s\.fame>=67\+d\.threshold/.test(code),
     "setRoute 那道门同理，阈值 67");
 }
-// 效果文案不能还写着「球探」——数值改了标签没改，比不改更糟
+// 效果文案不能还写着「球探+N」——数值改了标签没改，比不改更糟。
+// 只扫 option(...) 那一层的效果标签：天赋描述里的「球探」是正当用词
+// （伯乐缘 scout_magnet 仍然生效，它就是「球探盯上你」的意思），
+// 注释里的也不该被这条规则波及。
 {
-  assert.ok(!/球探/.test(code),"事件的效果文案里不该再出现「球探」");
+  const optionLines=code.split("\n").filter(l=>/option\(/.test(l));
+  const bad=optionLines.filter(l=>/球探\s*[+\-−]?\d/.test(l));
+  assert.equal(bad.length,0,
+    `效果标签里还写着「球探+N」：\n${bad.map(l=>l.trim().slice(0,90)).join("\n")}`);
 }
 
 console.log("模拟球员 architecture test passed");
