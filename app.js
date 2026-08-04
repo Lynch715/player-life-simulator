@@ -963,7 +963,7 @@ function pickMoments(s,rng){
 
 /* prepareMatch 只产出纯 JSON 数据，不修改 s——这样整个待决状态可以直接存档。 */
 function prepareMatch(s,rng=Math.random,opts={}){
-  const club=currentClub(s),opp=opts.opponent||pick(opponentPool(s));
+  const club=opts.club||currentClub(s),opp=opts.opponent||pick(opponentPool(s));
   const a=ageInfo(s),home=opts.home??rng()>.48,injured=s.injury.months>0||s.suspension>0;
   const plan=opts.plan||s.matchPlan||"box";
   const starts=!injured&&rng()<startChance(s,{club}),plays=!injured&&(starts||rng()<.74+(hasTalent(s,"super_sub")?.15:0));
@@ -1441,8 +1441,11 @@ function buildSchedule(s,rng=Math.random){
      没被征召过就没有国家队日程。 */
   if(s.national.called)for(let i=0;i<fixtures.length;i++){
     const m=fixtures[i].month,cup=cupMonthOf(m),q=qualifierRoundAt(m);
-    if(cup)fixtures[i]={month:m,type:"cup",cup,opponent:CUP_CONFIG[cup].title,strength:0,home:false,
-      competition:`${CUP_CONFIG[cup].title}决赛圈`,status:"upcoming",result:null};
+    /* 世界杯决赛圈要先出线才排得上——没打进去那个月就照常踢联赛。
+       亚洲杯不设预选赛，中国队从不缺席，直接排。 */
+    if(cup&&(cup==="asian"||s.national.qualifiedFor===m))
+      fixtures[i]={month:m,type:"cup",cup,opponent:CUP_CONFIG[cup].title,strength:0,home:false,
+        competition:`${CUP_CONFIG[cup].title}决赛圈`,status:"upcoming",result:null};
     else if(q)fixtures[i]={month:m,type:"wcq",wcMonth:q.wcMonth,round:q.round,
       opponent:"",strength:0,home:q.round%2===1,
       competition:`世预赛第${q.round}轮`,status:"upcoming",result:null};
@@ -1456,7 +1459,10 @@ function ensureSchedule(s,rng=Math.random){
   if(sc&&sc.season===sig.season&&sc.clubKey===sig.clubKey&&sc.route===sig.route&&sc.nationalCalled===sig.nationalCalled)return sc;
   const fresh=buildSchedule(s,rng);
   if(sc){
-    const past=sc.fixtures.filter(f=>f.status!=="upcoming"||f.month<s.totalMonth);
+    /* 保留已打或已过去的场次（战绩不能丢）；
+       世预赛场次已排好对手名的也保留——scheduleQualifiers 跨赛季边界时
+       ensureSchedule 会重建，若不保留则对手名被清空变成幽灵场次。 */
+    const past=sc.fixtures.filter(f=>f.status!=="upcoming"||f.month<s.totalMonth||(f.type==="wcq"&&f.opponent));
     const taken=new Set(past.map(f=>f.month));
     fresh.fixtures=[...past,...fresh.fixtures.filter(f=>!taken.has(f.month))].sort((a,b)=>a.month-b.month);
   }
@@ -1496,19 +1502,48 @@ function cupDraw(rng,cfg){
   const c=cfg||CUP_CONFIG.world;
   return {group:take(c.group(),3),ko:take(c.elite(),4).sort((a,b)=>a.strength-b.strength)};
 }
-function simulateQualifiers(s,rng){
-  const china=75+(overall(s)-74)*.6+(s.national.adapt||0)*.05+(hasTalent(s,"red_shirt")?2:0);
-  const c=[...ASIA_POOL],list=[];
-  for(let k=0;k<8;k++)list.push(c.length?c.splice(Math.floor(rng()*c.length),1)[0]:pick(ASIA_POOL));
-  const matches=[];let points=0;
-  for(const opp of list){
-    const edge=china-opp.strength+rndFloat(rng,-11,11);
-    const gf=poisson(clamp(1.2+edge/17,.2,3.4),rng),ga=poisson(clamp(1.15-edge/20,.2,3.2),rng);
-    if(gf>ga)points+=3;else if(gf===ga)points+=1;
-    matches.push({opp:opp.name,gf,ga});
-  }
-  const threshold=11+diffOf(s).threshold;
-  return {matches,points,threshold,qualified:points>=threshold};
+/* 世预赛不再一屏掷完8场——那让玩家整整一年的投入变成一次读秒。
+   摊成6轮排进赛程，每轮走完整比赛管线，你的进球真的决定积分。 */
+function nationalStrength(s){return 74+(overall(s)-72)*.72+(s.national.adapt||0)*.06+(hasTalent(s,"red_shirt")?2:0)}
+function scheduleQualifiers(s,wcMonth,rng=Math.random){
+  const months=qualifierMonths(wcMonth).filter(m=>m>=s.totalMonth);
+  if(!months.length)return null;
+  const bag=shuffled(ASIA_POOL,rng).slice(0,months.length);
+  const sc=ensureSchedule(s);
+  months.forEach((m,i)=>{
+    let f=sc.fixtures.find(x=>x.month===m);
+    if(!f){
+      /* 世预赛轮次可能跨赛季边界（如 totalMonth=83 时月84属于下一赛季）。
+         找不到就直接插入一条——ensureSchedule 下次重建时会通过 past 条件保留它。 */
+      f={month:m,type:"wcq",wcMonth,round:i+1,opponent:"",strength:0,home:i%2===0,
+        competition:`世预赛第${i+1}轮`,status:"upcoming",result:null};
+      sc.fixtures.push(f);sc.fixtures.sort((a,b)=>a.month-b.month);
+    }
+    f.type="wcq";f.wcMonth=wcMonth;f.round=i+1;
+    f.opponent=bag[i].name;f.strength=bag[i].strength;f.home=i%2===0;
+    f.competition=`世预赛第${i+1}轮`;f.status="upcoming";f.result=null;
+  });
+  /* 出线线按轮数折算。原来8场需 11+d.threshold 分（11/24≈.458），
+     6场18分同比例约8分。中途才被征召的按剩余轮数同比缩——
+     否则一个月90才首次入选的国脚必然出局，那不是难度，是无解。 */
+  s.national.wcQual={wcMonth,rounds:months.length,played:0,points:0,
+    threshold:Math.max(1,Math.round(months.length*3*.458)+diffOf(s).threshold),
+    results:[],settled:false};
+  return s.national.wcQual;
+}
+function settleQualifiers(s){
+  const q=s.national.wcQual;if(!q||q.settled)return;
+  q.settled=true;
+  const qualified=q.points>=q.threshold;
+  /* 出线与否决定那个月排不排决赛圈。没打进去，第96月就照常踢联赛——
+     这一年的六轮是你自己踢的，结果也该由它决定。 */
+  if(qualified){s.national.qualifiedFor=q.wcMonth;s.flags.worldcup_qualified=true;ensureSchedule(s)}
+  enqueueDecision({title:qualified?"世预赛出线！":"世预赛出局",
+    body:`<div class="story-list">${q.results.map(m=>`<div class="story-log"><time>${m.gf>m.ga?"胜":m.gf===m.ga?"平":"负"}</time><div><h3>中国 ${m.gf}-${m.ga} ${esc(m.opp)}</h3><p>你 ${m.goals} 球 ${m.assists} 助</p></div></div>`).join("")}</div>`+
+      `<p>${q.rounds}场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${qualified?"中国队闯进世界杯决赛圈！":""}</p>`,
+    options:[qualified
+      ?option("给家里打电话","",()=>enqueueFront({title:"父亲要去看世界杯",portrait:"assets/father.webp",body:`<p>电话响到第七声他才接，背景里有机器的声音——他还在厂里。</p><p>你说队伍出线了。他"嗯"了一声，隔了两秒，问的是：<span class="dialogue">"去那边看一场，要花多少钱。"</span></p><p>你说我给你买票。他说那不用，你比赛要紧。然后又问了一遍：<span class="dialogue">"多少钱。"</span></p>`,options:[option("记住这一天","决赛圈的日程已经排上",()=>{s.national.wcQual=null;setupCupFinals(s)})]},"世界杯"))
+      :option("接受结果","",()=>{s.national.wcQual=null})]},"世界杯预选赛");
 }
 /* ========== 点球大战 ==========
    三个选项刻意不是「同一条曲线上的三个点」：稳推对 SHO 最敏感、等门将
@@ -1582,10 +1617,6 @@ function cupMatchSim(s,opp,mentality,i,rng){
   let won=gf>ga,pen=false;
   if(i>=3&&gf===ga){pen=true;won=null}
   return {opp:opp.name,strength:opp.strength,gf,ga,goals,assists,won,pen,mentality,stage:i};
-}
-function startWorldCup(s){
-  const q=simulateQualifiers(s,Math.random);
-  enqueueDecision({title:q.qualified?"世预赛出线！":"世预赛出局",body:`<div class="story-list">${q.matches.map(m=>`<div class="story-log"><time>${m.gf>m.ga?"胜":m.gf===m.ga?"平":"负"}</time><div><h3>中国 ${m.gf}-${m.ga} ${esc(m.opp)}</h3></div></div>`).join("")}</div><p>八场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${q.qualified?"中国队闯进世界杯决赛圈！":"差一口气，四年后再来——提升综合能力能带动全队实力。"}</p>`,options:[q.qualified?option("给家里打电话","",()=>enqueueFront({title:"父亲要去看世界杯",portrait:"assets/father.webp",body:`<p>电话响到第七声他才接，背景里有机器的声音——他还在厂里。</p><p>你说队伍出线了。他“嗯”了一声，隔了两秒，问的是：<span class="dialogue">“去那边看一场，要花多少钱。”</span></p><p>你说我给你买票。他说那不用，你比赛要紧。然后又问了一遍：<span class="dialogue">“多少钱。”</span></p>`,options:[option("进入决赛圈抽签","",()=>setupCupFinals(s))]},"世界杯")):option("接受结果","",()=>{})]},"世界杯预选赛");
 }
 function setupCupFinals(s){
   s.national.worldCups++;
@@ -1742,6 +1773,11 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
   if(a.age>=16&&S.salary>0){const d=diffOf(S),wage=Math.round(S.salary*d.income),expense=Math.round((1.5+S.fame/28)*d.expense);addMoney(S,wage-expense);if(S.debt>0&&S.totalMonth%6===0){S.debt=Math.round(S.debt*1.05);log(S,"warn","欠款利息又滚了一点，早点还清。")}}
   const passive=assetPassive(S);if(passive)addMoney(S,passive);if(S.assets&&S.assets.image_team&&S.totalMonth%3===0)change(S,"fame",1);
   ensureSchedule(S);
+  /* 世预赛必须在踢第一轮之前排好——排期要给六轮各抽一个不重复的对手。
+     放在 finishMonth 里就晚了一个月：那时第1轮已经拿着 buildSchedule
+     留下的空对手踢完了，日程上会出现「主场对阵 」这种空档。 */
+  {const wc=Math.ceil((S.totalMonth+2)/48)*48;
+   if(S.national.called&&wc>=96&&S.totalMonth>=wc-12&&!(S.national.wcQual&&S.national.wcQual.wcMonth===wc)&&qualifierMonths(wc).some(m=>m>=S.totalMonth))scheduleQualifiers(S,wc);}
   /* 有排定的比赛但上不了场（伤停/雪藏/已退役）：在日程上标记 missed 留痕。
      不标的话这一场会永远停在 upcoming，变成「月份在过去却未开打」的幽灵场次，
      还会被 ensureSchedule 的 past 条件一路带进下个赛季。 */
@@ -1761,7 +1797,12 @@ function finishMonth(ctx){
   if(S.totalMonth%2===0&&!justTurned16){const e=chooseRandomEvent(S);if(e)queueEvent(S,e)}
   if(S.totalMonth%6===0&&STORY_BEATS[S.totalMonth])queueStory(S,STORY_BEATS[S.totalMonth](S));
   if(a.age>=18&&S.totalMonth%6===0&&!S.offers.length)generateOffers(S,S.flags.wantsMove?3:2);
-  const calledNow=nationalSelectionCheck(S);if(calledNow)queueNationalCall(S);else if(S.national.called&&S.totalMonth>=96&&S.totalMonth%48===0)startWorldCup(S);else if(S.national.called&&S.totalMonth%6===0)queueNationalReport(simulateNationalMatch(S));
+  if(ctx.settleQual)settleQualifiers(S);
+  const calledNow=nationalSelectionCheck(S);
+  if(calledNow){queueNationalCall(S);ensureSchedule(S)}
+  /* 没有「一屏跑完世预赛」的后路了。进不进得了决赛圈，由你自己踢的那六轮决定；
+     没赶上那六轮（比如刚被征召），这一届就与你无关——四年后再来。 */
+  if(!calledNow&&S.national.called&&S.totalMonth%6===0&&!fixtureOfMonth(S))queueNationalReport(simulateNationalMatch(S));
   if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);queueAward(seasonAwardCheck(S),S,goalResult);makeSeasonGoal(S)}
   if(a.age>=16&&!S.retired&&!S.challenge&&!(S.flags&&S.flags.washedOut))queueChallengeChoice(S);
   riskSettlement(S);breakupCheck(S);intimateCheck(S);checkAchievements(S);updateRanking(S);
@@ -1774,9 +1815,13 @@ function finishMonth(ctx){
   modalBusy=false;saveGame();renderAll();setTimeout(pumpModal,0)}
 
 /* ========== 比赛流程：赛前预告 → 2个关键时刻 → 结算 → 交回月末段 ========== */
+/* 空壳：真身在「决赛圈每场关键时刻」那一步补上。
+   现在先让赛程走通——大赛月标记为已打，月末流程正常接回去。 */
+function startCupFinals(s,fx,ctx){fx.status="played";fx.result={gf:0,ga:0,goals:0,assists:0,rating:0};if(ctx)finishMonth(ctx)}
 function startMatchFlow(s,ctx){
   const fx=fixtureOfMonth(s);
   if(!fx){finishMonth(ctx);return}
+  if(fx.type==="cup"){s.pendingMatch=null;modalBusy=false;startCupFinals(s,fx,ctx);return}
   s.pendingMatch={stage:"preview",fixture:fx,ctx,index:0,pending:null};
   modalBusy=false;
   stepMatchPreview(s);
@@ -1788,9 +1833,16 @@ function startChance(s,opts={}){
   const club=opts.club||currentClub(s);
   return clamp(.42+(effOverall(s)-club.strength)/50+(s.coachFavor-50)/170+(hasTalent(s,"super_sub")?-.04:0),.15,.9);
 }
+/* 世预赛踢的是国家队，不是俱乐部。预告屏和 prepareMatch 必须取同一支队，
+   否则预告显示的实力对比和首发率跟实际掷骰用的对不上，就是在骗玩家。 */
+function fixtureClub(s,fx){
+  return fx&&fx.type==="wcq"
+    ?{name:"中国",league:"世预赛",strength:Math.round(nationalStrength(s))}
+    :currentClub(s);
+}
 function stepMatchPreview(s){
-  const pm=s.pendingMatch,fx=pm.fixture,club=currentClub(s);
-  const edge=club.strength-fx.strength,st=Math.round(startChance(s)*100);
+  const pm=s.pendingMatch,fx=pm.fixture,club=fixtureClub(s,fx);
+  const edge=club.strength-fx.strength,st=Math.round(startChance(s,{club})*100);
   const edgeText=edge>=6?"纸面占优":edge<=-6?"纸面下风":"势均力敌";
   enqueueFront({title:`${fx.competition} · ${fx.home?"主场":"客场"}对阵 ${esc(fx.opponent)}`,kicker:"赛前",
     body:`<div class="match-score"><span class="match-team">${esc(club.name)}</span><strong>${club.strength} : ${fx.strength}</strong><span class="match-team">${esc(fx.opponent)}</span></div>`+
@@ -1803,8 +1855,9 @@ function stepMatchPreview(s){
 function beginMatch(s,plan){
   const pm=s.pendingMatch,fx=pm.fixture;
   s.matchPlan=plan;
+  const club=fixtureClub(s,fx);
   pm.pending=prepareMatch(s,Math.random,{opponent:{name:fx.opponent,strength:fx.strength},
-    home:fx.home,plan,competition:fx.competition});
+    home:fx.home,plan,competition:fx.competition,club});
   pm.stage="moments";
   if(!pm.pending.plays){resolveMatch(s);return}
   stepKeyMoment(s);
@@ -1848,6 +1901,15 @@ function resolveMatch(s){
   if(pm.fixture){const fx=(s.schedule&&s.schedule.fixtures.find(f=>f.month===pm.fixture.month))||pm.fixture;
     fx.status="played";
     fx.result={gf:report.gf,ga:report.ga,goals:report.goals,assists:report.assists,rating:report.rating}}
+  if(pm.fixture&&pm.fixture.type==="wcq"&&s.national.wcQual){
+    const q=s.national.wcQual;
+    q.played++;q.points+=report.gf>report.ga?3:report.gf===report.ga?1:0;
+    q.results.push({opp:report.opponent,gf:report.gf,ga:report.ga,goals:report.goals,assists:report.assists});
+    s.national.caps++;s.statsCareer.nationalCaps++;
+    s.national.goals+=report.goals;s.statsCareer.nationalGoals+=report.goals;
+    if(report.goals)unlock("national_goal");
+    if(q.played>=q.rounds)ctx.settleQual=true;
+  }
   challengeProgress(s,report);
   ctx.matchReportModal={...buildMatchReportModal(report),kicker:report.classic?"经典之战":"比赛简报"};
   finishMonth(ctx);
@@ -1964,7 +2026,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,cupMatchSim,cupDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

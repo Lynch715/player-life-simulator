@@ -393,10 +393,20 @@ elite.seasonStats={matches:20,goals:38,assists:13,wins:15,ratingTotal:158,trophi
 const award=G.seasonAwardCheck(elite,()=>.5);
 assert.equal(award.ballon,true,"world-class season can win Ballon d'Or");
 
-const qual=G.simulateQualifiers(elite,seeded(42));
-assert.equal(qual.matches.length,8,"world cup qualifiers run an 8-match Asian campaign");
-assert.equal(typeof qual.qualified,"boolean","qualification is a pass/fail gate");
-const draw=G.cupDraw(seeded(7));
+/* 世预赛不再是一屏跑完的纯函数——它现在是排进赛程、逐月踢的六轮。
+   旧断言测的是 simulateQualifiers 返回 8 场比赛，那是被取代掉的设计，
+   保留它等于把旧管线一直吊着命。改测新管线的排期与出线线。 */
+{
+  const t=G.createInitialState("世预赛排期",allocation,[],"standard","mid");
+  t.totalMonth=84;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  const q=G.scheduleQualifiers(t,96);
+  assert.equal(q.rounds,6,"世预赛是排进赛程的六轮，不再是一屏跑完的八场");
+  assert.ok(q.threshold>0&&q.threshold<18,"出线线落在六场十八分的区间内");
+  assert.equal(q.played,0,"刚排完还没开踢");
+}
+const draw=G.cupDraw(seeded(7),G.CUP_CONFIG.world);
 assert.equal(draw.group.length,3,"finals draw yields three group opponents");
 assert.equal(draw.ko.length,4,"finals draw yields four knockout opponents");
 assert.ok(draw.ko[0].strength<=draw.ko[3].strength,"knockout opponents escalate in strength");
@@ -1512,4 +1522,54 @@ console.log("模拟球员 architecture test passed");
   const sc=G.ensureSchedule(t);
   assert.ok(!sc.fixtures.some(x=>x.type==="cup"||x.type==="wcq"),
     "没进过国家队就不该有大赛日程");
+}
+
+// ===== 世预赛从一屏幻灯片摊成一整年 =====
+{
+  assert.equal(typeof G.scheduleQualifiers,"function","排期与结算拆开");
+  assert.equal(typeof G.settleQualifiers,"function");
+  const t=G.createInitialState("世预赛",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=80);
+  t.totalMonth=84;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  G.scheduleQualifiers(t,96);
+  const q=t.national.wcQual;
+  assert.ok(q,"世预赛进度必须存档——它跨越6个月");
+  assert.equal(q.wcMonth,96);
+  assert.equal(q.rounds,6,"排满6轮");
+  assert.equal(q.played,0);
+  assert.ok(q.threshold>0&&q.threshold<18,`出线线要落在6场18分的区间内，实际 ${q.threshold}`);
+  const opps=[...t.schedule.fixtures.filter(f=>f.type==="wcq").map(f=>f.opponent)];
+  assert.ok(opps.every(o=>o&&o.length>0),"排完之后每轮都要有对手");
+  assert.equal(new Set(opps).size,opps.length,`6轮对手不能重复：${opps.join("/")}`);
+}
+// 中途才被征召：阈值按剩余轮数折算，否则新晋国脚必然出局
+{
+  const t=G.createInitialState("晚征召",allocation,[],"standard","mid");
+  t.totalMonth=90;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  G.scheduleQualifiers(t,96);
+  const q=t.national.wcQual;
+  assert.ok(q.rounds<6,`月90才征召只剩 ${q.rounds} 轮`);
+  assert.ok(q.threshold<8,`剩 ${q.rounds} 轮的出线线必须同比缩小，实际 ${q.threshold}`);
+}
+// 世预赛要走完整比赛管线：预告 → 关键时刻 → 简报，你的进球真的进积分
+{
+  const t=G.createInitialState("世预赛可玩",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=85);
+  t.totalMonth=83;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);G.scheduleQualifiers(t,96);
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();                      // → 第84月，世预赛第1轮
+  const r=await driveMatch(t,()=>0);
+  assert.ok(/世预赛/.test(r.seen.join(" ")),`应该出现世预赛的屏，实际：${r.seen.join(" / ")}`);
+  const q=t.national.wcQual;
+  assert.equal(q.played,1,"打完一轮，played 要 +1");
+  assert.ok(q.points>=0&&q.points<=3,`一轮最多3分，实际 ${q.points}`);
+  assert.equal(q.results.length,1,"结果要记进 wcQual");
+  const fx=t.schedule.fixtures.find(f=>f.month===84);
+  assert.equal(fx.status,"played","赛程上那一轮要标记已打");
 }
