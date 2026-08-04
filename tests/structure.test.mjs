@@ -1424,7 +1424,11 @@ console.log("模拟球员 architecture test passed");
   assert.equal(typeof G.resumeCup,"function","恢复入口更名 resumeCup");
   // 迁移注释和 normalizeSave 里读取旧存档字段 "wcRun" 是合法的，
   // 但不允许有新的 wcRun 变量声明、赋值或用作 key（即 .wcRun= 或 wcRun: 或 const wcRun）
-  assert.ok(!/[=,{]\s*wcRun\s*[=:{,\s]/.test(code)&&!/\.wcRun\s*=/.test(code.replace(/d\.national\.wcRun/g,'')),"wcRun 不得在迁移代码以外被赋值或声明，留一半旧名字比全不改更糟");
+  /* normalizeSave 是 wcRun 唯一还该出现的地方——它得点名旧字段才能把老档
+     搬成 cupRun。把整个函数摘掉再扫，否则断言会逼实现方写绕检查的混淆代码
+     （这个坑本轮已经踩过一次）。 */
+  const codeSansNormalize=code.replace(/function normalizeSave[\s\S]*?\n\}/,"");
+  assert.ok(!/\bwcRun\b/.test(codeSansNormalize),"wcRun 必须全部更名 cupRun，留一半旧名字比全不改更糟");
   assert.ok(!/function wc[A-Z]/.test(code),"wc* 函数一律更名 cup*");
   // 在飞存档：正打到半决赛的档不能凭空丢掉整届赛事
   const stale={version:3,national:{wcRun:{stage:5,group:[],ko:[],results:[],groupWins:2,groupPts:6,alive:true}},
