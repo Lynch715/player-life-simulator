@@ -1613,35 +1613,37 @@ console.log("模拟球员 architecture test passed");
     G.clearModalQueue();
   }
 }
-// 关键时刻真的改变了比分：全选高风险 vs 全选稳妥，进球分布必须不同
+/* 关键时刻的结果必须真的并进这场比赛。
+   不要用「全选高风险 vs 全选稳妥，进球数必须不同」来测——那是在断言
+   两个随机抽样不相等，本来就会偶尔相等（实测 30 次里挂 3 次），而且
+   选项下标同时改掉了本场基调，测的其实是两件事混在一起。
+   改成确定性判断：resolveMoments 产出的时间线有没有被挂到这场比赛上。
+   claimGoal/overflow 的数值规则已由 resolveMoments 自己的单测钉住。 */
 {
-  const play=pick=>{
-    let goals=0;
-    for(let i=0;i<40;i++){
-      const t=G.createInitialState("并入"+i,allocation,[],"standard","mid");
-      ATTR_KEYS.forEach(k=>t.attrs[k]=90);
-      t.totalMonth=120;t.flags.pro18=true;t.national.called=true;
-      t.national.cupRun={cup:"asian",stage:0,group:G.AC_GROUP_POOL.slice(0,3),
-        ko:G.AC_ELITE_POOL.slice(0,4),results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
-      G.setState(t);G.clearModalQueue();
-      G.resumeCup(t);
-      const q=G.getModalQueue();let n=0;
-      while(q.length&&n++<40){const m=q.shift();
-        const o=typeof m.options==="function"?m.options(t):m.options;
-        if(!o||!o.length)continue;
-        const c=o[Math.min(pick,o.length-1)]||o[0];
-        if(c&&c.apply)try{c.apply()}catch(e){}
-        if((t.national.cupRun||{}).results&&t.national.cupRun.results.length)break;
-      }
-      const res=(t.national.cupRun||{}).results||[];
-      if(res[0])goals+=res[0].goals;
-      G.clearModalQueue();
-    }
-    return goals;
-  };
-  const a=play(0),b=play(2);
-  assert.ok(a!==b,`不同的关键时刻选择必须产生不同的进球分布（都选第1项=${a}，都选第3项=${b}）——一样说明关键时刻没并进比分`);
+  const t=G.createInitialState("并入决赛圈",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=90);
+  t.totalMonth=120;t.flags.pro18=true;t.national.called=true;
+  t.national.cupRun={cup:"asian",stage:0,group:G.AC_GROUP_POOL.slice(0,3),
+    ko:G.AC_ELITE_POOL.slice(0,4),results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
+  G.setState(t);G.clearModalQueue();
+  G.resumeCup(t);
+  const q=G.getModalQueue();let n=0,sawMoment=false;
+  while(q.length&&n++<40){
+    const m=q.shift();
+    if(/关键时刻/.test(m.kicker||""))sawMoment=true;
+    const o=typeof m.options==="function"?m.options(t):m.options;
+    if(!o||!o.length)continue;
+    if(o[0]&&o[0].apply)try{o[0].apply()}catch(e){}
+    if(((t.national.cupRun||{}).results||[]).length)break;
+  }
+  assert.ok(sawMoment,"决赛圈每场都该先出一个关键时刻");
+  const res=(t.national.cupRun||{}).results||[];
+  assert.ok(res.length>0,"应该打完了一场");
+  assert.ok(Array.isArray(res[0].momentLines),
+    "关键时刻的结果必须挂到这场比赛上（momentLines），否则就是走个过场没并进比分");
+  G.clearModalQueue();
 }
+
 // ===== 出局与夺冠都要有分量，且亚洲杯不许穿世界杯的衣服 =====
 {
   assert.ok(!/差一口气，四年后再来/.test(code),"世预赛出局的旧敷衍文案要换掉");
