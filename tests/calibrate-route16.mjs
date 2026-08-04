@@ -70,24 +70,35 @@ for(let i=0;i<N;i++){
 }
 
 const D=G.DIFFICULTIES.standard.threshold;
-const oldGate=28+D;
-const passOld=rows.filter(r=>r.scout>=oldGate).length/N;
 const fameNew=rows.map(r=>clamp(r.fame+(r.scout-5))).sort((a,b)=>a-b);
+const pct=(x)=>(x*100).toFixed(1)+"%";
 
-// 求 T 使 P(fameNew>=T) 最接近 passOld
-let best=null;
-for(let T=0;T<=100;T++){
-  const p=fameNew.filter(v=>v>=T).length/N;
-  const d=Math.abs(p-passOld);
-  if(!best||d<best.d)best={T,p,d};
+/* 两道门各自独立标定，不做线性外推——外推不是测量。
+   注意标定是在「标准难度」下做的，此时 d.threshold=D 已经含在 oldGate 里了。
+   所以求出来的 T 是「标准难度下的最终门槛值」，写回代码时必须减掉 D，
+   否则 fame>=T+d.threshold 会把 D 算两次，门比原来紧。 */
+function calibrate(oldScoutBase){
+  const oldGate=oldScoutBase+D;
+  const passOld=rows.filter(r=>r.scout>=oldGate).length/N;
+  let best=null;
+  for(let T=0;T<=100;T++){
+    const p=fameNew.filter(v=>v>=T).length/N;
+    const d=Math.abs(p-passOld);
+    if(!best||d<best.d)best={T,p,d};
+  }
+  return {oldGate,passOld,finalT:best.T,base:best.T-D,passNew:best.p};
 }
 
-const pct=(x)=>(x*100).toFixed(1)+"%";
 const scoutSorted=rows.map(r=>r.scout).sort((a,b)=>a-b);
-console.log(`样本 N=${N}，标准难度 threshold=${D}`);
-console.log(`旧后门 scout>=${oldGate} 通过率：${pct(passOld)}`);
+console.log(`样本 N=${N}，标准难度 d.threshold=${D}`);
 console.log(`旧 scout 分位：p50=${scoutSorted[Math.floor(N/2)]} p90=${scoutSorted[Math.floor(N*.9)]} max=${scoutSorted[N-1]}`);
 console.log(`新 fame 分位：p50=${fameNew[Math.floor(N/2)]} p90=${fameNew[Math.floor(N*.9)]} max=${fameNew[N-1]}`);
-console.log(`==> 等宽的新阈值：fame >= ${best.T} + d.threshold（通过率 ${pct(best.p)}）`);
-console.log(`   setRoute 那道 scout>=38 的门按同比例换算：fame >= ${Math.round(best.T*38/28)} + d.threshold`);
+console.log("");
+for(const [name,base] of [["eligibleLocal（16岁分流后门）",28],["setRoute（进一线队判定）",38]]){
+  const c=calibrate(base);
+  console.log(`${name}`);
+  console.log(`  旧：scout>=${base}+d.threshold  → 标准难度下 >=${c.oldGate}，通过率 ${pct(c.passOld)}`);
+  console.log(`  新：fame >=${c.base}+d.threshold  → 标准难度下 >=${c.finalT}，通过率 ${pct(c.passNew)}`);
+  console.log(`  ==> 写进代码的数：${c.base}`);
+}
 })();
