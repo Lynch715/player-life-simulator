@@ -768,7 +768,7 @@ const STORY_BEATS={
 function loveSupport(s){if(!["恋人","异地"].includes(s.relationship.status))return 0;const l=s.relationship.love;return l>=85?7:l>=65?5:l>=45?3:l>=25?1:0}
 /* 家庭同样只走抬高基线这一条路。33个事件已经在写 family，接上基线就等于白捡——
    但绝不能写成每月固定 +N：form 每月回归 22%，那会把均衡点顶高 N/0.22≈4.5N。 */
-function familySupport(s){const f=s.family;return f>=90?5:f>=70?2:f>=50?1:f>=30?0:-4}
+function familySupport(s){const f=s.family;return f>=90?4:f>=70?2:f>=50?1:f>=30?0:-3}
 function poisson(lambda,rng=Math.random){let l=Math.exp(-Math.max(.08,lambda)),p=1,k=0;do{k++;p*=rng()}while(p>l&&k<9);return k-1}
 function rndFloat(rng,min,max){return min+rng()*(max-min)}
 function opponentPool(s){const c=currentClub(s);if(c.league==="英超")return PL_CLUBS.filter(x=>x.name!==c.name);if(s.club.league==="英超梯队")return PL_CLUBS.filter(x=>x.name!==s.club.name.replace(" U18","")).map(x=>({...x,name:`${x.name} U18`,strength:x.strength-11,league:"英超梯队"}));if(s.club.league==="中超梯队")return CSL_CLUBS.filter(x=>!s.club.name.includes(x.name)).map(x=>({...x,name:`${x.name} U16`,strength:x.strength-10,league:"中超梯队"}));if(s.club.league==="校园联赛")return CAMPUS_CLUBS.filter(x=>x.name!==s.club.name);return CSL_CLUBS.filter(x=>x.name!==c.name)}
