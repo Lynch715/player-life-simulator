@@ -63,3 +63,16 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .next-match b{color:var(--gold);font-size:11px}
 .next-match .nm-when{color:var(--muted);font-size:10px}
 @media (max-width:760px){.now-strip .next-match{display:flex;font-size:10px}}
+/* 日程页：一行一场 */
+.fixture-row{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center;padding:11px 13px;border:1px solid var(--line);border-radius:13px;background:#0b1b15;font-size:11px}
+.fixture-row.now{border-color:var(--gold);background:#f0bd5e0d}
+.fixture-row.done{opacity:.72}
+.fixture-row .fx-when{color:var(--muted);font-size:9px}
+.fixture-row .fx-opp b{font-size:12px}
+.fixture-row .fx-meta{color:var(--muted);font-size:9px;display:block;margin-top:2px}
+.fixture-row .fx-score{font-weight:900;font-size:13px;color:var(--gold);white-space:nowrap}
+.fixture-row .fx-score.win{color:var(--green)}
+.fixture-row .fx-score.loss{color:var(--bad)}
+.fixture-row .fx-score.pending{color:var(--muted);font-size:10px;font-weight:700}
+.fixture-row .fx-score.miss{color:var(--muted);font-size:10px;font-weight:700;opacity:.8}
+@media (max-width:760px){.fixture-row{grid-template-columns:46px 1fr auto;padding:9px 10px}}

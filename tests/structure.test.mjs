@@ -1243,4 +1243,33 @@ async function driveMatch(t,pick,cap=300){
   assert.equal(G.fixtureCountdown(t,G.nextFixture(t)),1,"隔一个月 → 倒计时1");
 }
 
+// ===== 日程页：一整季的赛程看得见 =====
+{
+  assert.ok(/本赛季日程/.test(code),"「比赛」tab 要扩成赛程页，含本赛季日程");
+  assert.ok(/>赛程</.test(html),"导航按钮文案改成「赛程」");
+  assert.ok(/\.fixture-row/.test(css),"日程行要有样式");
+}
+// 伤停的场次要显示原因，不能渲染成「-5个月后」
+{
+  const t=G.createInitialState("日程渲染",allocation,[],"standard","mid");
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  const fx=t.schedule.fixtures.find(f=>f.month===49);
+  assert.ok(fx,"sanity: 第49月有比赛");
+  fx.status="missed";fx.missReason="伤停·膝伤";
+  const row=G.fixtureRow(fx,60,null);            // 当前已是第60月，这场在过去
+  assert.ok(/未出战/.test(row),`伤停场次要显示「未出战」，实际：${row}`);
+  assert.ok(/伤停·膝伤/.test(row),"要写明为什么没打");
+  assert.ok(!/-\d+个月后/.test(row),`月份在过去的场次不能渲染成负数倒计时：${row}`);
+}
+// 未打的场次倒计时要和主界面一致（都走 fixtureCountdown，不许差一位）
+{
+  const t=G.createInitialState("日程倒计时",allocation,[],"standard","mid");
+  G.ensureSchedule(t);
+  const fx=t.schedule.fixtures.find(f=>f.month===6);
+  assert.ok(/本月末/.test(G.fixtureRow(fx,5,6)),"第5月看第6月那场：下一次点结束本月就打 → 本月末");
+  assert.ok(/1个月后/.test(G.fixtureRow(fx,4,6)),"第4月看第6月那场：还有1个月");
+}
+
 console.log("模拟球员 architecture test passed");
