@@ -1304,4 +1304,30 @@ async function driveMatch(t,pick,cap=300){
     `效果标签里还写着「球探+N」：\n${bad.map(l=>l.trim().slice(0,90)).join("\n")}`);
 }
 
+// ===== 三个只写不读的字段清干净 =====
+{
+  assert.ok(!/["']study["']/.test(code),"study 一处都没被读过，删干净");
+  assert.ok(!/risks\.health|risks,"health"/.test(code),"健康风险只写不读，归到 injury.risk");
+  assert.ok(!/risks\.media|risks,"media"/.test(code),"媒体风险只有一条隐形随机扣分，归到声望");
+  const t=G.createInitialState("清场",allocation,[],"standard","mid");
+  assert.equal("study" in t,false,"新档没有 study");
+  assert.deepEqual(Object.keys(t.risks),["gambling"],"risks 只剩赌博一项");
+  assert.ok(!/一轮集中舆论消耗了你的公众信用/.test(code),
+    "媒体风险≥65 每月20%概率扣声望，是个玩家看不见的骰子，删掉");
+}
+{
+  const optionLines=code.split("\n").filter(l=>/option\(/.test(l));
+  const bad=optionLines.filter(l=>/学业\s*[+\-−]?\d|媒体风险|健康风险/.test(l));
+  assert.equal(bad.length,0,
+    `效果标签里还写着已删除的属性：\n${bad.map(l=>l.trim().slice(0,90)).join("\n")}`);
+}
+{
+  const old={version:3,study:55,fame:10,risks:{gambling:7,health:20,media:40},
+    national:{},attrs:{},styles:{},relationship:{},injury:{}};
+  const mig=G.normalizeSave(old);
+  assert.equal("study" in mig,false,"normalizeSave 要删掉 study");
+  assert.deepEqual(Object.keys(mig.risks),["gambling"],"老档的 risks 也要清干净");
+  assert.equal(mig.risks.gambling,7,"赌博风险要留住——它是唯一还活着的那个");
+}
+
 console.log("模拟球员 architecture test passed");
