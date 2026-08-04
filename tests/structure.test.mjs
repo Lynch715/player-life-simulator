@@ -1272,4 +1272,30 @@ async function driveMatch(t,pick,cap=300){
   assert.ok(/1个月后/.test(G.fixtureRow(fx,4,6)),"第4月看第6月那场：还有1个月");
 }
 
+// ===== 球探已删，后门接到声望 =====
+{
+  // 天赋 tag 里有个 "scout"（scout_magnet 天赋），那是另一回事，排除掉再查
+  assert.ok(!/change\(s,"scout"/.test(code),"没有任何地方还在写 scout");
+  assert.ok(!/s\.scout|d\.scout/.test(code.replace(/if\("scout" in d\)\{[^}]*\}/,"")),
+    "除了 normalizeSave 的迁移逻辑，不该再有地方读 scout");
+  const t=G.createInitialState("无球探",allocation,[],"standard","mid");
+  assert.equal("scout" in t,false,"新档不该再有 scout 字段");
+  // 老档搬运：练了一年球探的档不能在16岁突然撞墙
+  const old={version:3,scout:33,fame:12,national:{},attrs:{},styles:{},relationship:{},injury:{},risks:{}};
+  const mig=G.normalizeSave(old);
+  assert.equal("scout" in mig,false,"normalizeSave 要删掉 scout");
+  assert.equal(mig.fame,12+(33-5),"scout 超出起始值的部分要折进 fame");
+}
+// 后门宽度必须与改动前持平（阈值来自 tests/calibrate-route16.mjs 实测）
+{
+  assert.ok(/s\.fame>=44\+d\.threshold/.test(code),
+    "16岁分流后门改读 fame，阈值 44 是实测出来的，不是估的");
+  assert.ok(/s\.fame>=67\+d\.threshold/.test(code),
+    "setRoute 那道门同理，阈值 67");
+}
+// 效果文案不能还写着「球探」——数值改了标签没改，比不改更糟
+{
+  assert.ok(!/球探/.test(code),"事件的效果文案里不该再出现「球探」");
+}
+
 console.log("模拟球员 architecture test passed");
