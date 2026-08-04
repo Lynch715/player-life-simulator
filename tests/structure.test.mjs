@@ -1573,3 +1573,105 @@ console.log("模拟球员 architecture test passed");
   const fx=t.schedule.fixtures.find(f=>f.month===84);
   assert.equal(fx.status,"played","赛程上那一轮要标记已打");
 }
+
+// ===== 决赛圈：进球必须是你选的，不是骰子掷的 =====
+{
+  assert.ok(!/stage<3\)cupPlayMatch/.test(code),
+    "小组赛不能再写死均衡——三个阶段都该让玩家定基调");
+  assert.equal(typeof G.startCupFinals,"function","大赛入口不能还是空壳");
+}
+// 小组赛第1场就该给基调三选一
+{
+  const t=G.createInitialState("决赛圈",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=88);
+  t.totalMonth=120;t.flags.pro18=true;t.national.called=true;
+  t.national.cupRun={cup:"asian",stage:0,group:G.AC_GROUP_POOL.slice(0,3),
+    ko:G.AC_ELITE_POOL.slice(0,4),results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
+  G.setState(t);G.clearModalQueue();
+  G.resumeCup(t);
+  const q=G.getModalQueue();
+  assert.ok(q.length>0,"决赛圈应该有弹窗");
+  const opts=typeof q[0].options==="function"?q[0].options(t):q[0].options;
+  assert.equal(opts.length,3,`小组赛第1场也该给基调三选一，实际 ${opts.length} 个选项`);
+}
+// 整届跑完必须终止，且淘汰赛不留悬空胜负
+{
+  for(const cup of ["asian","world"]){
+    const t=G.createInitialState("整届"+cup,allocation,[],"standard","mid");
+    ATTR_KEYS.forEach(k=>t.attrs[k]=90);
+    t.totalMonth=120;t.flags.pro18=true;t.national.called=true;
+    const cfg=G.CUP_CONFIG[cup];
+    t.national.cupRun={cup,stage:0,group:cfg.group().slice(0,3),ko:cfg.elite().slice(0,4),
+      results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
+    G.setState(t);G.clearModalQueue();
+    G.resumeCup(t);
+    const r=await driveMatch(t,(m,o)=>Math.floor(Math.random()*o.length),500);
+    assert.ok(r.steps<500,`${cup} 整届必须终止，实际跑了 ${r.steps} 步`);
+    const run=t.national.cupRun;
+    if(run)run.results.forEach(x=>assert.ok(x.stage<3||x.won!==null,
+      `${cup} 淘汰赛第${x.stage}阶段留下了 won===null`));
+    G.clearModalQueue();
+  }
+}
+// 关键时刻真的改变了比分：全选高风险 vs 全选稳妥，进球分布必须不同
+{
+  const play=pick=>{
+    let goals=0;
+    for(let i=0;i<40;i++){
+      const t=G.createInitialState("并入"+i,allocation,[],"standard","mid");
+      ATTR_KEYS.forEach(k=>t.attrs[k]=90);
+      t.totalMonth=120;t.flags.pro18=true;t.national.called=true;
+      t.national.cupRun={cup:"asian",stage:0,group:G.AC_GROUP_POOL.slice(0,3),
+        ko:G.AC_ELITE_POOL.slice(0,4),results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
+      G.setState(t);G.clearModalQueue();
+      G.resumeCup(t);
+      const q=G.getModalQueue();let n=0;
+      while(q.length&&n++<40){const m=q.shift();
+        const o=typeof m.options==="function"?m.options(t):m.options;
+        if(!o||!o.length)continue;
+        const c=o[Math.min(pick,o.length-1)]||o[0];
+        if(c&&c.apply)try{c.apply()}catch(e){}
+        if((t.national.cupRun||{}).results&&t.national.cupRun.results.length)break;
+      }
+      const res=(t.national.cupRun||{}).results||[];
+      if(res[0])goals+=res[0].goals;
+      G.clearModalQueue();
+    }
+    return goals;
+  };
+  const a=play(0),b=play(2);
+  assert.ok(a!==b,`不同的关键时刻选择必须产生不同的进球分布（都选第1项=${a}，都选第3项=${b}）——一样说明关键时刻没并进比分`);
+}
+// ===== 出局与夺冠都要有分量，且亚洲杯不许穿世界杯的衣服 =====
+{
+  assert.ok(!/差一口气，四年后再来/.test(code),"世预赛出局的旧敷衍文案要换掉");
+  assert.ok(/最后一轮的终场哨/.test(code),"世预赛出局要有一个和夺冠等重的场景");
+}
+{
+  // 亚洲杯夺冠：整条收尾链里不许出现大力神杯
+  const t=G.createInitialState("亚洲杯收尾",allocation,[],"standard","mid");
+  t.national.cupRun={cup:"asian",stage:7,group:[],ko:[],moments:[],choices:[],
+    results:[{opp:"日本",gf:2,ga:1,goals:1,assists:0,won:true,stage:6}],
+    groupWins:2,groupPts:6,alive:true};
+  G.setState(t);G.clearModalQueue();
+  G.cupFinish(t,true);
+  const q=G.getModalQueue();const seen=[];let n=0;
+  while(q.length&&n++<50){const m=q.shift();
+    seen.push(m.title+"|"+String(typeof m.body==="function"?m.body(t):m.body)+"|"+(m.kicker||""));
+    const o=typeof m.options==="function"?m.options(t):m.options;
+    if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}
+  const all=seen.join(" ");
+  assert.ok(!/大力神杯/.test(all),`亚洲杯夺冠不能出现大力神杯——那是世界杯的东西：${seen.map(x=>x.split("|")[0]).join(" / ")}`);
+  assert.ok(!/世界冠军/.test(all),"亚洲杯夺冠不能自称世界冠军");
+  assert.ok(/亚洲杯/.test(all),"要说清是哪个冠军");
+  G.clearModalQueue();
+}
+{
+  // 收尾场景的尾巴：亚洲杯说两年后，世界杯说四年后
+  const mk=cup=>{const t=G.createInitialState("尾巴",allocation,[],"standard","mid");
+    t.totalMonth=cup==="asian"?120:96;
+    t.national.cupRun={cup,stage:7,group:[],ko:[],results:[],moments:[],choices:[],alive:false};
+    return G.cupOutroScene(t)};
+  assert.ok(/两年后就是世界杯/.test(mk("asian").body),"亚洲杯之后是两年后的世界杯，不是四年");
+  assert.ok(/四年后/.test(mk("world").body),"世界杯之后才是四年");
+}

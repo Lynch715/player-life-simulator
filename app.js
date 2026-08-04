@@ -1543,7 +1543,11 @@ function settleQualifiers(s){
       `<p>${q.rounds}场积 <b>${q.points}</b> 分（出线线 ${q.threshold}）。${qualified?"中国队闯进世界杯决赛圈！":""}</p>`,
     options:[qualified
       ?option("给家里打电话","",()=>enqueueFront({title:"父亲要去看世界杯",portrait:"assets/father.webp",body:`<p>电话响到第七声他才接，背景里有机器的声音——他还在厂里。</p><p>你说队伍出线了。他"嗯"了一声，隔了两秒，问的是：<span class="dialogue">"去那边看一场，要花多少钱。"</span></p><p>你说我给你买票。他说那不用，你比赛要紧。然后又问了一遍：<span class="dialogue">"多少钱。"</span></p>`,options:[option("记住这一天","决赛圈的日程已经排上",()=>{s.national.wcQual=null;setupCupFinals(s)})]},"世界杯"))
-      :option("接受结果","",()=>{s.national.wcQual=null})]},"世界杯预选赛");
+      :option("走出球场","",()=>enqueueFront({title:"最后一轮的终场哨",portrait:"assets/father.webp",
+        body:`<p>积分榜挂在更衣室走廊的电视上，没有人去关。差的那几分是哪一场丢的，每个人心里都有一本账，但谁都没说。</p>`+
+          `<p>你换衣服的时候手机震了一下。是你爸：<span class="dialogue">“看完了。”</span>隔了很久又来一条：<span class="dialogue">“下次还有。”</span></p>`+
+          `<p>你想回一句什么，打了两遍都删了。四年后你${ageInfo(s).age+4}岁——这个数字你不用算，它一直在那儿。</p>`,
+        options:[option("把这一年收起来","国家队数据已归档",()=>{s.national.wcQual=null})]},"世界杯预选赛"))]},"世界杯预选赛");
 }
 /* ========== 点球大战 ==========
    三个选项刻意不是「同一条曲线上的三个点」：稳推对 SHO 最敏感、等门将
@@ -1618,13 +1622,7 @@ function cupMatchSim(s,opp,mentality,i,rng){
   if(i>=3&&gf===ga){pen=true;won=null}
   return {opp:opp.name,strength:opp.strength,gf,ga,goals,assists,won,pen,mentality,stage:i};
 }
-function setupCupFinals(s){
-  s.national.worldCups++;
-  s.flags.worldcup_qualified=true;
-  const d=cupDraw(Math.random,CUP_CONFIG.world);
-  s.national.cupRun={cup:"world",moments:[],choices:[],stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true};
-  enqueueFront({title:"世界杯抽签",body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,options:[option("开始小组赛","",()=>cupNext(s))]},"世界杯");
-}
+function setupCupFinals(s){startCupFinals(s,{cup:"world",status:"upcoming",result:null},null)}
 /* 读档后把进行中的世界杯接回来。只要 shootout 还挂着就回点球，否则回到下一场。
    这里不能再看 done：最后一轮罚完时 done 已是 true，而结果弹窗还没点，
    saveGame() 恰好在这个空档存盘——漏掉它就等于把那场比赛的胜负永远丢在 null。
@@ -1692,7 +1690,7 @@ function cupShootoutFinish(s){
   const champion=m.stage===6&&m.won;
   enqueueFront({title:so.won?`点球 ${so.myScore}-${so.oppScore}，晋级！`:`点球 ${so.myScore}-${so.oppScore}，出局`,
     body:`<p>${so.won?"最后一个球进网的瞬间，替补席上的人全冲了进来。":"你站在中圈没有动。有人过来拍你的背，你没有抬头。"}</p>`,
-    options:[option(champion?"捧起大力神杯":so.won?"继续":"接受结果","",()=>{
+    options:[option(champion?(run.cup==="asian"?"捧起亚洲杯":"捧起大力神杯"):so.won?"继续":"接受结果","",()=>{
       run.stage++;
       if(champion)cupFinish(s,true);
       else if(!so.won){run.alive=false;cupFinish(s,false)}
@@ -1701,32 +1699,65 @@ function cupShootoutFinish(s){
 }
 function cupNext(s){const run=s.national.cupRun;if(!run||!run.alive)return;
   if(run.stage===6&&!run.eveShown){run.eveShown=true;const d=cupFinalEve(s);return enqueueFront({...d,options:d.options.map(o=>option(o.text,o.effect,()=>{o.apply();cupNext(s)}))},"决赛前夜")}
-  if(run.stage<3)cupPlayMatch(s,"均衡");else cupKnockoutChoice(s);}
+  cupKnockoutChoice(s);}
 function cupKnockoutChoice(s){
-  const run=s.national.cupRun,opp=run.ko[run.stage-3];
-  enqueueFront({title:`${CUP_STAGE_NAMES[run.stage]} · 对阵 ${esc(opp.name)}`,body:`<p>对手 <b>${esc(opp.name)}</b>（实力 ${opp.strength}）。选择本场基调：</p><p class="dialogue">稳守：少丢也少进，利于以弱抗强、拖进点球；全力压上：进球更多但后防更险；均衡：居中。</p>`,options:[option("稳守反击","降低失球与进球，利于爆冷",()=>cupPlayMatch(s,"稳守")),option("攻守均衡","中规中矩",()=>cupPlayMatch(s,"均衡")),option("全力压上","多进球，风险更高",()=>cupPlayMatch(s,"强攻"))]},"世界杯");
+  const run=s.national.cupRun,i=run.stage,cfg=cupCfg(s);
+  const opp=i<3?run.group[i]:run.ko[i-3];
+  enqueueFront({title:`${cfg.title} · ${CUP_STAGE_NAMES[i]} · 对阵 ${esc(opp.name)}`,
+    body:`<p>对手 <b>${esc(opp.name)}</b>（实力 ${opp.strength}）。选择本场基调：</p><p class="dialogue">稳守：少丢也少进，利于以弱抗强、拖进点球；全力压上：进球更多但后防更险；均衡：居中。</p>`,
+    options:[option("稳守反击","降低失球与进球，利于爆冷",()=>cupPlayMatch(s,"稳守")),
+      option("攻守均衡","中规中矩",()=>cupPlayMatch(s,"均衡")),
+      option("全力压上","多进球，风险更高",()=>cupPlayMatch(s,"强攻"))]},cfg.title);
 }
 function cupPlayMatch(s,mentality){
-  const run=s.national.cupRun,i=run.stage;
+  const run=s.national.cupRun;run.mentality=mentality;
+  const slot=(pickMoments(s,Math.random)||[])[0];
+  const m=slot&&MOMENTS.find(x=>x.id===slot.id);
+  if(!m){run.moments=[];run.choices=[];cupResolveMatch(s);return}
+  run.moments=[slot];run.choices=[];
+  const i=run.stage,opp=i<3?run.group[i]:run.ko[i-3],cfg=cupCfg(s);
+  enqueueFront({title:`第${slot.minute}分钟 · ${m.title}`,
+    body:`<p>${esc(m.body.replace("{minute}",slot.minute))}</p><p class="dialogue">${CUP_STAGE_NAMES[i]} · 对阵 ${esc(opp.name)}。</p>`,
+    options:momentOptions(s,m).map((o,idx)=>{
+      const p=Math.round(momentSuccessRate(s,m,o,opp.strength,false)*100);
+      return option(o.text,`成功率约 ${p}% · ${o.tip}`,()=>{run.choices=[idx];cupResolveMatch(s)},
+        o.risk==="bold"?"danger":o.risk==="safe"?"":"gold")})},"关键时刻");
+}
+function cupResolveMatch(s){
+  const run=s.national.cupRun,i=run.stage,cfg=cupCfg(s),mentality=run.mentality||"均衡";
   const opp=i<3?run.group[i]:run.ko[i-3];
   const m=cupMatchSim(s,opp,mentality,i,Math.random);
+  const p={gf:m.gf,ga:m.ga,goals:m.goals,assists:m.assists,keyWins:0,failures:0,timeline:[],
+    moments:run.moments||[],choices:run.choices||[],oppStrength:opp.strength,plan:s.matchPlan||"box"};
+  resolveMoments(s,p,Math.random);
+  m.gf=p.gf;m.ga=p.ga;m.goals=p.goals;m.assists=p.assists;m.momentLines=p.timeline;
+  if(i>=3&&m.gf===m.ga){m.pen=true;m.won=null}else{m.pen=false;m.won=m.gf>m.ga;}
+  run.moments=[];run.choices=[];
   s.national.caps++;s.statsCareer.nationalCaps++;s.national.goals+=m.goals;s.statsCareer.nationalGoals+=m.goals;
   if(m.goals)unlock("national_goal");
   change(s,"fitness",-10);change(s,"fame",m.goals*3+(m.won?2:0));
   run.results.push(m);
   if(m.pen&&m.won===null){run.shootout=newShootout(s,{name:m.opp,strength:m.strength});run.penMatch=m;cupShootoutStep(s);return}
   let advance;
-  if(i<3){run.groupWins+=(m.gf>m.ga?1:0);run.groupPts+=(m.gf>m.ga?3:m.gf===m.ga?1:0);advance=i<2?true:(run.groupWins>=1||run.groupPts>=4);}
+  if(i<3){run.groupWins+=(m.gf>m.ga?1:0);run.groupPts+=(m.gf>m.ga?3:m.gf===m.ga?1:0);advance=i<2?true:(run.groupWins>=1||run.groupPts>=4)}
   else advance=m.won;
   const champion=i===6&&m.won;
   const resultLine=i>=3?(m.won?"晋级下一轮！":"止步于此。"):(i===2?(advance?"小组出线！":"小组赛出局。"):(m.gf>m.ga?"拿下三分。":m.gf===m.ga?"逼平对手。":"惜败。"));
-  enqueueFront({title:`${CUP_STAGE_NAMES[i]} · 中国 ${m.gf}-${m.ga} ${esc(m.opp)}${m.pen?"（点球）":""}`,body:`<div class="match-score"><span class="match-team">中国</span><strong>${m.gf} : ${m.ga}</strong><span class="match-team">${esc(m.opp)}</span></div><p>你贡献 <b>${m.goals}</b> 球 ${m.assists} 助。${resultLine}</p>${(i>=3&&mentality!=="均衡")?`<p class="dialogue">本场基调：${mentality}。</p>`:""}`,options:[option(champion?"捧起大力神杯":advance?"继续":"接受结果","",()=>{run.stage++;if(champion)cupFinish(s,true);else if(!advance){run.alive=false;cupFinish(s,false);}else cupNext(s);})]},"世界杯");
+  enqueueFront({title:`${CUP_STAGE_NAMES[i]} · 中国 ${m.gf}-${m.ga} ${esc(m.opp)}${m.pen?"（点球）":""}`,
+    body:`<div class="match-score"><span class="match-team">中国</span><strong>${m.gf} : ${m.ga}</strong><span class="match-team">${esc(m.opp)}</span></div>`+
+      `<div class="timeline-list">${(m.momentLines||[]).map(t=>`<div class="timeline-row"><b>${t.minute}'</b><span>${esc(t.text)}</span></div>`).join("")}</div>`+
+      `<p>你贡献 <b>${m.goals}</b> 球 ${m.assists} 助。${resultLine}</p><p class="dialogue">本场基调：${mentality}。</p>`,
+    options:[option(champion?"捧起奖杯":advance?"继续":"接受结果","",()=>{
+      run.stage++;if(champion)cupFinish(s,true);else if(!advance){run.alive=false;cupFinish(s,false)}else cupNext(s);})]},cfg.title);
 }
 /* 淘汰收尾。大多数玩家的世界杯记忆是输，所以这条线不能是空收尾。
    踢飞那一脚会被专门写出来。 */
 function cupOutroScene(s){
-  const run=s.national.cupRun,age=ageInfo(s).age,again=age+4<=diffOf(s).retireAge;
-  const tail=again?`四年后你${age+4}岁。还来得及。`:`四年后你${age+4}岁。你知道那意味着什么。`;
+  const run=s.national.cupRun,age=ageInfo(s).age,asian=!!(run&&run.cup==="asian");
+  const gap=asian?2:4,again=age+gap<=diffOf(s).retireAge;
+  const tail=asian
+    ?(again?`两年后就是世界杯。你${age+2}岁，还来得及。`:`两年后就是世界杯。你${age+2}岁，你知道那意味着什么。`)
+    :(again?`四年后你${age+4}岁。还来得及。`:`四年后你${age+4}岁。你知道那意味着什么。`);
   if(run&&run.missedDecisivePenalty)return {title:"那一脚",portrait:"assets/father.webp",
     body:`<p>更衣室里没有人说话。有人在解鞋带，解了很久也没解开。</p><p>你父亲的消息进来得很晚：<span class="dialogue">“我在电视上看见你走回去了。”</span>就这一句，没有别的。</p><p>${tail}</p>`};
   return {title:"回家的航班",portrait:"assets/lin-xiaoman.webp",
@@ -1741,13 +1772,16 @@ function cupFinish(s,champion){
     if(run.cup==="asian")s.flags.asianChampion=true;else s.flags.worldChampion=true;}
   const short=["小组1","小组2","小组3","十六强","八强","半决赛","决赛"];
   const wcGoals=run.results.reduce((p,x)=>p+x.goals,0);
-  enqueueFront({title:champion?"中国队，世界冠军！":"世界杯之旅结束",body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option(champion?"走上领奖台":"离开球场","",()=>{
-  if(champion)return enqueueFront({title:"大力神杯",portrait:"assets/player.webp",body:`<p>队长把奖杯递过来的时候你没有马上接。你先把手在球衣上擦了两下——手心全是汗，你怕滑。</p><p>金属是凉的。比你想象中重。</p>`,options:[option("找看台","",()=>{
-    enqueueFront({title:"看台",portrait:"assets/father.webp",body:`<p>你在人群里一排排地找。找到的时候他正把眼镜摘下来擦，擦了很久。</p><p>旁边那个位置上的人一直在挥手，从终场哨响到现在，没停过。</p>`,options:[option("记住这一届","这一届会写进你的生涯",()=>{s.national.cupRun=null})]},"世界杯冠军");
-  })]},"世界杯冠军");
+  enqueueFront({title:champion?(run.cup==="asian"?"中国队，亚洲之巅！":"中国队，世界冠军！"):`${cfg.title}之旅结束`,body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option(champion?"走上领奖台":"离开球场","",()=>{
+  if(champion){const trophy=run.cup==="asian"
+    ?{title:"亚洲杯",body:`<p>颁奖台比想象中矮，你上去的时候还差点踩空。奖杯递到手里，你才发现自己一直在笑，从终场哨响就没停过。</p><p>有人在你耳边喊了句什么，你没听清。你只想着一件事：这是我们的。</p>`}
+    :{title:"大力神杯",body:`<p>队长把奖杯递过来的时候你没有马上接。你先把手在球衣上擦了两下——手心全是汗，你怕滑。</p><p>金属是凉的。比你想象中重。</p>`};
+  return enqueueFront({title:trophy.title,portrait:"assets/player.webp",body:trophy.body,options:[option("找看台","",()=>{
+    enqueueFront({title:"看台",portrait:"assets/father.webp",body:`<p>你在人群里一排排地找。找到的时候他正把眼镜摘下来擦，擦了很久。</p><p>旁边那个位置上的人一直在挥手，从终场哨响到现在，没停过。</p>`,options:[option("记住这一届","这一届会写进你的生涯",()=>{s.national.cupRun=null;if(s.cupCtx){const c=s.cupCtx;s.cupCtx=null;finishMonth(c)}})]},`${cfg.title}冠军`);
+  })]},`${cfg.title}冠军`);}
   const sc=cupOutroScene(s);
-  enqueueFront({...sc,options:[option("记住这一届","国家队数据已更新",()=>{s.national.cupRun=null})]},"世界杯");
-})]},"世界杯");
+  enqueueFront({...sc,options:[option("记住这一届","国家队数据已更新",()=>{s.national.cupRun=null;if(s.cupCtx){const c=s.cupCtx;s.cupCtx=null;finishMonth(c)}})]},cfg.title);
+})]},cfg.title);
 }
 function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actionPoints>0&&!force){const n=S.actionPoints;enqueueDecision({title:"还有执行点没有使用",body:`本月还剩 <b>${n}</b> 点。剩下的时间会自动用来休息：<b>体能 +${6*n}</b>、<b>伤病风险 −${3*n}</b>，但不会有任何属性成长。`,options:[option("继续安排本月","返回行动面板",()=>{}),option("休息，进入下个月",`体能+${6*n}，伤病风险−${3*n}`,()=>setTimeout(()=>advanceMonth(true),120))]},"时间确认");return}
   modalBusy=true;
@@ -1815,9 +1849,20 @@ function finishMonth(ctx){
   modalBusy=false;saveGame();renderAll();setTimeout(pumpModal,0)}
 
 /* ========== 比赛流程：赛前预告 → 2个关键时刻 → 结算 → 交回月末段 ========== */
-/* 空壳：真身在「决赛圈每场关键时刻」那一步补上。
-   现在先让赛程走通——大赛月标记为已打，月末流程正常接回去。 */
-function startCupFinals(s,fx,ctx){fx.status="played";fx.result={gf:0,ga:0,goals:0,assists:0,rating:0};if(ctx)finishMonth(ctx)}
+/* 大赛月到了就开打。亚洲杯不设预选赛直接进决赛圈；世界杯只有出线了
+   赛程上才会有这个条目（见 buildSchedule 的 qualifiedFor 判断）。
+   cupCtx 挂在 state 上，是因为整届赛事跨很多次点击，最后要靠它把
+   月末流程接回去；它只含纯数据，能安全进存档。 */
+function startCupFinals(s,fx,ctx){
+  s.cupCtx=ctx||null;
+  const cup=fx.cup||"world",cfg=CUP_CONFIG[cup],d=cupDraw(Math.random,cfg);
+  s.national[cfg.counter]=(s.national[cfg.counter]||0)+1;
+  s.national.cupRun={cup,stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
+  fx.status="played";fx.result={gf:0,ga:0,goals:0,assists:0,rating:0};
+  enqueueFront({title:`${cfg.title}抽签`,
+    body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,
+    options:[option("开始小组赛","",()=>cupNext(s))]},cfg.title);
+}
 function startMatchFlow(s,ctx){
   const fx=fixtureOfMonth(s);
   if(!fx){finishMonth(ctx);return}
