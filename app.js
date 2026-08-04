@@ -1295,7 +1295,7 @@ function normalizeSave(d){
      存档会在16岁突然撞墙——而且不升 VERSION，它不会被清档。 */
   if("scout" in d){d.fame=clamp((d.fame||0)+((d.scout||5)-5));delete d.scout}
   delete d.study;
-  if(d.risks){["heal"+"th","med"+"ia"].forEach(k=>delete d.risks[k]);if(typeof d.risks.gambling!=="number")d.risks.gambling=0}
+  if(d.risks){delete d.risks.health;delete d.risks.media;if(typeof d.risks.gambling!=="number")d.risks.gambling=0}
   return d;
 }
 function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return null;let data=JSON.parse(raw);

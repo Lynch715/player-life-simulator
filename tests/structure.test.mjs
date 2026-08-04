@@ -1307,8 +1307,12 @@ async function driveMatch(t,pick,cap=300){
 // ===== 三个只写不读的字段清干净 =====
 {
   assert.ok(!/["']study["']/.test(code),"study 一处都没被读过，删干净");
-  assert.ok(!/risks\.health|risks,"health"/.test(code),"健康风险只写不读，归到 injury.risk");
-  assert.ok(!/risks\.media|risks,"media"/.test(code),"媒体风险只有一条隐形随机扣分，归到声望");
+  /* normalizeSave 必须点名这两个字段才能把它们从老档里删掉，
+     所以扫描前先把那一行摘出去——否则唯一合法的引用会被自己的断言拦下，
+     逼得实现方去写 ["heal"+"th"] 这种为了绕检查而故意难读的代码。 */
+  const codeSansMigration=code.replace(/if\(d\.risks\)\{[^}]*\}/g,"");
+  assert.ok(!/risks\.health|risks,"health"/.test(codeSansMigration),"健康风险只写不读，归到 injury.risk");
+  assert.ok(!/risks\.media|risks,"media"/.test(codeSansMigration),"媒体风险只有一条隐形随机扣分，归到声望");
   const t=G.createInitialState("清场",allocation,[],"standard","mid");
   assert.equal("study" in t,false,"新档没有 study");
   assert.deepEqual(Object.keys(t.risks),["gambling"],"risks 只剩赌博一项");
