@@ -396,11 +396,11 @@ assert.equal(award.ballon,true,"world-class season can win Ballon d'Or");
 const qual=G.simulateQualifiers(elite,seeded(42));
 assert.equal(qual.matches.length,8,"world cup qualifiers run an 8-match Asian campaign");
 assert.equal(typeof qual.qualified,"boolean","qualification is a pass/fail gate");
-const draw=G.wcDraw(seeded(7));
+const draw=G.cupDraw(seeded(7));
 assert.equal(draw.group.length,3,"finals draw yields three group opponents");
 assert.equal(draw.ko.length,4,"finals draw yields four knockout opponents");
 assert.ok(draw.ko[0].strength<=draw.ko[3].strength,"knockout opponents escalate in strength");
-const wcMatch=G.wcMatchSim(elite,draw.ko[0],"稳守",4,seeded(9));
+const wcMatch=G.cupMatchSim(elite,draw.ko[0],"稳守",4,seeded(9));
 assert.ok(typeof wcMatch.won==="boolean"&&wcMatch.gf>=0,"a single world cup match resolves with a winner and score");
 
 // 关键时刻：成功率永远夹在 15%~85%，任何职责/属性组合都能凑齐两个场景
@@ -611,17 +611,17 @@ assert.ok(!/change\(S,"form",\s*\d/.test(code),
 }
 
 // ===== 世界杯必须能跨刷新续上 =====
-// 点球是多步交互；若 wcRun 不持久化，第四轮刷一下页面整届世界杯就没了。
-assert.ok(!/wcRun=null;\$\("menu"\)/.test(code),"读档不再无条件清空进行中的世界杯");
-assert.equal(typeof G.resumeWorldCup,"function","有一个恢复入口");
+// 点球是多步交互；若 cupRun 不持久化，第四轮刷一下页面整届世界杯就没了。
+assert.ok(!/cupRun=null;\$\("menu"\)/.test(code),"读档不再无条件清空进行中的世界杯");
+assert.equal(typeof G.resumeCup,"function","有一个恢复入口");
 const wcSave=G.createInitialState("世界杯",allocation,[],"standard","mid");
-wcSave.national.wcRun={stage:4,group:[{name:"A",strength:70}],ko:[{name:"B",strength:80}],
+wcSave.national.cupRun={cup:"world",moments:[],choices:[],stage:4,group:[{name:"A",strength:70}],ko:[{name:"B",strength:80}],
   results:[{opp:"A",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:0}],
   groupWins:1,groupPts:3,alive:true};
 const wcRound=JSON.parse(JSON.stringify(wcSave));
-assert.equal(JSON.stringify(wcRound.national.wcRun),JSON.stringify(wcSave.national.wcRun),
-  "wcRun 是纯 JSON，round-trip 不丢字段");
-assert.equal(G.normalizeSave(wcRound).national.wcRun.stage,4,"normalizeSave 保留进行中的世界杯");
+assert.equal(JSON.stringify(wcRound.national.cupRun),JSON.stringify(wcSave.national.cupRun),
+  "cupRun 是纯 JSON，round-trip 不丢字段");
+assert.equal(G.normalizeSave(wcRound).national.cupRun.stage,4,"normalizeSave 保留进行中的世界杯");
 
 // ===== 点球：主罚轮次由意志决定 =====
 // 赛前的教练决策，取决于你是什么样的球员，而不是此刻多累——所以读裸 WIL。
@@ -692,7 +692,7 @@ ATTR_KEYS.forEach(k=>drawn.attrs[k]=80);drawn.totalMonth=96;drawn.flags.pro18=tr
 let sawNull=false;
 for(let i=1;i<=200;i++){
   let x=i>>>0;const rng=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
-  const mm=G.wcMatchSim(drawn,{name:"对手",strength:80},"均衡",4,rng);
+  const mm=G.cupMatchSim(drawn,{name:"对手",strength:80},"均衡",4,rng);
   if(mm.gf===mm.ga&&mm.won===null&&mm.pen)sawNull=true;
   else assert.ok(typeof mm.won==="boolean",`非平局场次 won 必须是布尔，实际 ${mm.won}`);
 }
@@ -709,11 +709,11 @@ function wcProbe(wil,stage=4){
   ATTR_KEYS.forEach(k=>t.attrs[k]=82);t.attrs.WIL=wil;
   t.totalMonth=96;t.flags.pro18=true;
   const opp=KO_POOL[stage-3];
-  t.national.wcRun={stage,group:[],ko:KO_POOL,results:[],groupWins:2,groupPts:6,alive:true};
+  t.national.cupRun={cup:"world",moments:[],choices:[],stage,group:[],ko:KO_POOL,results:[],groupWins:2,groupPts:6,alive:true};
   const m={opp:opp.name,strength:opp.strength,gf:1,ga:1,goals:0,assists:0,
     won:null,pen:true,mentality:"均衡",stage};
-  t.national.wcRun.results.push(m);t.national.wcRun.penMatch=m;
-  t.national.wcRun.shootout=G.newShootout(t,opp);
+  t.national.cupRun.results.push(m);t.national.cupRun.penMatch=m;
+  t.national.cupRun.shootout=G.newShootout(t,opp);
   G.setState(t);G.clearModalQueue();
   return t;
 }
@@ -722,7 +722,7 @@ function driveModals(t,pick,cap=300){
   const q=G.getModalQueue(),seen=[];let n=0,last=[];
   while(q.length&&n++<cap){
     const m=q.shift();seen.push(m.title);
-    const run=t.national.wcRun;
+    const run=t.national.cupRun;
     if(run&&run.results.length)last=run.results.map(x=>({stage:x.stage,won:x.won,pen:x.pen,penScore:x.penScore}));
     const opts=typeof m.options==="function"?m.options(t):m.options;
     const chosen=opts[pick(m,opts)]||opts[0];
@@ -733,7 +733,7 @@ function driveModals(t,pick,cap=300){
 const savedS=G.getState();
 try{
   // WIL 80 → 主罚第五轮，所以前四屏必须是队友轮次，第五屏才轮到你
-  const p1=wcProbe(80);G.resumeWorldCup(p1);
+  const p1=wcProbe(80);G.resumeCup(p1);
   const r1=driveModals(p1,()=>0);
   assert.ok(r1.steps<300,"点球流程必须终止");
   assert.ok(/轮到你了/.test(r1.seen[4]||""),`WIL 80 应在第五屏主罚，实际流程 ${r1.seen.slice(0,6).join(" / ")}`);
@@ -743,7 +743,7 @@ try{
   // 三种 WIL 各随机点，检查终止性与结果写回
   let nullLeft=0,noTerm=0,penWritten=0,total=0;
   for(const wil of [80,65,40])for(let i=0;i<12;i++){
-    const t=wcProbe(wil);G.resumeWorldCup(t);
+    const t=wcProbe(wil);G.resumeCup(t);
     const rr=driveModals(t,(m,o)=>Math.floor(Math.random()*o.length));
     total++;
     if(rr.steps>=300)noTerm++;
@@ -758,10 +758,10 @@ try{
   // 胜负必须写进 results 而不是那个孤儿副本
   const p2=wcProbe(80);
   const rt=JSON.parse(JSON.stringify(p2));
-  assert.equal(rt.national.wcRun.penMatch===rt.national.wcRun.results[0],false,
+  assert.equal(rt.national.cupRun.penMatch===rt.national.cupRun.results[0],false,
     "存档往返后 penMatch 与 results[0] 必然是两个对象——这是 bug 的来源，先钉住前提");
   G.setState(rt);G.clearModalQueue();
-  G.resumeWorldCup(rt);
+  G.resumeCup(rt);
   const r2=driveModals(rt,()=>0);
   assert.ok(r2.steps>0,"刷新后能重新进入点球，而不是跳过");
   assert.ok(r2.last.every(x=>x.won!==null),"刷新后胜负仍要写回 results，不能写进孤儿副本");
@@ -770,14 +770,14 @@ try{
   // pumpModal 的 finally 里触发。此刻刷新，若恢复逻辑带 !done 守卫就会跳过整场
   // 点球、直接进下一轮——胜负永远写不回去。构造这个瞬间。
   const p3=wcProbe(40);                       // WIL 40 → 主罚第一轮，好推进
-  const so3=p3.national.wcRun.shootout;
+  const so3=p3.national.cupRun.shootout;
   G.shootoutPlayerKick(p3,so3,"steady",()=>0);
   let g3=0;while(!so3.done&&!so3.sudden&&g3++<20)G.shootoutAdvance(p3,so3,()=>.5);
   if(so3.sudden){so3.won=true;so3.done=true}       // 突然死亡也归一到 done
   assert.equal(so3.done,true,"已构造出 done=true 的瞬间");
   const rt3=JSON.parse(JSON.stringify(p3));        // 此刻刷新
   G.setState(rt3);G.clearModalQueue();
-  G.resumeWorldCup(rt3);
+  G.resumeCup(rt3);
   const r3=driveModals(rt3,()=>0);
   assert.ok(/点球/.test(r3.seen[0]||""),
     `done=true 时刷新必须回到点球收尾，实际首屏是「${r3.seen[0]}」——恢复逻辑跳过了整场点球`);
@@ -785,25 +785,25 @@ try{
 
 // ===== 人物必须出现在世界杯 =====
 assert.ok(/assets\/father\.webp/.test(code),"出线后父亲出场");
-assert.equal(typeof G.wcFinalEve,"function","决赛前夜有专属场景");
+assert.equal(typeof G.cupFinalEve,"function","决赛前夜有专属场景");
 const eveLove=G.createInitialState("热恋",allocation,[],"standard","mid");
-const eveA=G.wcFinalEve(eveLove);
+const eveA=G.cupFinalEve(eveLove);
 assert.match(eveA.portrait,/lin-xiaoman/,"恋爱中是小满");
 assert.equal(eveA.options.length,2,"决赛前夜是一个带取舍的二选一");
 const eveGone=G.createInitialState("分手",allocation,[],"standard","mid");
 eveGone.relationship.status="分手";eveGone.relationship.love=0;
-assert.match(G.wcFinalEve(eveGone).portrait,/coach-zhou/,"分手后换成周骁，避免尴尬");
+assert.match(G.cupFinalEve(eveGone).portrait,/coach-zhou/,"分手后换成周骁，避免尴尬");
 const t1=G.createInitialState("选A",allocation,[],"standard","mid");t1.form=50;t1.fitness=50;
-G.wcFinalEve(t1).options[0].apply();
+G.cupFinalEve(t1).options[0].apply();
 assert.ok(t1.form>50&&t1.fitness<50,"给她打电话：状态↑ 体能↓");
 const t2=G.createInitialState("选B",allocation,[],"standard","mid");t2.form=50;t2.fitness=50;
-G.wcFinalEve(t2).options[1].apply();
+G.cupFinalEve(t2).options[1].apply();
 assert.ok(t2.fitness>50&&t2.form===50,"早点睡：体能↑ 状态不变");
 
 // ===== 夺冠与淘汰都要有分量 =====
 const champ=G.createInitialState("冠军",allocation,[],"standard","mid");
-champ.national.wcRun={stage:7,group:[],ko:[],results:[{opp:"巴西",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:6}],groupWins:2,groupPts:6,alive:true};
-G.clearModalQueue();G.wcFinish(champ,true);G.clearModalQueue();
+champ.national.cupRun={cup:"world",moments:[],choices:[],stage:7,group:[],ko:[],results:[{opp:"巴西",gf:1,ga:0,goals:1,assists:0,won:true,pen:false,stage:6}],groupWins:2,groupPts:6,alive:true};
+G.clearModalQueue();G.cupFinish(champ,true);G.clearModalQueue();
 assert.equal(champ.flags.worldChampion,true,"夺冠置位生涯标记");
 assert.ok(champ.honours.some(h=>/世界杯/.test(h.title)),"荣誉里有世界杯");
 const endChamp=G.buildEnding(champ);
@@ -811,11 +811,11 @@ assert.match(endChamp.coda,/世界杯|奖杯/,"退役结局为夺冠单独写一
 const endPlain=G.buildEnding(G.createInitialState("普通",allocation,[],"standard","mid"));
 assert.ok(!/大力神|那只奖杯/.test(endPlain.coda),"没夺过冠的结局不该出现夺冠文案");
 const out=G.createInitialState("止步",allocation,[],"standard","mid");
-out.national.wcRun={stage:5,group:[],ko:[],results:[{opp:"法国",gf:0,ga:1,goals:0,assists:0,won:false,pen:false,stage:4}],groupWins:1,groupPts:4,alive:false,missedDecisivePenalty:false};
-const outScene=G.wcOutroScene(out);
+out.national.cupRun={cup:"world",moments:[],choices:[],stage:5,group:[],ko:[],results:[{opp:"法国",gf:0,ga:1,goals:0,assists:0,won:false,pen:false,stage:4}],groupWins:1,groupPts:4,alive:false,missedDecisivePenalty:false};
+const outScene=G.cupOutroScene(out);
 assert.ok(outScene.portrait,"淘汰收尾带立绘，不是空收尾");
-const missed={...out,national:{...out.national,wcRun:{...out.national.wcRun,missedDecisivePenalty:true}}};
-assert.notEqual(G.wcOutroScene(missed).body,outScene.body,"踢飞与常规淘汰的收尾文案不同");
+const missed={...out,national:{...out.national,cupRun:{...out.national.cupRun,missedDecisivePenalty:true}}};
+assert.notEqual(G.cupOutroScene(missed).body,outScene.body,"踢飞与常规淘汰的收尾文案不同");
 }finally{G.setState(savedS);G.clearModalQueue()}
 
 for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
@@ -1417,4 +1417,21 @@ console.log("模拟球员 architecture test passed");
   // 返回值上要挂着结算量，供 finishMatch 继续用
   assert.equal(typeof p2.ratingDelta,"number","ratingDelta 要挂在返回对象上");
   assert.equal(typeof p2.boldTotal,"number","boldTotal 要挂在返回对象上");
+}
+
+// ===== 赛事引擎参数化：亚洲杯与世界杯同构，不许复制粘贴 =====
+{
+  assert.equal(typeof G.resumeCup,"function","恢复入口更名 resumeCup");
+  // 迁移注释和 normalizeSave 里读取旧存档字段 "wcRun" 是合法的，
+  // 但不允许有新的 wcRun 变量声明、赋值或用作 key（即 .wcRun= 或 wcRun: 或 const wcRun）
+  assert.ok(!/[=,{]\s*wcRun\s*[=:{,\s]/.test(code)&&!/\.wcRun\s*=/.test(code.replace(/d\.national\.wcRun/g,'')),"wcRun 不得在迁移代码以外被赋值或声明，留一半旧名字比全不改更糟");
+  assert.ok(!/function wc[A-Z]/.test(code),"wc* 函数一律更名 cup*");
+  // 在飞存档：正打到半决赛的档不能凭空丢掉整届赛事
+  const stale={version:3,national:{wcRun:{stage:5,group:[],ko:[],results:[],groupWins:2,groupPts:6,alive:true}},
+    attrs:{},styles:{},relationship:{},injury:{},risks:{}};
+  const mig=G.normalizeSave(stale);
+  assert.ok(mig.national.cupRun,"老档的 wcRun 要迁成 cupRun");
+  assert.equal(mig.national.cupRun.cup,"world","迁过来的赛事是世界杯");
+  assert.equal(mig.national.cupRun.stage,5,"进度不能丢");
+  assert.equal("wcRun" in mig.national,false,"迁完要删掉旧字段，不能留僵尸");
 }
