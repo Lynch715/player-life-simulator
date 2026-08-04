@@ -292,7 +292,7 @@ const ASSETS=[
   {id:"apartment",cat:"生活",icon:"❒",name:"自己的公寓",cost:400,desc:"训练基地之外，终于有个真正属于你的地方。",effect:"状态+6 · 净资产+",buy:s=>change(s,"form",6)},
   {id:"luxury_car",cat:"生活",icon:"◈",name:"梦想中的豪车",cost:600,desc:"停在训练场门口，就是一条街的焦点。",effect:"声望++",req:s=>ownedAsset(s,"car"),reqText:"需先买一辆车",minFame:45,buy:s=>change(s,"fame",12)},
   {id:"mansion",cat:"生活",icon:"⏢",name:"城郊豪宅",cost:1600,desc:"泳池、球场、影音室，你为自己造了一座城堡。",effect:"声望+++ · 状态+7",req:s=>ownedAsset(s,"apartment"),reqText:"需先有自己的公寓",minFame:60,buy:s=>{change(s,"fame",18);change(s,"form",7)}},
-  {id:"image_team",cat:"生活",icon:"◐",name:"形象与公关团队",cost:220,desc:"帮你经营公众形象，风波更容易平息。",effect:"每月声望增长 · 声望+14",minFame:40,buy:s=>{change(s,"fame",14)}},
+  {id:"image_team",cat:"生活",icon:"◐",name:"形象与公关团队",cost:220,desc:"专人替你经营公众形象，把该说的话说到位。",effect:"每月声望增长 · 声望+14",minFame:40,buy:s=>{change(s,"fame",14)}},
   {id:"restaurant",cat:"投资",icon:"◔",name:"投资一家餐厅",cost:250,desc:"给退役后的生活留一条稳定的进账。",effect:"每月被动收入 +6万",passive:6,buy:s=>{}},
   {id:"brand",cat:"投资",icon:"◉",name:"创立个人品牌",cost:650,desc:"把名气变成能持续赚钱的生意。",effect:"每月被动收入 +12万 · 声望+",passive:12,minFame:60,buy:s=>change(s,"fame",8)},
   {id:"academy",cat:"投资",icon:"♟",name:"创办青训学校",cost:1200,desc:"把你走过的路，留给下一批孩子。",effect:"每月被动收入 +20万 · 声望+",passive:20,minAge:24,minFame:55,buy:s=>change(s,"fame",12)},
