@@ -1335,3 +1335,19 @@ async function driveMatch(t,pick,cap=300){
 }
 
 console.log("模拟球员 architecture test passed");
+
+// ===== 语言只在海外线 16→18 那两年有意义 =====
+// language 最后一次被读是 enterProAt18 的晋升判定（overall>=73 && language>=35）。
+// 18岁之后它只涨不用，行动继续挂在职业期就是在骗执行点。
+{
+  const en=G.ACTIONS.find(a=>a.id==="english");
+  assert.ok(en,"英语行动还在");
+  assert.equal(en.phases.includes("pro"),false,
+    "18岁后没有任何代码读 language，这个行动不该继续出现在职业期");
+  assert.ok(en.phases.includes("overseas"),"海外线那两年仍然需要它——那时它是真门槛");
+  // 写 language 的事件必须都在 overseas 阶段内，否则同样是空转
+  const langEvents=G.EVENTS.filter(e=>/change\(s,"language"/.test(String(e.options)));
+  langEvents.forEach(e=>assert.deepEqual([...(e.phase||[])],["overseas"],
+    `事件 ${e.id} 写 language，但它不是 overseas 专属——18岁后写它没有任何意义`));
+}
+
