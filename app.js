@@ -1299,10 +1299,16 @@ function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return 
   if(data.version!==VERSION)return null;return normalizeSave(data)}catch(e){return null}}
 function toast(text){if(typeof document==="undefined")return;const el=$("toast");if(!el)return;el.textContent=text;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),1800)}
 
-function enqueueDecision(d,kicker="关键抉择"){if(!d)return;modalQueue.push({...d,kicker});pumpModal()}
+/* 月度小结是本月的收尾，必须守住队尾。事件选项的 apply() 还会再塞东西进来
+   （比如选了「立刻要求检查」→ sufferInjury → 「你受伤了」），
+   直接 push 会排到小结后面，变成「小结说你伤了」再「通知你伤了」的倒序。 */
+function enqueueDecision(d,kicker="关键抉择"){if(!d)return;
+  const i=modalQueue.findIndex(m=>m.kicker==="月度小结");
+  if(i>=0)modalQueue.splice(i,0,{...d,kicker});else modalQueue.push({...d,kicker});
+  pumpModal()}
 // 插到队首：让世界杯的逐场链条连续播放，不被赛季奖项等其它弹窗打断
 function enqueueFront(d,kicker="关键抉择"){if(!d)return;modalQueue.unshift({...d,kicker});pumpModal()}
-function pumpModal(){if(modalBusy||!modalQueue.length||typeof document==="undefined")return;modalBusy=true;const d=modalQueue.shift(),mask=$("modalMask"),modal=$("modal"),wrap=$("modalPortraitWrap");$("modalKicker").textContent=d.kicker||"关键抉择";$("modalTitle").textContent=d.title||"抉择";$("modalBody").innerHTML=d.body||"";
+function pumpModal(){if(modalBusy||!modalQueue.length||typeof document==="undefined")return;modalBusy=true;const d=modalQueue.shift(),mask=$("modalMask"),modal=$("modal"),wrap=$("modalPortraitWrap");$("modalKicker").textContent=d.kicker||"关键抉择";$("modalTitle").textContent=d.title||"抉择";$("modalBody").innerHTML=(typeof d.body==="function"?d.body(S):d.body)||"";
   if(d.portrait){wrap.classList.remove("hidden");$("modalPortrait").src=d.portrait;modal.classList.remove("no-portrait")}else{wrap.classList.add("hidden");modal.classList.add("no-portrait")}
   const opts=typeof d.options==="function"?d.options(S):d.options;$("modalOptions").innerHTML="";(opts||[option("继续","",()=>{})]).forEach((o,i)=>{const b=document.createElement("button");b.className=`option-button ${o.tone||""}`;b.innerHTML=`<b>${esc(o.text)}</b>${o.effect?`<span>${esc(o.effect)}</span>`:""}`;b.addEventListener("click",()=>{b.disabled=true;try{o.apply?.()}finally{mask.classList.add("hidden");modalBusy=false;saveGame();renderAll();setTimeout(pumpModal,80)}});$("modalOptions").appendChild(b)});mask.classList.remove("hidden");const first=$("modalOptions").querySelector("button");if(first)setTimeout(()=>first.focus(),30)}
 function trapModalFocus(e){if(e.key!=="Tab"||$("modalMask").classList.contains("hidden"))return;const f=[...$("modalOptions").querySelectorAll("button:not([disabled])")];if(!f.length)return;const first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
@@ -1631,7 +1637,7 @@ function wcFinish(s,champion){
 }
 function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actionPoints>0&&!force){const n=S.actionPoints;enqueueDecision({title:"还有执行点没有使用",body:`本月还剩 <b>${n}</b> 点。剩下的时间会自动用来休息：<b>体能 +${6*n}</b>、<b>伤病风险 −${3*n}</b>，但不会有任何属性成长。`,options:[option("继续安排本月","返回行动面板",()=>{}),option("休息，进入下个月",`体能+${6*n}，伤病风险−${3*n}`,()=>setTimeout(()=>advanceMonth(true),120))]},"时间确认");return}
   modalBusy=true;
-  const _snap=S.monthSnap||{ov:overall(S),fit:S.fitness,form:S.form,love:S.relationship.love,money:S.money||0,age:ageInfo(S).age,inj:S.injury.months||0,st:S.relationship.status};
+  const _snap=S.monthSnap||{ov:overall(S),fit:S.fitness,form:S.form,love:S.relationship.love,family:S.family,money:S.money||0,age:ageInfo(S).age,inj:S.injury.months||0,st:S.relationship.status};
   if(S.actionPoints>0){const n=S.actionPoints;change(S,"fitness",6*n);S.injury.risk=Math.max(0,(S.injury.risk||0)-3*n);log(S,"story",`本月剩下的 ${n} 点时间没有排训练。你睡够了觉，身体轻了一些。`)}
   S.totalMonth++;S.actionPoints=3;S.actionUsage={};S.combosHit=[];change(S,"fitness",16+Math.max(0,Math.round((60-S.fitness)*0.7)));
   // 每月状态只结算一次：向基线回归，外加恋爱与安家的小幅加成，合成一笔下发。
@@ -1676,7 +1682,10 @@ function finishMonth(ctx){
   if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);queueAward(seasonAwardCheck(S),S,goalResult);makeSeasonGoal(S)}
   if(a.age>=16&&!S.retired&&!S.challenge&&!(S.flags&&S.flags.washedOut))queueChallengeChoice(S);
   riskSettlement(S);breakupCheck(S);intimateCheck(S);checkAchievements(S);updateRanking(S);
-  {const a2=ageInfo(S),rows=[],dd=(l,b,af,u="")=>{const v=Math.round((af-b)*10)/10;if(v)rows.push(`<div class="ms-row"><span>${l}</span><b style="color:${v>0?'var(--green)':'var(--bad)'}">${v>0?'+':''}${v}${u}</b></div>`)};dd("综合能力",_snap.ov,overall(S));dd("体能",_snap.fit,S.fitness);dd("状态",_snap.form,S.form);if(["恋人","异地"].includes(S.relationship.status))dd("小满关系",_snap.love,S.relationship.love);dd("资金",_snap.money,S.money||0,"万");const extra=`${a2.age>_snap.age?`<p>🎂 你满 ${a2.age} 岁了。</p>`:""}${(S.injury.months||0)>_snap.inj?`<p style="color:var(--bad)">🩹 ${esc(S.injury.name)}，预计伤停 ${S.injury.months} 个月。</p>`:""}${_snap.st!=="分手"&&S.relationship.status==="分手"?`<p style="color:var(--bad)">💔 你和小满走散了。</p>`:""}`;modalQueue.unshift({title:`${a2.age}岁 · 第${a2.month}月 · 月度小结`,kicker:"月度小结",body:`${extra}<div class="month-summary">${rows.join("")||'<div class="ms-row"><span>这个月平平淡淡</span></div>'}</div>`,options:[option("确认，进入下月","",()=>{})]});S.monthSnap={ov:overall(S),fit:S.fitness,form:S.form,love:S.relationship.love,money:S.money||0,age:a2.age,inj:S.injury.months||0,st:S.relationship.status}}
+  /* 月度小结排到队尾：它是这个月的总账，必须在本月所有事件都点完之后才结算。
+     body 用函数惰性求值——拼成字符串就等于在事件生效前抢跑，
+     那些事件造成的属性变化永远进不了这张表。 */
+  {const snapAtQueue=_snap;modalQueue.push({title:`${ageInfo(S).age}岁 · 第${ageInfo(S).month}月 · 月度小结`,kicker:"月度小结",body:()=>{const a2=ageInfo(S),rows=[],dd=(l,b,af,u="")=>{const v=Math.round((af-b)*10)/10;if(v)rows.push(`<div class="ms-row"><span>${l}</span><b style="color:${v>0?'var(--green)':'var(--bad)'}">${v>0?'+':''}${v}${u}</b></div>`)};dd("综合能力",snapAtQueue.ov,overall(S));dd("体能",snapAtQueue.fit,S.fitness);dd("状态",snapAtQueue.form,S.form);if(["恋人","异地"].includes(S.relationship.status))dd("小满关系",snapAtQueue.love,S.relationship.love);dd("家庭",snapAtQueue.family,S.family);dd("资金",snapAtQueue.money,S.money||0,"万");const extra=`${a2.age>snapAtQueue.age?`<p>🎂 你满 ${a2.age} 岁了。</p>`:""}${(S.injury.months||0)>snapAtQueue.inj?`<p style="color:var(--bad)">🩹 ${esc(S.injury.name)}，预计伤停 ${S.injury.months} 个月。</p>`:""}${snapAtQueue.st!=="分手"&&S.relationship.status==="分手"?`<p style="color:var(--bad)">💔 你和小满走散了。</p>`:""}`;return `${extra}<div class="month-summary">${rows.join("")||'<div class="ms-row"><span>这个月平平淡淡</span></div>'}</div>`},options:[option("确认，进入下月","",()=>{S.monthSnap={ov:overall(S),fit:S.fitness,form:S.form,love:S.relationship.love,family:S.family,money:S.money||0,age:ageInfo(S).age,inj:S.injury.months||0,st:S.relationship.status}})]})}
   if(ctx.matchReportModal)modalQueue.unshift(ctx.matchReportModal);   // 简报排到月度小结之前
   if(!S.retired){const r=shouldRetire(S);if(r){retirePlayer(S,r);saveGame();return}}
   modalBusy=false;saveGame();renderAll();setTimeout(pumpModal,0)}

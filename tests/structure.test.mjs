@@ -1106,4 +1106,38 @@ async function driveMatch(t,pick,cap=300){
     `跑到第${t.totalMonth}月还残留幽灵场次（月份在过去却未开打）：${[...ghosts.map(f=>f.month)].join(",")}`);
 }
 
+// ===== 月度小结必须排在本月事件之后，并反映事件造成的变化 =====
+{
+  assert.ok(/typeof d\.body\s*===\s*"function"/.test(code),
+    "pumpModal 必须支持惰性 body，否则小结拿不到本月事件造成的属性变化");
+}
+{
+  /* 不能只看队列快照：职业期这个月有比赛，finishMonth 要等比赛走完才执行，
+     那时小结才入队。必须把整个月驱动完，用 driveMatch 返回的 seen
+     （按出现顺序记录的每一屏标题）来判断顺序。 */
+  const t=G.createInitialState("小结顺序",allocation,[],"standard","mid");
+  t.totalMonth=49;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  const r=await driveMatch(t,()=>0);
+  const idx=r.seen.findIndex(x=>/月度小结/.test(x));
+  assert.ok(idx>=0,`这个月该有月度小结，实际弹窗顺序：${r.seen.join(" / ")}`);
+  assert.equal(idx,r.seen.length-1,
+    `月度小结必须是最后一屏，实际排第 ${idx+1}/${r.seen.length}：${r.seen.join(" / ")}`);
+}
+// 小结的 body 必须是函数——这是改惰性求值的全部理由
+{
+  const t=G.createInitialState("小结惰性",allocation,[],"standard","mid");
+  t.totalMonth=49;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  let summary=null;
+  const r=await driveMatch(t,(m,o)=>{if(/月度小结/.test(m.title))summary=m;return 0});
+  assert.ok(summary,`没找到月度小结那一屏：${r.seen.join(" / ")}`);
+  assert.equal(typeof summary.body,"function",
+    "小结的 body 必须是函数——拼成字符串就等于在事件生效前抢跑，事件的属性变化永远进不了这张表");
+}
+
 console.log("模拟球员 architecture test passed");
