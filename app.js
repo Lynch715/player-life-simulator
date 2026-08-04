@@ -1008,16 +1008,19 @@ function prepareMatch(s,rng=Math.random,opts={}){
     ability:Math.round(overall(s)),condition:Math.round((s.form+s.fitness)/2),randomShown:Math.round(rndFloat(rng,1,100))};
 }
 
-/* finishMatch 结算已作答的关键时刻，未作答的按稳妥选项自动判定。同样不修改 s。 */
-function finishMatch(s,pending,rng=Math.random){
-  const p={...pending,timeline:pending.timeline.slice()};
+/* 关键时刻结算：由 finishMatch（俱乐部/世预赛）与大赛决赛圈共用。
+   规则的要害是 claimGoal——稳妥选择只是把球队已有的机会转化到你名下，
+   只有高风险才能创造 xG 之外的进球，且每场至多一个 overflow。
+   世界杯那边绝不能写一套近似版，两套必然漂移。
+   传入的 p 会被就地修改并返回。 */
+function resolveMoments(s,p,rng=Math.random){
   let ratingDelta=0,boldTotal=0,boldWon=0,classic=false,fitExtra=0,favorExtra=0,overflow=0;
   // 关键时刻的进球必须挂进球队比分：先认领模型已经算出来的进球。
   // 只有高风险选择才能创造球队 xG 之外的进球，每场至多一个——
   // 稳妥选择只是把已有的机会转化掉，不该凭空把比分吹上天。
   const claimGoal=bold=>{if(p.goals<p.gf){p.goals++;return true}if(bold&&overflow<1){overflow++;p.gf++;p.goals++;return true}return false};
   const claimAssist=bold=>{if(p.goals+p.assists<p.gf){p.assists++;return true}if(bold&&overflow<1){overflow++;p.gf++;p.assists++;return true}return false};
-  p.moments.forEach((slot,i)=>{
+  (p.moments||[]).forEach((slot,i)=>{
     const m=MOMENTS.find(x=>x.id===slot.id);if(!m)return;
     const opts=momentOptions(s,m);
     const choiceIdx=p.choices[i];
@@ -1056,6 +1059,18 @@ function finishMatch(s,pending,rng=Math.random){
         p.timeline.push({minute:Math.min(89,slot.minute+2),text:"丢球之后对手立刻打起反击，我们的防线还没站好——他们扳回一球。",kind:"bad"})}
     }
   });
+  p.ratingDelta=ratingDelta;p.boldTotal=boldTotal;p.boldWon=boldWon;
+  p.momentClassic=classic;p.fitExtra=fitExtra;p.favorExtra=favorExtra;
+  return p;
+}
+
+/* finishMatch 结算已作答的关键时刻，未作答的按稳妥选项自动判定。同样不修改 s。 */
+function finishMatch(s,pending,rng=Math.random){
+  const p={...pending,timeline:pending.timeline.slice()};
+  resolveMoments(s,p,rng);
+  const ratingDelta=p.ratingDelta,boldTotal=p.boldTotal,boldWon=p.boldWon;
+  let classic=p.momentClassic;
+  const fitExtra=p.fitExtra,favorExtra=p.favorExtra;
   if(p.injuredInMatch)p.timeline.push({minute:rand(63,87),text:"一次对抗后你没有立刻站起来，队医示意换人。",kind:"bad"});
   p.timeline.push({minute:90,text:`终场：${p.club} ${p.gf}-${p.ga} ${p.opponent}。`,kind:p.gf>p.ga?"goal":p.gf<p.ga?"bad":"turn"});
   p.timeline.sort((x,y)=>x.minute-y.minute);
@@ -1898,7 +1913,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

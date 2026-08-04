@@ -1378,3 +1378,43 @@ console.log("模拟球员 architecture test passed");
   assert.ok(hi-lo>=3,`家里稳(${hi.toFixed(1)}) 与家里塌(${lo.toFixed(1)}) 的状态均衡点差距太小，家庭没真正起作用`);
   assert.ok(hi>lo,"方向必须对：家里稳的均衡点更高");
 }
+
+// ===== 关键时刻的并入规则只能有一份 =====
+// 稳妥选项只能认领模型已算出的进球，只有高风险能凭空造球且每场至多一个。
+// 世界杯要复用这套规则，绝不能在那边写一套近似版——两套必然漂移。
+{
+  assert.equal(typeof G.resolveMoments,"function","并入规则抽成共享函数");
+  const mk=()=>{const t=G.createInitialState("并入",allocation,[],"standard","mid");
+    ATTR_KEYS.forEach(k=>t.attrs[k]=80);return t};
+  const t=mk();
+  const moments=G.pickMoments(t,()=>.5);
+  assert.ok(moments.length>0,"sanity: 能抽到关键时刻");
+
+  // 稳妥选项 + 球队 0 球 → 不许凭空造出进球
+  const safeIdx=moments.map(slot=>{
+    const m=G.MOMENTS.find(x=>x.id===slot.id);
+    const opts=G.momentOptions(t,m);
+    const i=opts.findIndex(o=>o.risk==="safe");
+    return i<0?0:i;
+  });
+  const p1={gf:0,ga:0,goals:0,assists:0,keyWins:0,failures:0,timeline:[],
+    moments,choices:safeIdx,oppStrength:70,plan:"box"};
+  G.resolveMoments(t,p1,()=>0);          // rng=0 → 判定一定成功
+  assert.equal(p1.gf,0,"稳妥选项不许把球队比分吹上去——只能认领已有的进球");
+
+  // 高风险选项 + 球队 0 球 → 至多造一个
+  const boldIdx=moments.map(slot=>{
+    const m=G.MOMENTS.find(x=>x.id===slot.id);
+    const opts=G.momentOptions(t,m);
+    const i=opts.findIndex(o=>o.risk==="bold");
+    return i<0?0:i;
+  });
+  const p2={gf:0,ga:0,goals:0,assists:0,keyWins:0,failures:0,timeline:[],
+    moments,choices:boldIdx,oppStrength:70,plan:"box"};
+  G.resolveMoments(t,p2,()=>0);
+  assert.ok(p2.gf<=1,`高风险每场至多造一个球（overflow<1），实际 gf=${p2.gf}`);
+
+  // 返回值上要挂着结算量，供 finishMatch 继续用
+  assert.equal(typeof p2.ratingDelta,"number","ratingDelta 要挂在返回对象上");
+  assert.equal(typeof p2.boldTotal,"number","boldTotal 要挂在返回对象上");
+}
