@@ -76,3 +76,4 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .fixture-row .fx-score.pending{color:var(--muted);font-size:10px;font-weight:700}
 .fixture-row .fx-score.miss{color:var(--muted);font-size:10px;font-weight:700;opacity:.8}
 @media (max-width:760px){.fixture-row{grid-template-columns:46px 1fr auto;padding:9px 10px}}
+.mini-track.sky i{background:linear-gradient(90deg,#3d7fa8,#5cc8e8)}

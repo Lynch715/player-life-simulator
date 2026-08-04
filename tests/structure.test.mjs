@@ -1351,3 +1351,25 @@ console.log("模拟球员 architecture test passed");
     `事件 ${e.id} 写 language，但它不是 overseas 专属——18岁后写它没有任何意义`));
 }
 
+// ===== 家庭必须真的起作用，而不只是33个事件写完就沉底 =====
+{
+  assert.equal(typeof G.familySupport,"function","家庭要有一个像 loveSupport 那样的支撑函数");
+  const mk=f=>{const t=G.createInitialState("家",allocation,[],"standard","mid");t.family=f;return t};
+  assert.ok(G.familySupport(mk(95))>G.familySupport(mk(60)),"家里越稳，支撑越高");
+  assert.ok(G.familySupport(mk(10))<0,"家里出事要是负的");
+  assert.ok(/base=52\+loveSupport\(S\)\+familySupport\(S\)/.test(code.replace(/\s/g,"")),
+    "familySupport 要接进 form 的基线，而不是每月固定加一笔");
+  assert.ok(/id="familyText"/.test(html)&&/id="familyBar"/.test(html),"侧栏要有家庭那一行");
+}
+// 长跑：家里塌了的档，状态均衡点必须明显低于家里稳的档
+{
+  const run=fam=>{
+    const t=G.createInitialState("均衡家",allocation,[],"standard","mid");
+    t.relationship.status="分手";t.relationship.love=0;t.assets.house=false;t.form=52;
+    const origR=Math.random;let x=7;Math.random=()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+    try{for(let m=0;m<120&&!t.retired;m++){t.family=fam;G.setState(t);G.advanceMonth()}}catch(e){}finally{Math.random=origR}
+    return t.form;
+  };
+  const hi=run(95),lo=run(10);
+  assert.ok(hi-lo>=4,`家里稳(${hi.toFixed(1)}) 与家里塌(${lo.toFixed(1)}) 的状态均衡点差距太小，家庭没真正起作用`);
+}

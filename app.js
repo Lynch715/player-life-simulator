@@ -766,6 +766,9 @@ const STORY_BEATS={
 };
 
 function loveSupport(s){if(!["恋人","异地"].includes(s.relationship.status))return 0;const l=s.relationship.love;return l>=85?7:l>=65?5:l>=45?3:l>=25?1:0}
+/* 家庭同样只走抬高基线这一条路。33个事件已经在写 family，接上基线就等于白捡——
+   但绝不能写成每月固定 +N：form 每月回归 22%，那会把均衡点顶高 N/0.22≈4.5N。 */
+function familySupport(s){const f=s.family;return f>=90?5:f>=70?2:f>=50?1:f>=30?0:-4}
 function poisson(lambda,rng=Math.random){let l=Math.exp(-Math.max(.08,lambda)),p=1,k=0;do{k++;p*=rng()}while(p>l&&k<9);return k-1}
 function rndFloat(rng,min,max){return min+rng()*(max-min)}
 function opponentPool(s){const c=currentClub(s);if(c.league==="英超")return PL_CLUBS.filter(x=>x.name!==c.name);if(s.club.league==="英超梯队")return PL_CLUBS.filter(x=>x.name!==s.club.name.replace(" U18","")).map(x=>({...x,name:`${x.name} U18`,strength:x.strength-11,league:"英超梯队"}));if(s.club.league==="中超梯队")return CSL_CLUBS.filter(x=>!s.club.name.includes(x.name)).map(x=>({...x,name:`${x.name} U16`,strength:x.strength-10,league:"中超梯队"}));if(s.club.league==="校园联赛")return CAMPUS_CLUBS.filter(x=>x.name!==s.club.name);return CSL_CLUBS.filter(x=>x.name!==c.name)}
@@ -1661,7 +1664,7 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
      合并前这些 +N 喂的是一个没有回归机制的旧字段，所以无害；直接搬到
      form 上会把均衡点顶到 67，四分之一的月份卡在 cond() 上限，
      状态管理就没意义了。关系的收益只走 loveSupport 一条路，不重复计。 */
-  const base=52+loveSupport(S)+(S.assets&&S.assets.house?2:0);
+  const base=52+loveSupport(S)+familySupport(S)+(S.assets&&S.assets.house?2:0);
   change(S,"form",Math.round((base-S.form)*0.22));
   S.peakOverall=Math.max(S.peakOverall||0,overall(S));S.lastActionFeedback=null;
   if(S.totalMonth%12===0&&ageInfo(S).age<=18){const grow=rand(2,4);S.heightCm=Math.min(S.heightMax||200,S.heightCm+grow);log(S,"story",`身体又长开了一些，你现在${S.heightCm}cm。`)}
@@ -1810,7 +1813,7 @@ function renderAll(){if(!S||typeof document==="undefined")return;const a=ageInfo
     else if(!nf)el.innerHTML=`<span class="nm-when">本赛季赛程已打完</span>`;
     else{const n=fixtureCountdown(S,nf);
       el.innerHTML=`下一场 · ${nf.home?"主场":"客场"} vs <b>${esc(nf.opponent)}</b>`+
-        `<span class="nm-when">（${esc(nf.competition)}） · ${n<=0?"本月末":`还有 ${n} 个月`}</span>`}}}$("fitnessText").textContent=Math.round(S.fitness);$("formText").textContent=Math.round(S.form);$("loveText").textContent=S.relationship.status==="分手"?"—":Math.round(S.relationship.love);$("fitnessBar").style.width=`${S.fitness}%`;$("formBar").style.width=`${S.form}%`;$("loveBar").style.width=`${S.relationship.love}%`;const moneyEl=$("moneyText");if(moneyEl){moneyEl.textContent=`${Math.round(S.money)}万`;moneyEl.style.color=S.money<0?"var(--bad)":"var(--gold)"}
+        `<span class="nm-when">（${esc(nf.competition)}） · ${n<=0?"本月末":`还有 ${n} 个月`}</span>`}}}$("fitnessText").textContent=Math.round(S.fitness);$("formText").textContent=Math.round(S.form);$("loveText").textContent=S.relationship.status==="分手"?"—":Math.round(S.relationship.love);$("fitnessBar").style.width=`${S.fitness}%`;$("formBar").style.width=`${S.form}%`;$("loveBar").style.width=`${S.relationship.love}%`;{const ft=$("familyText"),fb=$("familyBar");if(ft)ft.textContent=Math.round(S.family);if(fb)fb.style.width=`${S.family}%`}const moneyEl=$("moneyText");if(moneyEl){moneyEl.textContent=`${Math.round(S.money)}万`;moneyEl.style.color=S.money<0?"var(--bad)":"var(--gold)"}
   $("talentMini").innerHTML=S.talents.map(id=>`<span>${esc(talentById(id)?.name||id)}</span>`).join("");$("radarPanel").innerHTML=radarSVG(S);
   document.querySelectorAll("#gameNav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===S.tab));renderTab();}
 
@@ -1895,7 +1898,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,wcMatchSim,wcDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeWorldCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,wcFinalEve,wcOutroScene,wcFinish,newShootout,shootoutAdvance,shootoutPlayerKick,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
