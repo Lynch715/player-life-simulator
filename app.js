@@ -1653,6 +1653,12 @@ function advanceMonth(force=false){if(!S||modalBusy||S.retired)return;if(S.actio
   if(a.age>=16&&S.salary>0){const d=diffOf(S),wage=Math.round(S.salary*d.income),expense=Math.round((1.5+S.fame/28)*d.expense);addMoney(S,wage-expense);if(S.debt>0&&S.totalMonth%6===0){S.debt=Math.round(S.debt*1.05);log(S,"warn","欠款利息又滚了一点，早点还清。")}}
   const passive=assetPassive(S);if(passive)addMoney(S,passive);if(S.assets&&S.assets.image_team&&S.totalMonth%3===0)change(S,"fame",1);
   ensureSchedule(S);
+  /* 有排定的比赛但上不了场（伤停/雪藏/已退役）：在日程上标记 missed 留痕。
+     不标的话这一场会永远停在 upcoming，变成「月份在过去却未开打」的幽灵场次，
+     还会被 ensureSchedule 的 past 条件一路带进下个赛季。 */
+  {const _fx=fixtureOfMonth(S);
+   if(_fx&&(S.retired||!shouldPlayMatch(S))){_fx.status="missed";
+     _fx.missReason=(S.injury.months||0)>0?`伤停·${S.injury.name||"伤病"}`:(S.flags&&S.flags.washedOut)?"被雪藏":"未出战"}}
   const _ctx={snap:_snap,preSusp,preInjury,justTurned16,matchReportModal:null};
   if(!S.retired&&shouldPlayMatch(S)){startMatchFlow(S,_ctx);return}
   finishMonth(_ctx);

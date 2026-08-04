@@ -1074,4 +1074,36 @@ async function driveMatch(t,pick,cap=300){
   assert.ok(fx.result&&Number.isFinite(fx.result.gf),"刷新后比分也要写回，不能只改状态");
 }
 
+// ===== 伤停的场次要在日程上留痕，不能变成幽灵 =====
+// status 规格有三种取值 upcoming/played/missed，missed 就是给伤停和雪藏的。
+// 不标记的话这一场永远停在 upcoming，变成「月份在过去却未开打」的幽灵场次，
+// 还会被 ensureSchedule 的 past 条件一路带进下个赛季。
+{
+  const t=G.createInitialState("伤停留痕",allocation,[],"standard","mid");
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  t.injury={name:"膝伤",months:3,risk:0};
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();                      // 进到第49月，伤停打不了
+  await driveMatch(t,()=>0);
+  const fx=t.schedule.fixtures.find(f=>f.month===49);
+  assert.equal(fx.status,"missed",
+    `伤停月份的比赛要标 missed，实际 ${fx.status}——留在 upcoming 就是幽灵场次`);
+  assert.ok(/伤停/.test(fx.missReason||""),`要记下为什么没打，实际 missReason=${fx.missReason}`);
+}
+
+// 长跑之后不该残留任何幽灵场次（月份在过去、状态却是未开打）
+{
+  const t=G.createInitialState("无幽灵",allocation,[],"standard","mid");
+  G.setState(t);G.clearModalQueue();
+  for(let m=0;m<60&&!t.retired;m++){
+    G.setState(t);G.advanceMonth();
+    await driveMatch(t,()=>0,200);
+  }
+  const ghosts=t.schedule.fixtures.filter(f=>f.month<t.totalMonth&&f.status==="upcoming");
+  assert.equal(ghosts.length,0,
+    `跑到第${t.totalMonth}月还残留幽灵场次（月份在过去却未开打）：${[...ghosts.map(f=>f.month)].join(",")}`);
+}
+
 console.log("模拟球员 architecture test passed");
