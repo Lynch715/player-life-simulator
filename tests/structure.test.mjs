@@ -1144,27 +1144,38 @@ async function driveMatch(t,pick,cap=300){
 // 「本场职责」原本是行动页上一个常驻设置，很容易忘了改。
 // 挪到赛前这一屏当三选一，相比改动前不多一次点击。
 {
-  const t=G.createInitialState("预告",allocation,[],"standard","mid");
-  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
-  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
-  G.ensureSchedule(t);
-  G.setState(t);G.clearModalQueue();
-  G.advanceMonth();
-  const fx=t.schedule.fixtures.find(f=>f.month===49);   // 陷阱3：踢的是第49月
-  const q=G.getModalQueue();
-  const preview=q[0];
-  assert.ok(preview,"结束本月后队列里第一屏应该是赛前预告");
-  assert.ok(new RegExp(fx.opponent.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).test(preview.title+String(typeof preview.body==="function"?preview.body(t):preview.body)),
-    `预告必须写明对手 ${fx.opponent}，实际标题「${preview.title}」`);
-  const opts=typeof preview.options==="function"?preview.options(t):preview.options;
-  assert.equal(opts.length,G.MATCH_PLANS.length,
-    `预告的选项就是本场职责三选一，应有 ${G.MATCH_PLANS.length} 个，实际 ${opts.length}`);
-  // 选第二个职责，比赛必须真的按它打
-  const plan2=G.MATCH_PLANS[1].id;
-  opts[1].apply();
-  assert.equal(t.matchPlan,plan2,"选了哪个职责就该写进 matchPlan");
-  assert.equal(t.pendingMatch&&t.pendingMatch.pending&&t.pendingMatch.pending.plan,plan2,
-    "prepareMatch 必须拿到预告里选的职责，而不是行动页那个旧默认值");
+  // 球员约22%概率未出场，那种局面下 beginMatch 当场结算、pendingMatch 立刻清空。
+  // 重试直到拿到一个真的出场的局面，再断言职责传到了 prepareMatch。
+  // （不能为了让断言好写就把「未出场当场结算」推迟成异步——那是拿生产行为迁就测试。）
+  let checked=false;
+  for(let attempt=0;attempt<40&&!checked;attempt++){
+    const t=G.createInitialState("预告",allocation,[],"standard","mid");
+    t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+    t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+    G.ensureSchedule(t);
+    G.setState(t);G.clearModalQueue();
+    G.advanceMonth();
+    const fx=t.schedule.fixtures.find(f=>f.month===49);   // advanceMonth 先 ++，踢的是第49月
+    const q=G.getModalQueue();
+    const preview=q[0];
+    assert.ok(preview,"结束本月后队列里第一屏应该是赛前预告");
+    assert.ok(new RegExp(fx.opponent.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).test(preview.title+String(typeof preview.body==="function"?preview.body(t):preview.body)),
+      `预告必须写明对手 ${fx.opponent}，实际标题「${preview.title}」`);
+    const opts=typeof preview.options==="function"?preview.options(t):preview.options;
+    assert.equal(opts.length,G.MATCH_PLANS.length,
+      `预告的选项就是本场职责三选一，应有 ${G.MATCH_PLANS.length} 个，实际 ${opts.length}`);
+
+    const plan2=G.MATCH_PLANS[1].id;
+    opts[1].apply();
+    assert.equal(t.matchPlan,plan2,"选了哪个职责就该写进 matchPlan");
+    if(t.pendingMatch&&t.pendingMatch.pending){          // 真的出场了才有得查
+      assert.equal(t.pendingMatch.pending.plan,plan2,
+        "prepareMatch 必须拿到预告里选的职责，而不是行动页那个旧默认值");
+      checked=true;
+    }
+    G.clearModalQueue();
+  }
+  assert.ok(checked,"40次尝试都没遇到球员出场的局面——prepareMatch 的出场判定可能坏了");
 }
 // 首发概率公式只能有一份：预告屏显示的数必须和 prepareMatch 掷骰用的是同一个
 {

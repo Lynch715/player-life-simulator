@@ -1722,7 +1722,7 @@ function beginMatch(s,plan){
   pm.pending=prepareMatch(s,Math.random,{opponent:{name:fx.opponent,strength:fx.strength},
     home:fx.home,plan,competition:fx.competition});
   pm.stage="moments";
-  if(!pm.pending.plays){setTimeout(()=>resolveMatch(s),0);return}
+  if(!pm.pending.plays){resolveMatch(s);return}
   stepKeyMoment(s);
 }
 // 中断恢复：pumpModal 每次点击都存档，所以刷新页面必须能回到同一步。
