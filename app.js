@@ -1832,7 +1832,7 @@ function fixtureRow(f,cur,nextMonth){
   const n=fixtureCountdown({totalMonth:cur},f);
   const score=done?`${r.gf} : ${r.ga}`:missed?"未出战":n<=0?"本月末":`${n}个月后`;
   const age=14+Math.floor(f.month/12),mon=f.month%12+1;
-  const tail=done?` · 你 ${r.goals}球 ${r.assists}助 · 评分 ${r.rating}`
+  const tail=done?` · 你 ${r.goals}球 ${r.assists}助 · 评分 ${r.rating||"—"}`
     :missed?` · ${esc(f.missReason||"未出战")}`
     :` · 对手实力 ${f.strength}`;
   return `<div class="fixture-row ${f.month===nextMonth?"now":""} ${done||missed?"done":""}">`+
