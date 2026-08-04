@@ -1361,10 +1361,15 @@ function shuffled(arr,rng){const c=[...arr];for(let i=c.length-1;i>0;i--){const 
 /* 从 max(1,seasonStart) 起：advanceMonth 是先 S.totalMonth++ 再判定有没有比赛
    （app.js:1632 在 :1652 之前），所以第一次判定发生在 totalMonth=1，
    第0月的比赛永远打不到。生成它只会在赛程页留一个永远「未打」的幽灵场次，
-   还会让主界面的「下一场·本月末」说谎。旧的 shouldPlayMatch 同样从不打第0月。 */
+   还会让主界面的「下一场·本月末」说谎。旧的 shouldPlayMatch 同样从不打第0月。
+   第24、48月是换东家的月份（16岁定去向、18岁进职业队），routeChoice16 /
+   enterProAt18 会当场改掉 s.club——那个月排联赛说不通，而且赛前预告走
+   enqueueFront 会插到生涯分流剧情前面，让玩家在还不知道自己去哪儿的时候
+   先选了「本场职责」，比赛还是按旧俱乐部打的。 */
 function matchMonthsOfSeason(s,seasonStart){
   const out=[];
   for(let m=Math.max(1,seasonStart);m<seasonStart+12;m++){
+    if(m===24||m===48)continue;                       // 换东家的月份不排联赛
     const age=14+Math.floor(m/12),p=age<16?"academy":age<18?(s.route||"academy"):"pro";
     if(age<16){if(m%3===0)out.push(m)}
     else if(p==="campus"){if(m%2===0)out.push(m)}

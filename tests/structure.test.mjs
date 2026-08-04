@@ -1007,9 +1007,10 @@ async function driveMatch(t,pick,cap=300){
 }
 
 // ===== 比赛必须打赛程表上那一场，而不是另抽一个对手 =====
+// ⚠️ 第48月是进职业队的换东家月份，不排联赛，改用普通职业期月份 49。
 {
   const t=G.createInitialState("对上表",allocation,[],"standard","mid");
-  t.totalMonth=48;t.flags.pro18=true;t.route="pro";        // 18岁职业期，每月一场
+  t.totalMonth=49;t.flags.pro18=true;t.route="pro";        // 18岁职业期，每月一场
   t.club={name:"重庆铜梁龙",league:"中超",strength:67};
   G.ensureSchedule(t);
   const fx=G.fixtureOfMonth(t);
@@ -1017,17 +1018,17 @@ async function driveMatch(t,pick,cap=300){
   assert.equal(G.shouldPlayMatch(t),true,"有 fixture 就该踢");
 
   // ⚠️ advanceMonth 里 S.totalMonth++（app.js:1632）在 shouldPlayMatch（:1652）之前，
-  // 所以从第48月「结束本月」，踢的是第49月那场。
+  // 所以从第49月「结束本月」，踢的是第50月那场。
   G.setState(t);G.clearModalQueue();
   G.advanceMonth();
   await driveMatch(t,()=>0);          // 必须是 driveMatch，不是同步的 driveModals
-  assert.equal(t.totalMonth,49,"sanity: 结束本月后月份已经前进");
-  const done=t.schedule.fixtures.find(f=>f.month===49);
-  assert.ok(done,"第49月该有一场比赛");
-  assert.equal(done.status,"played",`第49月那场应标记 played，实际 ${done.status}`);
+  assert.equal(t.totalMonth,50,"sanity: 结束本月后月份已经前进");
+  const done=t.schedule.fixtures.find(f=>f.month===50);
+  assert.ok(done,"第50月该有一场比赛");
+  assert.equal(done.status,"played",`第50月那场应标记 played，实际 ${done.status}`);
   assert.ok(done.result&&Number.isFinite(done.result.gf),"结果必须写回赛程表");
-  assert.equal(t.schedule.fixtures.find(f=>f.month===48).status,"upcoming",
-    "第48月那场没打过（它是「结束本月」之前的当月），不该被误标成已打");
+  assert.equal(t.schedule.fixtures.find(f=>f.month===49).status,"upcoming",
+    "第49月那场没打过（它是「结束本月」之前的当月），不该被误标成已打");
 }
 
 // 伤停时不上场
@@ -1182,6 +1183,33 @@ async function driveMatch(t,pick,cap=300){
   assert.equal(typeof G.startChance,"function","首发概率抽成 startChance");
   assert.ok(!/const rawStart=/.test(code),
     "prepareMatch 里那份 rawStart 必须改调 startChance——留两份会漂移，预告说62%实际按另一个数掷骰");
+}
+
+// ===== 换东家的月份不排联赛，生涯剧情不被赛前预告插队 =====
+// routeChoice16 / enterProAt18 会当场改掉 s.club。那两个月若排了比赛，
+// 赛前预告走 enqueueFront 会插到生涯分流剧情前面——玩家还不知道自己去哪儿，
+// 就先给一场「旧俱乐部」的比赛选了职责。
+{
+  const t=G.createInitialState("分流不插队",allocation,[],"standard","mid");
+  t.totalMonth=23;G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
+  G.advanceMonth();                                  // → 第24月，16岁
+  const kickers=G.getModalQueue().map(m=>m.kicker);
+  const life=kickers.findIndex(k=>/生涯分流/.test(k||""));
+  const pre=kickers.findIndex(k=>k==="赛前");
+  assert.ok(life>=0,`第24月该出16岁分流，实际队列：${kickers.join(" / ")}`);
+  assert.ok(pre<0||life<pre,
+    `生涯分流必须排在赛前预告之前，实际：${kickers.join(" / ")}`);
+  assert.ok(!t.schedule.fixtures.some(f=>f.month===24),
+    "第24月是换东家的月份，不该排联赛");
+}
+{
+  const t=G.createInitialState("入职不插队",allocation,[],"standard","mid");
+  t.totalMonth=47;t.route="firstteam";t.flags.route16=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
+  G.advanceMonth();                                  // → 第48月，18岁
+  assert.ok(!t.schedule.fixtures.some(f=>f.month===48),
+    "第48月是进职业队的月份，不该排联赛");
 }
 
 console.log("模拟球员 architecture test passed");
