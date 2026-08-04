@@ -1098,7 +1098,7 @@ function setRoute(s,route){s.route=route;s.flags.route16=true;if(route==="firstt
 function enterProAt18(s){if(s.flags.pro18)return;s.flags.pro18=true;
   if(s.route==="overseas"){const promote=overall(s)>=73+diffOf(s).threshold&&s.language>=35;s.club=promote?{name:"Manchester United",league:"英超",strength:85}:{name:"Hull City",league:"英超",strength:73};s.salary=promote?22:10;s.route="pro";if(s.club.league==="英超")unlock("premier");log(s,"story",promote?"你得到英超一线队合同。平台更大，容错更小。":"豪门没有给出一线队位置，Hull City 提供了真正的职业比赛。")}
   else if(s.route==="firstteam"){s.route="pro";s.club={name:"重庆铜梁龙",league:"中超",strength:67};s.salary=7;log(s,"story","18岁，你不再占用青年名额。俱乐部开始用成年人的标准衡量你。")}
-  else{const d=diffOf(s),success=overall(s)>=61+d.threshold||s.fame>=67+d.threshold;s.route="pro";s.relationship.status="恋人";
+  else{const d=diffOf(s),success=overall(s)>=61+d.threshold||s.fame>=93+d.threshold;s.route="pro";s.relationship.status="恋人";
     if(!success&&d.threshold>=5&&overall(s)<54+d.threshold){s.flags.washedOut=true;log(s,"bad","一圈职业试训下来，没有一家队愿意签你。绿茵这条路，到此为止。");return}
     const club=success?{name:"重庆铜梁龙",league:"中超",strength:67}:{name:"辽宁铁人",league:"中超",strength:65};s.club=club;s.salary=success?6:4;
     enqueueDecision({title:"18岁 · 迟到两年的试训",portrait:"assets/coach-zhou.webp",body:`<p>你两年没摸过职业训练的节奏了。校园联赛的强度跟梯队完全是两个世界，你自己知道。这封试训邀请是你争取来的——你剪了自己的比赛录像发出去，只有${esc(club.name)}回了一个字：来。</p><p>你背着包走进训练基地。路过一号场时，一线队在打对抗，球速比你习惯的快很多。你停了一步，然后继续走。看台上，小满和父亲都来了。</p><p>三号场的教练看了你一眼，把手里的名单翻了一页——上面印着十几个试训球员的名字。<span class="dialogue">${success?"“绕了两年，你还是挤了回来。这回，站稳了。”":"“不是最风光的起点，但你终于重新站上了职业赛场。”"}</span></p>`,options:[option("握紧这次机会","职业生涯正式开始",()=>{})]},"18岁 · 重返职业");

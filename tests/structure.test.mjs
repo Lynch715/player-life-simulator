@@ -1290,8 +1290,8 @@ async function driveMatch(t,pick,cap=300){
 {
   assert.ok(/s\.fame>=44\+d\.threshold/.test(code),
     "16岁分流后门改读 fame，阈值 44 是实测出来的，不是估的");
-  assert.ok(/s\.fame>=67\+d\.threshold/.test(code),
-    "setRoute 那道门同理，阈值 67");
+  assert.ok(/s\.fame>=93\+d\.threshold/.test(code),
+    "enterProAt18 的校园线回归判定，阈值 93——它在月48才判，人群和16岁那道门完全不同，单独标定过");
 }
 // 效果文案不能还写着「球探+N」——数值改了标签没改，比不改更糟。
 // 只扫 option(...) 那一层的效果标签：天赋描述里的「球探」是正当用词
