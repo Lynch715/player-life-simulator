@@ -1463,3 +1463,53 @@ console.log("模拟球员 architecture test passed");
   assert.ok(asia>world+.12,
     `同一综合下亚洲杯淘汰赛胜率(${(asia*100).toFixed(0)}%)必须明显高于世界杯(${(world*100).toFixed(0)}%)，且差别只来自对手池`);
 }
+
+// ===== 大赛日历：三条线两两不撞 =====
+{
+  assert.equal(G.cupMonthOf(72),"asian","20岁那年是亚洲杯");
+  assert.equal(G.cupMonthOf(96),"world","22岁那年是世界杯");
+  assert.equal(G.cupMonthOf(120),"asian","24岁");
+  assert.equal(G.cupMonthOf(144),"world","26岁");
+  assert.equal(G.cupMonthOf(24),null,"16岁太早，亚洲杯要 >=72");
+  assert.equal(G.cupMonthOf(108),null,"23岁刻意留空给俱乐部线");
+  assert.equal(G.cupMonthOf(156),null,"27岁同样留空");
+  // ⚠️ 跨 vm realm 的数组要先 [...] 展开，否则 deepEqual 报 not reference-equal
+  const q=[...G.qualifierMonths(96)];
+  assert.deepEqual(q,[84,86,88,90,92,94],"世预赛6轮，每两月一场，末轮距世界杯2个月");
+  q.forEach(m=>assert.equal(G.cupMonthOf(m),null,`世预赛第${m}月不能撞上大赛月`));
+  assert.deepEqual([...G.qualifierMonths(144)],[132,134,136,138,140,142],"下一届同理");
+  // 反查
+  assert.equal(G.qualifierRoundAt(88).round,3,"第88月是世预赛第3轮");
+  assert.equal(G.qualifierRoundAt(88).wcMonth,96,"它属于第96月那届世界杯");
+  assert.equal(G.qualifierRoundAt(85),null,"奇数月不是世预赛轮次");
+}
+// 排进赛程后，大赛月的国家队比赛取代俱乐部比赛
+{
+  const t=G.createInitialState("大赛日历",allocation,[],"standard","mid");
+  t.totalMonth=120;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  const sc=G.ensureSchedule(t);
+  const f=sc.fixtures.filter(x=>x.month===120);
+  assert.equal(f.length,1,"一个月只能有一场，大赛取代俱乐部比赛");
+  assert.equal(f[0].type,"cup","第120月是亚洲杯");
+  assert.equal(f[0].cup,"asian","标明是哪个赛事");
+}
+// 世预赛年：那6个月排的是世预赛，不是联赛
+{
+  const t=G.createInitialState("世预赛年",allocation,[],"standard","mid");
+  t.totalMonth=84;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  const sc=G.ensureSchedule(t);
+  const wcq=sc.fixtures.filter(x=>x.type==="wcq");
+  assert.ok(wcq.length>=3,`第84月起这一季应排上世预赛，实际 ${wcq.length} 轮`);
+  wcq.forEach(f=>assert.equal(f.wcMonth,96,"都属于第96月那届"));
+}
+// 没被征召就不排大赛
+{
+  const t=G.createInitialState("没征召",allocation,[],"standard","mid");
+  t.totalMonth=120;t.flags.pro18=true;t.route="pro";t.national.called=false;
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  const sc=G.ensureSchedule(t);
+  assert.ok(!sc.fixtures.some(x=>x.type==="cup"||x.type==="wcq"),
+    "没进过国家队就不该有大赛日程");
+}

@@ -1412,6 +1412,22 @@ function matchMonthsOfSeason(s,seasonStart){
   return out;
 }
 function scheduleSig(s){return{season:ageInfo(s).season,clubKey:s.club.name,route:s.route||"",nationalCalled:!!s.national.called}}
+/* 大赛日历。世界杯四年一届，中间两年只剩友谊赛，空得发慌——亚洲杯填中间。
+   亚洲杯 %48===24（20/24/28岁），世预赛在世界杯前一年，世界杯 %48===0（22/26/30岁）。
+   23/27岁刻意留空：这游戏主干是俱乐部生涯，每年都有大赛的话
+   国家队就从高光变成负担。亚洲杯也因此不设预选赛。 */
+function cupMonthOf(m){
+  if(m>=96&&m%48===0)return "world";
+  if(m>=72&&m%48===24)return "asian";
+  return null;
+}
+function qualifierMonths(wcMonth){return [12,10,8,6,4,2].map(k=>wcMonth-k)}
+function qualifierRoundAt(m){
+  const wc=Math.ceil((m+2)/48)*48;               // 该轮归属的世界杯月
+  if(wc<96)return null;
+  const idx=qualifierMonths(wc).indexOf(m);
+  return idx<0?null:{wcMonth:wc,round:idx+1};
+}
 function buildSchedule(s,rng=Math.random){
   const seasonStart=Math.floor(s.totalMonth/12)*12,pool=opponentPool(s);
   let bag=[];
@@ -1421,6 +1437,16 @@ function buildSchedule(s,rng=Math.random){
     return {month,type:"club",opponent:opp.name,strength:opp.strength,home:i%2===0,
       competition:`${s.club.league}第${i+1}轮`,status:"upcoming",result:null};
   });
+  /* 大赛与世预赛取代当月俱乐部比赛——国际比赛日你不在俱乐部。
+     没被征召过就没有国家队日程。 */
+  if(s.national.called)for(let i=0;i<fixtures.length;i++){
+    const m=fixtures[i].month,cup=cupMonthOf(m),q=qualifierRoundAt(m);
+    if(cup)fixtures[i]={month:m,type:"cup",cup,opponent:CUP_CONFIG[cup].title,strength:0,home:false,
+      competition:`${CUP_CONFIG[cup].title}决赛圈`,status:"upcoming",result:null};
+    else if(q)fixtures[i]={month:m,type:"wcq",wcMonth:q.wcMonth,round:q.round,
+      opponent:"",strength:0,home:q.round%2===1,
+      competition:`世预赛第${q.round}轮`,status:"upcoming",result:null};
+  }
   return {...scheduleSig(s),fixtures};
 }
 /* 只重排未来。转会发生在赛季中途时，已打过的战绩必须留住——
@@ -1886,7 +1912,7 @@ function fixtureRow(f,cur,nextMonth){
     :` · 对手实力 ${f.strength}`;
   return `<div class="fixture-row ${f.month===nextMonth?"now":""} ${done||missed?"done":""}">`+
     `<div class="fx-when">${age}岁<br>第${mon}月</div>`+
-    `<div class="fx-opp"><b>${f.home?"主":"客"} vs ${esc(f.opponent)}</b>`+
+    `<div class="fx-opp"><b>${f.home?"主":"客"} vs ${esc(f.opponent||(f.type==="wcq"?"待抽签":"—"))}</b>`+
     `<span class="fx-meta">${esc(f.competition)}${tail}</span></div>`+
     `<div class="fx-score ${cls}">${score}</div></div>`;
 }
@@ -1938,7 +1964,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,cupMatchSim,cupDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,cupMatchSim,cupDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
