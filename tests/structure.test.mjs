@@ -1140,4 +1140,37 @@ async function driveMatch(t,pick,cap=300){
     "小结的 body 必须是函数——拼成字符串就等于在事件生效前抢跑，事件的属性变化永远进不了这张表");
 }
 
+// ===== 赛前预告：看完对手再决定怎么踢 =====
+// 「本场职责」原本是行动页上一个常驻设置，很容易忘了改。
+// 挪到赛前这一屏当三选一，相比改动前不多一次点击。
+{
+  const t=G.createInitialState("预告",allocation,[],"standard","mid");
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  const fx=t.schedule.fixtures.find(f=>f.month===49);   // 陷阱3：踢的是第49月
+  const q=G.getModalQueue();
+  const preview=q[0];
+  assert.ok(preview,"结束本月后队列里第一屏应该是赛前预告");
+  assert.ok(new RegExp(fx.opponent.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).test(preview.title+String(typeof preview.body==="function"?preview.body(t):preview.body)),
+    `预告必须写明对手 ${fx.opponent}，实际标题「${preview.title}」`);
+  const opts=typeof preview.options==="function"?preview.options(t):preview.options;
+  assert.equal(opts.length,G.MATCH_PLANS.length,
+    `预告的选项就是本场职责三选一，应有 ${G.MATCH_PLANS.length} 个，实际 ${opts.length}`);
+  // 选第二个职责，比赛必须真的按它打
+  const plan2=G.MATCH_PLANS[1].id;
+  opts[1].apply();
+  assert.equal(t.matchPlan,plan2,"选了哪个职责就该写进 matchPlan");
+  assert.equal(t.pendingMatch&&t.pendingMatch.pending&&t.pendingMatch.pending.plan,plan2,
+    "prepareMatch 必须拿到预告里选的职责，而不是行动页那个旧默认值");
+}
+// 首发概率公式只能有一份：预告屏显示的数必须和 prepareMatch 掷骰用的是同一个
+{
+  assert.equal(typeof G.startChance,"function","首发概率抽成 startChance");
+  assert.ok(!/const rawStart=/.test(code),
+    "prepareMatch 里那份 rawStart 必须改调 startChance——留两份会漂移，预告说62%实际按另一个数掷骰");
+}
+
 console.log("模拟球员 architecture test passed");
