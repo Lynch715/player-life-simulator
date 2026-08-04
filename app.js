@@ -79,12 +79,14 @@ const NATIONAL_OPPONENTS=[
   {name:"日本",strength:86},{name:"韩国",strength:84},{name:"伊朗",strength:83},{name:"澳大利亚",strength:81},
   {name:"沙特阿拉伯",strength:79},{name:"卡塔尔",strength:78},{name:"乌兹别克斯坦",strength:77},{name:"泰国",strength:69}
 ];
-// 世预赛（亚洲区）对手池
-const WC_QUAL_POOL=[
+// 亚洲球队：世预赛用全池，亚洲杯按强度分层。强度只在这里定义一次。
+const ASIA_POOL=[
   {name:"日本",strength:85},{name:"韩国",strength:83},{name:"伊朗",strength:82},{name:"澳大利亚",strength:80},
   {name:"沙特阿拉伯",strength:78},{name:"卡塔尔",strength:76},{name:"伊拉克",strength:73},{name:"阿联酋",strength:72},
   {name:"阿曼",strength:69},{name:"越南",strength:67},{name:"巴林",strength:66}
 ];
+const AC_GROUP_POOL=ASIA_POOL.filter(t=>t.strength<78);   // 卡塔尔76 伊拉克73 阿联酋72 阿曼69 越南67 巴林66
+const AC_ELITE_POOL=ASIA_POOL.filter(t=>t.strength>=78);  // 日本85 韩国83 伊朗82 澳大利亚80 沙特78
 // 世界杯决赛圈：小组赛对手池（中上游）
 const WC_GROUP_POOL=[
   {name:"墨西哥",strength:82},{name:"塞内加尔",strength:81},{name:"日本",strength:82},{name:"美国",strength:80},
@@ -127,6 +129,7 @@ const ACHIEVEMENTS=[
   {id:"national",icon:"★",name:"为国而战",desc:"首次入选中国国家队"},
   {id:"national_goal",icon:"红",name:"国字号首球",desc:"国家队比赛破门"},
   {id:"world_cup",icon:"世",name:"世界之巅",desc:"赢得世界杯"},
+  {id:"asian_cup",icon:"亚",name:"亚洲之巅",desc:"赢得亚洲杯"},
   {id:"ballon",icon:"●",name:"金球先生",desc:"赢得金球奖"},
   {id:"league_title",icon:"♛",name:"联赛冠军",desc:"赢得顶级联赛"},
   {id:"premier",icon:"PL",name:"登陆英超",desc:"正式加盟英超俱乐部"},
@@ -271,7 +274,7 @@ function createInitialState(name="陈逐风",allocation=START_ALLOC,talents=[],d
      起步，再靠 14→18 每年 2~4cm 的发育长到那个数——所以这里减 10，并把
      heightMax 记在存档里当发育上限，让承诺兑现。 */
   const heightCm=HEIGHT_TIERS[tier].cm-10,heightMax=HEIGHT_TIERS[tier].cm;
-  const state={version:VERSION,runId:`r${Date.now()}${Math.random().toString(36).slice(2,7)}`,name:name.trim()||"陈逐风",position:"前锋",totalMonth:0,actionPoints:3,allocation:{...allocation},heightCm,heightTier:tier,heightMax,talents:[...talents],attrs,fitness:90,form:60,coachFavor:50,family:86,language:8,fame:3,money:0,salary:0,debt:0,assets:{house:false,gym:false,coach:false},difficulty:DIFFICULTIES[difficulty]?difficulty:"standard",seasonGoal:null,challenge:null,matchPlan:"box",styles:{box:0,burst:0,target:0,play:0},pendingMatch:null,combosHit:[],retired:false,peakOverall:0,route:"academy",club:{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58},relationship:{name:"林小满",status:"恋人",love:80,conflictShield:hasTalent({talents},"childhood_bond")?1:0},injury:{name:"",months:0,risk:0},risks:{gambling:0},flags:{route16:false,pro18:false,overseasBreakup:false,hivDiagnosed:false,bettingEver:false,captain:false,father_alive:true},statsCareer:{matches:0,starts:0,goals:0,assists:0,wins:0,draws:0,losses:0,nationalCaps:0,nationalGoals:0,bestRating:0,hatTricks:0},seasonStats:{matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0},national:{called:false,adapt:0,caps:0,goals:0,worldCups:0},honours:[],awards:[],transfers:[],offers:[],matches:[],usedEvents:[],recentEvents:[],actionUsage:{},log:[],tab:"actions",lastSeasonAward:null};
+  const state={version:VERSION,runId:`r${Date.now()}${Math.random().toString(36).slice(2,7)}`,name:name.trim()||"陈逐风",position:"前锋",totalMonth:0,actionPoints:3,allocation:{...allocation},heightCm,heightTier:tier,heightMax,talents:[...talents],attrs,fitness:90,form:60,coachFavor:50,family:86,language:8,fame:3,money:0,salary:0,debt:0,assets:{house:false,gym:false,coach:false},difficulty:DIFFICULTIES[difficulty]?difficulty:"standard",seasonGoal:null,challenge:null,matchPlan:"box",styles:{box:0,burst:0,target:0,play:0},pendingMatch:null,combosHit:[],retired:false,peakOverall:0,route:"academy",club:{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58},relationship:{name:"林小满",status:"恋人",love:80,conflictShield:hasTalent({talents},"childhood_bond")?1:0},injury:{name:"",months:0,risk:0},risks:{gambling:0},flags:{route16:false,pro18:false,overseasBreakup:false,hivDiagnosed:false,bettingEver:false,captain:false,father_alive:true},statsCareer:{matches:0,starts:0,goals:0,assists:0,wins:0,draws:0,losses:0,nationalCaps:0,nationalGoals:0,bestRating:0,hatTricks:0},seasonStats:{matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0},national:{called:false,adapt:0,caps:0,goals:0,worldCups:0,asianCups:0},honours:[],awards:[],transfers:[],offers:[],matches:[],usedEvents:[],recentEvents:[],actionUsage:{},log:[],tab:"actions",lastSeasonAward:null};
   log(state,"story","你进入重庆铜梁龙U16梯队。父亲站在铁丝网外，小满把一瓶水塞进你包里。");
   return state;
 }
@@ -1322,6 +1325,7 @@ function normalizeSave(d){
     d.national.cupRun={cup:"world",moments:[],choices:[],...d.national.wcRun};
     delete d.national.wcRun;
   }
+  if(d.national&&typeof d.national.asianCups!=="number")d.national.asianCups=0;
   return d;
 }
 function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return null;let data=JSON.parse(raw);
@@ -1450,14 +1454,26 @@ function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga
 
 // ===== 世界杯：世预赛门槛 + 随机抽签 + 逐场可玩（淘汰赛临场战术）=====
 const CUP_STAGE_NAMES=["小组赛第1场","小组赛第2场","小组赛第3场","十六强","八强","半决赛","决赛"];
-function cupDraw(rng){
+/* 两个赛事同构，差别全部收在这张表里。
+   判定、点球、出线规则、中断恢复一律共用——绝不为亚洲杯复制一份流程。
+   这里没有任何难度补正：亚洲杯更容易夺冠，纯粹因为 elite 池弱得多
+   （亚洲最强日本85，世界杯淘汰赛池84~93）。 */
+const CUP_CONFIG={
+  world:{title:"世界杯",group:()=>WC_GROUP_POOL,elite:()=>WC_ELITE_POOL,
+    honour:"世界杯冠军",icon:"世",achievement:"world_cup",counter:"worldCups",champFame:25},
+  asian:{title:"亚洲杯",group:()=>AC_GROUP_POOL,elite:()=>AC_ELITE_POOL,
+    honour:"亚洲杯冠军",icon:"亚",achievement:"asian_cup",counter:"asianCups",champFame:14}
+};
+function cupCfg(s){const run=s.national.cupRun;return CUP_CONFIG[(run&&run.cup)||"world"]}
+function cupDraw(rng,cfg){
   const take=(pool,n)=>{const c=[...pool],out=[];for(let k=0;k<n&&c.length;k++)out.push(c.splice(Math.floor(rng()*c.length),1)[0]);return out};
-  return {group:take(WC_GROUP_POOL,3),ko:take(WC_ELITE_POOL,4).sort((a,b)=>a.strength-b.strength)};
+  const c=cfg||CUP_CONFIG.world;
+  return {group:take(c.group(),3),ko:take(c.elite(),4).sort((a,b)=>a.strength-b.strength)};
 }
 function simulateQualifiers(s,rng){
   const china=75+(overall(s)-74)*.6+(s.national.adapt||0)*.05+(hasTalent(s,"red_shirt")?2:0);
-  const c=[...WC_QUAL_POOL],list=[];
-  for(let k=0;k<8;k++)list.push(c.length?c.splice(Math.floor(rng()*c.length),1)[0]:pick(WC_QUAL_POOL));
+  const c=[...ASIA_POOL],list=[];
+  for(let k=0;k<8;k++)list.push(c.length?c.splice(Math.floor(rng()*c.length),1)[0]:pick(ASIA_POOL));
   const matches=[];let points=0;
   for(const opp of list){
     const edge=china-opp.strength+rndFloat(rng,-11,11);
@@ -1548,7 +1564,7 @@ function startWorldCup(s){
 function setupCupFinals(s){
   s.national.worldCups++;
   s.flags.worldcup_qualified=true;
-  const d=cupDraw(Math.random);
+  const d=cupDraw(Math.random,CUP_CONFIG.world);
   s.national.cupRun={cup:"world",moments:[],choices:[],stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true};
   enqueueFront({title:"世界杯抽签",body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,options:[option("开始小组赛","",()=>cupNext(s))]},"世界杯");
 }
@@ -1662,7 +1678,10 @@ function cupOutroScene(s){
 
 function cupFinish(s,champion){
   const run=s.national.cupRun;
-  if(champion){s.honours.unshift({title:"世界杯冠军",season:ageInfo(s).season,icon:"世",detail:"中国国家队"});s.seasonStats.trophies++;unlock("world_cup");change(s,"fame",25);s.flags.worldChampion=true;}
+  const cfg=cupCfg(s);
+  if(champion){s.honours.unshift({title:cfg.honour,season:ageInfo(s).season,icon:cfg.icon,detail:"中国国家队"});
+    s.seasonStats.trophies++;unlock(cfg.achievement);change(s,"fame",cfg.champFame);
+    if(run.cup==="asian")s.flags.asianChampion=true;else s.flags.worldChampion=true;}
   const short=["小组1","小组2","小组3","十六强","八强","半决赛","决赛"];
   const wcGoals=run.results.reduce((p,x)=>p+x.goals,0);
   enqueueFront({title:champion?"中国队，世界冠军！":"世界杯之旅结束",body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option(champion?"走上领奖台":"离开球场","",()=>{
@@ -1919,7 +1938,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,cupMatchSim,cupDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,simulateQualifiers,cupMatchSim,cupDraw,startWorldCup,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

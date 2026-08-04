@@ -1439,3 +1439,27 @@ console.log("模拟球员 architecture test passed");
   assert.equal(mig.national.cupRun.stage,5,"进度不能丢");
   assert.equal("wcRun" in mig.national,false,"迁完要删掉旧字段，不能留僵尸");
 }
+
+// ===== 亚洲杯：对手池分层，难度不靠拍脑袋的补正 =====
+{
+  assert.ok(G.ASIA_POOL&&G.ASIA_POOL.length>=11,"亚洲球队强度只留一处定义");
+  assert.ok(G.AC_GROUP_POOL.length>=3,"小组赛池够抽3个");
+  assert.ok(G.AC_ELITE_POOL.length>=4,"淘汰赛池够抽4个");
+  assert.ok(Math.max(...G.AC_GROUP_POOL.map(x=>x.strength))<Math.min(...G.AC_ELITE_POOL.map(x=>x.strength)),
+    "小组池必须整体弱于淘汰赛池，否则分层没意义");
+  assert.equal(G.AC_GROUP_POOL.length+G.AC_ELITE_POOL.length,G.ASIA_POOL.length,"分层是划分，不是新增");
+  assert.ok(G.CUP_CONFIG.world&&G.CUP_CONFIG.asian,"两个赛事各有一份配置");
+  assert.notEqual(G.CUP_CONFIG.world.honour,G.CUP_CONFIG.asian.honour,"荣誉标题不同");
+}
+// 难度差别必须来自对手池，不是判定里的补正
+{
+  const t=G.createInitialState("难度",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=90);
+  let seed=1;const rng=()=>((seed=(seed*1664525+1013904223)>>>0)/4294967296);
+  const winRate=pool=>{let w=0;for(let i=0;i<600;i++){
+    const opp=pool[i%pool.length];const m=G.cupMatchSim(t,opp,"均衡",5,rng);
+    if(m.gf>m.ga)w++}return w/600};
+  const asia=winRate(G.AC_ELITE_POOL),world=winRate(G.WC_ELITE_POOL);
+  assert.ok(asia>world+.12,
+    `同一综合下亚洲杯淘汰赛胜率(${(asia*100).toFixed(0)}%)必须明显高于世界杯(${(world*100).toFixed(0)}%)，且差别只来自对手池`);
+}
