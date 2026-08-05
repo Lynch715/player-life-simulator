@@ -946,12 +946,21 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
     "梯队期每3个月一场，且不含打不到的第0月");
   assert.ok(!sc.fixtures.some(f=>f.month===0),
     "第0月永远打不到，排了它只会留一个永远未打的幽灵场次，主界面还会跟着说谎");
-  sc.fixtures.forEach(f=>{
+  /* 只有「能踢的」场次才需要对手——award 是赛季收官的展示标记，
+     没有对手也不该有。用 fixtureOfMonth 走的那套判断来筛，保证两边一致。 */
+  const playable=sc.fixtures.filter(f=>["club","national","wcq","cup"].includes(f.type));
+  assert.ok(playable.length>0,"sanity: 应该有能踢的场次");
+  playable.forEach(f=>{
     assert.ok(typeof f.opponent==="string"&&f.opponent.length>0,"每场都有对手名");
     assert.ok(Number.isFinite(f.strength),"每场都有对手实力");
     assert.equal(typeof f.home,"boolean","每场都有主客");
     assert.equal(f.status,"upcoming","新排的赛程都是未开始");
     assert.equal(f.result,null,"未开始的比赛没有结果");
+  });
+  // 展示用的行绝不能被当成比赛拿去踢
+  sc.fixtures.filter(f=>f.type==="award").forEach(f=>{
+    assert.equal(G.fixtureOfMonth({...t,totalMonth:f.month,schedule:{...sc,fixtures:[f]}}),null,
+      "赛季评选那一行不能被 fixtureOfMonth 当成一场比赛返回——那会让 prepareMatch 拿到空对手");
   });
   // 幂等：签名没变就不该重排
   const again=G.ensureSchedule(t);
@@ -995,10 +1004,10 @@ assert.match(readme,/身高档位/,"README documents the height tier choice");
   assert.equal(new Set(after月).size,after月.length,`重建后不能出现重复月份：${after月.join(",")}`);
   assert.deepEqual(after月,[...after月].sort((a,b)=>a-b),"赛程必须按月份升序——nextFixture 靠 find 取第一个未来场次");
 
-  // 未来场次要反映新东家的联赛
-  const future=after.fixtures.filter(f=>f.month>=t.totalMonth&&f.status==="upcoming");
-  assert.ok(future.length>0,"转会后还该有未来的比赛");
-  assert.ok(future.every(f=>/第\d+轮/.test(f.competition)),"未来场次都要有轮次标签");
+  // 未来的联赛场次要反映新东家的联赛（award 是展示行，没有轮次，排除掉）
+  const future=after.fixtures.filter(f=>f.month>=t.totalMonth&&f.status==="upcoming"&&f.type==="club");
+  assert.ok(future.length>0,"转会后还该有未来的联赛");
+  assert.ok(future.every(f=>/第\d+轮/.test(f.competition)),"未来的联赛场次都要有轮次标签");
 }
 
 /* 俱乐部比赛流程是异步的：关键时刻的选项里是 setTimeout(()=>stepKeyMoment(s),0)。
@@ -1112,7 +1121,8 @@ async function driveMatch(t,pick,cap=300){
     G.setState(t);G.advanceMonth();
     await driveMatch(t,()=>0,200);
   }
-  const ghosts=t.schedule.fixtures.filter(f=>f.month<t.totalMonth&&f.status==="upcoming");
+  /* award 是展示行不是比赛，fixtureRow 会把它渲染成「已结算」，不算幽灵。 */
+  const ghosts=t.schedule.fixtures.filter(f=>f.month<t.totalMonth&&f.status==="upcoming"&&f.type!=="award");
   assert.equal(ghosts.length,0,
     `跑到第${t.totalMonth}月还残留幽灵场次（月份在过去却未开打）：${[...ghosts.map(f=>f.month)].join(",")}`);
 }
@@ -1744,5 +1754,26 @@ console.log("模拟球员 architecture test passed");
   assert.equal(f.status,"played","打完要标记，否则会变成幽灵场次");
   assert.ok(f.result&&Number.isFinite(f.result.gf),"比分要写回赛程表");
   assert.ok(t.national.caps>capsBefore,"友谊赛也要计国家队出场");
+}
+
+// ===== 赛程不能跨赛季无限堆积 =====
+// ensureSchedule 会保留「已打过的」场次以免转会抹掉战绩，但少了赛季边界这道闸，
+// 每翻一季就把上一季整季留下——实测跑到第60月时「本赛季日程」列出 41 行、
+// 跨越第3~71月，而一季最多12场。
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<400){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("不堆积",allocation,[],"standard","mid");
+  G.setState(t);G.clearModalQueue();
+  for(let m=0;m<120&&!t.retired;m++){G.setState(t);G.advanceMonth();await drive(t)}
+  const ss=Math.floor(t.totalMonth/12)*12;
+  const stray=t.schedule.fixtures.filter(f=>f.month<ss&&f.type!=="wcq");
+  assert.equal(stray.length,0,
+    `赛程里残留了 ${stray.length} 场上赛季的比赛（月份 ${[...stray.map(f=>f.month)].join(",")}）——` +
+    `ensureSchedule 保留过去场次时漏了赛季边界，日程页会把历年比赛全列成「本赛季」`);
+  assert.ok(t.schedule.fixtures.length<=14,
+    `一季最多12场比赛+1行赛季评选，实际 ${t.schedule.fixtures.length} 行`);
 }
 
