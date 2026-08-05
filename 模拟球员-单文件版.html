@@ -1405,7 +1405,7 @@ function generateOffers(s,count=2,upgrade=false){if(ageInfo(s).age<18&&!s.flags.
 function acceptOffer(s,id){const offer=s.offers.find(o=>o.id===id);if(!offer)return;const from=s.club.name;s.club={name:offer.club,league:offer.league,strength:offer.strength};s.salary=offer.salary;s.transfers.unshift({month:s.totalMonth,from,to:offer.club,fee:offer.fee,role:offer.role});const cut=s.agent?s.agent.cut/100:0;addMoney(s,Math.round((offer.salary*.8+offer.fee*.05)*(1-cut)));if(cut)log(s,"story",`经纪人按${s.agent.cut}%抽成，签约金到手打了折。`);s.flags.wantsMove=false;s.offers=[];change(s,"coachFavor",offer.role==="核心"?65-s.coachFavor:50-s.coachFavor);change(s,"fame",offer.league==="英超"?10:4);if(offer.league==="英超")unlock("premier");log(s,"story",`转会完成：${from} → ${offer.club}，角色为${offer.role}。`);if(s.route==="pro"&&ageInfo(s).age>=18){makeSeasonGoal(s);if(s.seasonGoal)log(s,"story",`新东家给了新的赛季目标：${s.seasonGoal.text}。`)}}
 
 function nationalSelectionCheck(s){if(s.national.called||ageInfo(s).age<18)return false;const avg=s.seasonStats.matches?s.seasonStats.ratingTotal/s.seasonStats.matches:0;const threshold=(hasTalent(s,"red_shirt")?71:74)+diffOf(s).threshold;if(overall(s)>=threshold&&avg>=6.7+diffOf(s).threshold*.02){s.national.called=true;s.national.adapt=35;unlock("national");log(s,"story","中国国家队征召函抵达俱乐部。父亲把那张截图保存了三次。") ;return true}return false}
-function simulateNationalMatch(s,rng=Math.random,worldCup=false){const opp=pick(NATIONAL_OPPONENTS),player=overall(s),china=70+(player-70)*.45+(s.national.adapt||0)*.05+(hasTalent(s,"red_shirt")?2:0),edge=china-opp.strength+rndFloat(rng,-9,9),gf=poisson(clamp(1.1+edge/18,.2,3.2),rng),ga=poisson(clamp(1.15-edge/22,.2,3.1),rng),goals=gf>0&&rng()<clamp(.28+(player-65)/85,.2,.72)?Math.min(gf,rng()<.16?2:1):0,assists=gf-goals>0&&rng()<.32?1:0,report={opponent:opp.name,gf,ga,goals,assists,worldCup};s.national.caps++;s.statsCareer.nationalCaps++;s.national.goals+=goals;s.statsCareer.nationalGoals+=goals;if(goals)unlock("national_goal");change(s,"fitness",-12);change(s,"fame",goals*3+(gf>ga?2:0));log(s,gf>ga?"good":gf<ga?"bad":"story",`国家队${gf}-${ga}${opp.name}。你贡献${goals}球${assists}助。`);return report}
+function simulateNationalMatch(s,rng=Math.random,worldCup=false,fixed=null){const opp=fixed||pick(NATIONAL_OPPONENTS),player=overall(s),china=70+(player-70)*.45+(s.national.adapt||0)*.05+(hasTalent(s,"red_shirt")?2:0),edge=china-opp.strength+rndFloat(rng,-9,9),gf=poisson(clamp(1.1+edge/18,.2,3.2),rng),ga=poisson(clamp(1.15-edge/22,.2,3.1),rng),goals=gf>0&&rng()<clamp(.28+(player-65)/85,.2,.72)?Math.min(gf,rng()<.16?2:1):0,assists=gf-goals>0&&rng()<.32?1:0,report={opponent:opp.name,gf,ga,goals,assists,worldCup};s.national.caps++;s.statsCareer.nationalCaps++;s.national.goals+=goals;s.statsCareer.nationalGoals+=goals;if(goals)unlock("national_goal");change(s,"fitness",-12);change(s,"fame",goals*3+(gf>ga?2:0));log(s,gf>ga?"good":gf<ga?"bad":"story",`国家队${gf}-${ga}${opp.name}。你贡献${goals}球${assists}助。`);return report}
 
 function makeSeasonGoal(s){if(ageInfo(s).age<18||s.route!=="pro"){s.seasonGoal=null;return}
   const o=overall(s),club=currentClub(s),roll=Math.random();let goal;
@@ -1721,6 +1721,13 @@ function buildSchedule(s,rng=Math.random){
     else if(q)fixtures[i]={month:m,type:"wcq",wcMonth:q.wcMonth,round:q.round,
       opponent:"",strength:0,home:q.round%2===1,
       competition:`世预赛第${q.round}轮`,status:"upcoming",result:null};
+    /* 友谊赛每半年一场，同样取代当月俱乐部比赛。
+       以前它挂在 finishMonth 里、条件是「当月没有俱乐部比赛」——可职业期
+       每个月都有比赛，那条线实际上几乎永远不触发；而且它不在赛程表上，
+       主界面和日程页都预告不到，是凭空冒出来的一屏。 */
+    else if(m%6===0){const o=pick(NATIONAL_OPPONENTS);
+      fixtures[i]={month:m,type:"national",opponent:o.name,strength:o.strength,home:(m/6)%2===0,
+        competition:"国家队友谊赛",status:"upcoming",result:null}}
   }
   return {...scheduleSig(s),fixtures};
 }
@@ -2110,7 +2117,7 @@ function finishMonth(ctx){
   if(calledNow){queueNationalCall(S);ensureSchedule(S)}
   /* 没有「一屏跑完世预赛」的后路了。进不进得了决赛圈，由你自己踢的那六轮决定；
      没赶上那六轮（比如刚被征召），这一届就与你无关——四年后再来。 */
-  if(!calledNow&&S.national.called&&S.totalMonth%6===0&&!fixtureOfMonth(S))queueNationalReport(simulateNationalMatch(S));
+  // 友谊赛已经是赛程上的 type:"national" 场次，由 startMatchFlow 驱动，这里不再另开一路。
   if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);queueAward(seasonAwardCheck(S),S,goalResult);makeSeasonGoal(S)}
   if(a.age>=16&&!S.retired&&!S.challenge&&!(S.flags&&S.flags.washedOut))queueChallengeChoice(S);
   riskSettlement(S);breakupCheck(S);intimateCheck(S);checkAchievements(S);updateRanking(S);
@@ -2141,6 +2148,13 @@ function startMatchFlow(s,ctx){
   const fx=fixtureOfMonth(s);
   if(!fx){finishMonth(ctx);return}
   if(fx.type==="cup"){s.pendingMatch=null;modalBusy=false;startCupFinals(s,fx,ctx);return}
+  /* 友谊赛仍是一屏出结果（不走预告/关键时刻），但它现在是赛程上的一场，
+     结果要写回 fixture，日程页才看得到比分。 */
+  if(fx.type==="national"){
+    const r=simulateNationalMatch(s,Math.random,false,{name:fx.opponent,strength:fx.strength});
+    fx.status="played";fx.result={gf:r.gf,ga:r.ga,goals:r.goals,assists:r.assists,rating:0};
+    ctx.matchReportModal=null;queueNationalReport(r);finishMonth(ctx);return;
+  }
   s.pendingMatch={stage:"preview",fixture:fx,ctx,index:0,pending:null};
   modalBusy=false;
   stepMatchPreview(s);

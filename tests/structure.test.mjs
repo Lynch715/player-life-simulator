@@ -1699,3 +1699,50 @@ console.log("模拟球员 architecture test passed");
     "setupCupFinals 是那条重复入口，已经没人用了，不该留着诱导下一个人再接一次");
 }
 
+// ===== 国家队友谊赛必须排进赛程，不能凭空冒出来 =====
+// 以前它挂在 finishMonth 里、条件是「当月没有俱乐部比赛」——可职业期每个月
+// 都有比赛，那条线几乎永远不触发；而且它不在赛程表上，主界面和日程页都
+// 预告不到，是凭空弹出的一屏。
+{
+  const t=G.createInitialState("友谊赛",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=88);
+  t.totalMonth=48;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);
+  const nat=t.schedule.fixtures.filter(f=>f.type==="national");
+  assert.ok(nat.length>0,"被征召后赛程上就该有友谊赛");
+  nat.forEach(f=>{
+    assert.equal(f.month%6,0,`友谊赛每半年一场，第${f.month}月不该有`);
+    assert.ok(f.opponent&&f.strength>0,"友谊赛也要有对手和实力，主界面才预告得出来");
+    assert.equal(f.competition,"国家队友谊赛");
+  });
+  // 没被征召就不该有
+  const t2=G.createInitialState("没征召",allocation,[],"standard","mid");
+  t2.totalMonth=48;t2.flags.pro18=true;t2.route="pro";
+  t2.club={name:"上海海港",league:"中超",strength:79};
+  assert.equal(G.ensureSchedule(t2).fixtures.some(f=>f.type==="national"),false,
+    "没被征召过就不该有国家队日程");
+  // 旧的那条凭空触发的路必须已经拆掉
+  assert.ok(!/queueNationalReport\(simulateNationalMatch\(S\)\)/.test(code),
+    "友谊赛不该再由 finishMonth 里那条「当月没比赛才打」的死路触发");
+}
+// 友谊赛打完，结果要写回赛程表（日程页才看得到比分）
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<400){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("友谊赛结果",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=88);
+  t.totalMonth=53;t.flags.pro18=true;t.route="pro";t.national.called=true;
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
+  const capsBefore=t.national.caps;
+  G.advanceMonth();await drive(t);
+  const f=t.schedule.fixtures.find(x=>x.month===54);
+  assert.equal(f.type,"national","sanity: 第54月是友谊赛");
+  assert.equal(f.status,"played","打完要标记，否则会变成幽灵场次");
+  assert.ok(f.result&&Number.isFinite(f.result.gf),"比分要写回赛程表");
+  assert.ok(t.national.caps>capsBefore,"友谊赛也要计国家队出场");
+}
+
