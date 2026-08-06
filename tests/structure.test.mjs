@@ -1789,3 +1789,35 @@ console.log("模拟球员 architecture test passed");
   assert.ok(t.schedule.fixtures.length<=14,
     `一季最多12场比赛+1行赛季评选，实际 ${t.schedule.fixtures.length} 行`);
 }
+
+// ===== 球队实力用星级，不许写成并排数字 =====
+// 以前赛前预告是 <strong>58 : 74</strong>，读起来像篮球比分，
+// 而且 0~100 的原始数字对玩家没有直觉。改成 FIFA 那样的五星制。
+{
+  assert.equal(typeof G.strengthStars,"function","实力→星级要有一个统一函数，三条线共用");
+  // 边界与单调性
+  assert.equal(G.strengthStars(30),0.5,"再弱也至少半星");
+  assert.equal(G.strengthStars(200),5,"封顶五星");
+  assert.ok(G.strengthStars(93)>G.strengthStars(67),"越强星越多");
+  assert.ok(G.strengthStars(79)>G.strengthStars(64),"中超内部也要分得开");
+  // 半星粒度
+  [49,56,64,73,79,85,92].forEach(v=>{
+    const st=G.strengthStars(v);
+    assert.equal(st*2,Math.round(st*2),`${v} 的星级 ${st} 不是半星粒度`);
+    assert.ok(st>=0.5&&st<=5,`${v} 的星级 ${st} 越界`);
+  });
+  // 各档位要真的落在不同区间，否则星级没有区分度
+  assert.ok(G.strengthStars(56)<=1.5,"校园队最多1.5星");
+  assert.ok(G.strengthStars(92)>=4.5,"英超豪门至少4.5星");
+  // 渲染出来要有星轨和数字
+  const html=G.starRating(79);
+  assert.match(html,/star-track/,"星级要渲染成星轨");
+  assert.match(html,/实力值 79/,"原始数值放进 title，想抠细节的还能看到");
+  // 源码里不许再有「实力A : 实力B」这种并排写法
+  assert.ok(!/\$\{club\.strength\}\s*:\s*\$\{fx\.strength\}/.test(code),
+    "赛前预告不许再把双方实力并排写成比分");
+  assert.ok(!/（实力 \$\{opp\.strength\}）/.test(code),
+    "杯赛对阵不许再用「（实力 78）」这种裸数字");
+  assert.ok(!/对手实力 \$\{f\.strength\}/.test(code),
+    "日程页不许再用「对手实力 66」这种裸数字");
+}

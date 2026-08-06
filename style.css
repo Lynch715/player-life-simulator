@@ -90,3 +90,24 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .mini-track.sky i{background:linear-gradient(90deg,#3d7fa8,#5cc8e8)}
 .fixture-row.award{border-style:dashed;background:#0a1813}
 .fixture-row.award .fx-opp b{color:var(--gold);font-size:11px}
+
+/* 球队实力：FIFA 式五星，不再拿 58:74 当比分写 */
+.star-rating{display:inline-flex;align-items:center;gap:5px;line-height:1}
+.star-track{position:relative;display:inline-block;font-size:13px;line-height:1;letter-spacing:1px;color:#ffffff24;white-space:nowrap}
+.star-track:before{content:"★★★★★"}
+.star-track i{position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:var(--gold)}
+.star-track i:before{content:"★★★★★"}
+.star-rating b{font-size:10px;font-weight:900;color:var(--gold)}
+.star-rating.small .star-track{font-size:10px;letter-spacing:.5px}
+.star-rating.small b{font-size:9px;color:var(--muted)}
+
+/* 赛前预告的对阵板：队名在上，星级在下 */
+.matchup-board{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:12px 0;padding:14px 10px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(120deg,#12271e,#0a1813)}
+.matchup-side{text-align:center;min-width:0}
+.matchup-vs{text-align:center;color:var(--muted)}
+.matchup-vs span{display:block;font-size:8px;margin-bottom:3px;white-space:nowrap}
+.matchup-vs strong{font-size:15px;color:#8da298;letter-spacing:.05em}
+.team-strength b{display:block;font-size:13px;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team-strength small{display:block;margin-top:4px;font-size:9px;color:var(--muted)}
+.cup-side .star-rating{margin:4px 0 2px;justify-content:center}
+@media (max-width:760px){.matchup-board{gap:6px;padding:11px 6px}.team-strength b{font-size:11px}.star-track{font-size:11px}}
