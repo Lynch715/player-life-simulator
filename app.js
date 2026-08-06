@@ -1532,6 +1532,34 @@ const CUP_CONFIG={
   asian:{title:"亚洲杯",group:()=>AC_GROUP_POOL,elite:()=>AC_ELITE_POOL,
     honour:"亚洲杯冠军",icon:"亚",achievement:"asian_cup",counter:"asianCups",champFame:14}
 };
+/* 国旗是赛事信息的一部分，不再让玩家只读一串国家名。
+   这里用系统彩色 emoji 做小尺寸旗标：它比生图/网络图片稳定，离线也能显示，
+   赛事画面本身仍由独立美术素材负责。 */
+const COUNTRY_FLAGS=Object.freeze({
+  "中国":"🇨🇳","日本":"🇯🇵","韩国":"🇰🇷","伊朗":"🇮🇷","澳大利亚":"🇦🇺",
+  "沙特阿拉伯":"🇸🇦","卡塔尔":"🇶🇦","伊拉克":"🇮🇶","阿联酋":"🇦🇪","阿曼":"🇴🇲",
+  "越南":"🇻🇳","巴林":"🇧🇭","乌兹别克斯坦":"🇺🇿","泰国":"🇹🇭","墨西哥":"🇲🇽","塞内加尔":"🇸🇳","美国":"🇺🇸",
+  "瑞士":"🇨🇭","喀麦隆":"🇨🇲","哥伦比亚":"🇨🇴","波兰":"🇵🇱","摩洛哥":"🇲🇦",
+  "加纳":"🇬🇭","巴西":"🇧🇷","法国":"🇫🇷","阿根廷":"🇦🇷","英格兰":"🇬🇧",
+  "西班牙":"🇪🇸","葡萄牙":"🇵🇹","德国":"🇩🇪","荷兰":"🇳🇱","意大利":"🇮🇹",
+  "克罗地亚":"🇭🇷","比利时":"🇧🇪","乌拉圭":"🇺🇾"
+});
+function countryFlag(name){return COUNTRY_FLAGS[name]||"🏳️"}
+function flagBadge(name,label=name,compact=false){return `<span class="flag-badge${compact?" compact":""}" title="${esc(label)}国旗" aria-label="${esc(label)}国旗"><span class="flag-emoji" aria-hidden="true">${countryFlag(name)}</span>${compact?"":`<span>${esc(label)}</span>`}</span>`}
+function cupFixtureBoard(opp,stage="比赛日"){
+  const name=opp&&opp.name||"对手";
+  return `<div class="cup-fixture-board"><div class="cup-side"><span class="flag-hero" aria-hidden="true">${countryFlag("中国")}</span><b>中国</b><small>国家队</small></div><div class="cup-vs"><span>${esc(stage)}</span><strong>VS</strong></div><div class="cup-side"><span class="flag-hero" aria-hidden="true">${countryFlag(name)}</span><b>${esc(name)}</b><small>对手国家队</small></div></div>`
+}
+function cupOpeningCopy(cup,draw){
+  const cfg=CUP_CONFIG[cup];
+  const group=draw.group.map(o=>flagBadge(o.name,o.name)).join("");
+  const ko=draw.ko.map(o=>flagBadge(o.name,o.name,true)).join("");
+  return `<div class="cup-opening-copy ${cup}"><div class="cup-opening-label"><span class="flag-hero small" aria-hidden="true">${countryFlag("中国")}</span><div><b>中国国家队</b><small>${cfg.title} · 决赛圈</small></div></div><div class="cup-draw-block"><span>小组赛对手</span><div class="flag-list">${group}</div></div><div class="cup-draw-block knockout"><span>可能的淘汰赛对手</span><div class="flag-list compact-list">${ko}</div></div></div>`
+}
+function trophyPortrait(cup){
+  const world=cup==="world";
+  return `<div class="trophy-portrait ${world?"world":"asian"}" role="img" aria-label="${world?"世界杯":"亚洲杯"}冠军奖杯立绘"><div class="trophy-light"></div><div class="trophy-shape" aria-hidden="true">🏆</div><b>${world?"大力神杯":"亚洲杯"}</b><span>中国国家队 · 领奖台</span></div>`
+}
 function cupCfg(s){const run=s.national.cupRun;return CUP_CONFIG[(run&&run.cup)||"world"]}
 function cupDraw(rng,cfg){
   const take=(pool,n)=>{const c=[...pool],out=[];for(let k=0;k<n&&c.length;k++)out.push(c.splice(Math.floor(rng()*c.length),1)[0]);return out};
@@ -1695,7 +1723,7 @@ function cupFinalEve(s){
 function cupShootoutStep(s){
   const run=s.national.cupRun,so=run&&run.shootout;
   if(!so)return cupNext(s);
-  const board=()=>`<div class="match-score"><span class="match-team">中国</span><strong>${so.myScore} : ${so.oppScore}</strong><span class="match-team">${esc(so.oppName)}</span></div><p class="dialogue">第 ${Math.min(so.round,5)} 轮${so.sudden?" · 突然死亡":""}</p>`;
+  const board=()=>`${cupFixtureBoard({name:so.oppName},`点球 · 第${Math.min(so.round,5)}轮${so.sudden?" · 突然死亡":""}`)}<div class="shootout-score"><span>${countryFlag("中国")} 中国</span><strong>${so.myScore} : ${so.oppScore}</strong><span>${countryFlag(so.oppName)} ${esc(so.oppName)}</span></div>`;
   if(so.done)return cupShootoutFinish(s);
   if(so.sudden){
     const p=clamp(.46+(eff(s,"WIL")-70)/260+(hasTalent(s,"big_heart")?.06:0),.25,.75);
@@ -1743,7 +1771,7 @@ function cupKnockoutChoice(s){
   const run=s.national.cupRun,i=run.stage,cfg=cupCfg(s);
   const opp=i<3?run.group[i]:run.ko[i-3];
   enqueueFront({title:`${cfg.title} · ${CUP_STAGE_NAMES[i]} · 对阵 ${esc(opp.name)}`,
-    body:`<p>对手 <b>${esc(opp.name)}</b>（实力 ${opp.strength}）。选择本场基调：</p><p class="dialogue">稳守：少丢也少进，利于以弱抗强、拖进点球；全力压上：进球更多但后防更险；均衡：居中。</p>`,
+    body:`${cupFixtureBoard(opp,CUP_STAGE_NAMES[i])}<p>对手 <b>${flagBadge(opp.name,opp.name,true)} ${esc(opp.name)}</b>（实力 ${opp.strength}）。选择本场基调：</p><p class="dialogue">稳守：少丢也少进，利于以弱抗强、拖进点球；全力压上：进球更多但后防更险；均衡：居中。</p>`,
     options:[option("稳守反击","降低失球与进球，利于爆冷",()=>cupPlayMatch(s,"稳守")),
       option("攻守均衡","中规中矩",()=>cupPlayMatch(s,"均衡")),
       option("全力压上","多进球，风险更高",()=>cupPlayMatch(s,"强攻"))]},cfg.title);
@@ -1783,7 +1811,7 @@ function cupResolveMatch(s){
   const champion=i===6&&m.won;
   const resultLine=i>=3?(m.won?"晋级下一轮！":"止步于此。"):(i===2?(advance?"小组出线！":"小组赛出局。"):(m.gf>m.ga?"拿下三分。":m.gf===m.ga?"逼平对手。":"惜败。"));
   enqueueFront({title:`${CUP_STAGE_NAMES[i]} · 中国 ${m.gf}-${m.ga} ${esc(m.opp)}${m.pen?"（点球）":""}`,
-    body:`<div class="match-score"><span class="match-team">中国</span><strong>${m.gf} : ${m.ga}</strong><span class="match-team">${esc(m.opp)}</span></div>`+
+    body:cupFixtureBoard({name:m.opp},CUP_STAGE_NAMES[i])+`<div class="match-score"><span class="match-team">${flagBadge("中国","中国",true)} 中国</span><strong>${m.gf} : ${m.ga}</strong><span class="match-team">${flagBadge(m.opp,m.opp,true)} ${esc(m.opp)}</span></div>`+
       `<div class="timeline-list">${(m.momentLines||[]).map(t=>`<div class="timeline-row"><b>${t.minute}'</b><span>${esc(t.text)}</span></div>`).join("")}</div>`+
       `<p>你贡献 <b>${m.goals}</b> 球 ${m.assists} 助。${resultLine}</p><p class="dialogue">本场基调：${mentality}。</p>`,
     options:[option(champion?"捧起奖杯":advance?"继续":"接受结果","",()=>{
@@ -1811,11 +1839,11 @@ function cupFinish(s,champion){
     if(run.cup==="asian")s.flags.asianChampion=true;else s.flags.worldChampion=true;}
   const short=["小组1","小组2","小组3","十六强","八强","半决赛","决赛"];
   const wcGoals=run.results.reduce((p,x)=>p+x.goals,0);
-  enqueueFront({title:champion?(run.cup==="asian"?"中国队，亚洲之巅！":"中国队，世界冠军！"):`${cfg.title}之旅结束`,body:`<div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>中国 ${x.gf}-${x.ga} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option(champion?"走上领奖台":"离开球场","",()=>{
+  enqueueFront({title:champion?(run.cup==="asian"?"中国队，亚洲之巅！":"中国队，世界冠军！"):`${cfg.title}之旅结束`,body:`<div class="cup-summary-head"><span class="flag-hero small" aria-hidden="true">${countryFlag("中国")}</span><div><b>中国国家队</b><small>${cfg.title} · 本届战报</small></div></div><div class="story-list">${run.results.map(x=>`<div class="story-log"><time>${short[x.stage]}</time><div><h3>${flagBadge("中国","中国",true)} 中国 ${x.gf}-${x.ga} ${flagBadge(x.opp,x.opp,true)} ${esc(x.opp)}${x.pen?"（点球）":""}</h3><p>${x.stage>=3?(x.won?"晋级":"止步"):(x.gf>x.ga?"胜":x.gf===x.ga?"平":"负")} · 你 ${x.goals} 球</p></div></div>`).join("")}</div><p>本届你出场 ${run.results.length} 场，打进 <b>${wcGoals}</b> 球。${champion?'<span class="dialogue">七场比赛，你们一场一场赢到了最后。</span>':"四年后，还能再来一次。"}</p>`,options:[option(champion?"走上领奖台":"离开球场","",()=>{
   if(champion){const trophy=run.cup==="asian"
     ?{title:"亚洲杯",body:`<p>颁奖台比想象中矮，你上去的时候还差点踩空。奖杯递到手里，你才发现自己一直在笑，从终场哨响就没停过。</p><p>有人在你耳边喊了句什么，你没听清。你只想着一件事：这是我们的。</p>`}
     :{title:"大力神杯",body:`<p>队长把奖杯递过来的时候你没有马上接。你先把手在球衣上擦了两下——手心全是汗，你怕滑。</p><p>金属是凉的。比你想象中重。</p>`};
-  return enqueueFront({title:trophy.title,portrait:"assets/player.webp",body:trophy.body,options:[option("找看台","",()=>{
+  return enqueueFront({title:trophy.title,body:`${trophyPortrait(run.cup)}${trophy.body}`,options:[option("找看台","",()=>{
     enqueueFront({title:"看台",portrait:"assets/father.webp",body:`<p>你在人群里一排排地找。找到的时候他正把眼镜摘下来擦，擦了很久。</p><p>旁边那个位置上的人一直在挥手，从终场哨响到现在，没停过。</p>`,options:[option("记住这一届","这一届会写进你的生涯",()=>{s.national.cupRun=null;if(s.cupCtx){const c=s.cupCtx;s.cupCtx=null;finishMonth(c)}})]},`${cfg.title}冠军`);
   })]},`${cfg.title}冠军`);}
   const sc=cupOutroScene(s);
@@ -1895,11 +1923,12 @@ function finishMonth(ctx){
 function startCupFinals(s,fx,ctx){
   s.cupCtx=ctx||null;
   const cup=fx.cup||"world",cfg=CUP_CONFIG[cup],d=cupDraw(Math.random,cfg);
+  const scene=cup==="asian"?"assets/asian-cup-scene.webp":"assets/world-cup-scene.webp";
   s.national[cfg.counter]=(s.national[cfg.counter]||0)+1;
   s.national.cupRun={cup,stage:0,group:d.group,ko:d.ko,results:[],groupWins:0,groupPts:0,alive:true,moments:[],choices:[]};
   fx.status="played";fx.result={gf:0,ga:0,goals:0,assists:0,rating:0};
-  enqueueFront({title:`${cfg.title}抽签`,
-    body:`<p>小组赛对手：<b>${d.group.map(o=>esc(o.name)).join("、")}</b></p><p>若能出线，淘汰赛之路可能是：${d.ko.map(o=>esc(o.name)).join(" → ")}</p><p class="dialogue">小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p>`,
+  enqueueFront({title:`${cfg.title} · 抽签之夜`,portrait:scene,
+    body:`${cupOpeningCopy(cup,d)}<p>小组赛至少赢一场（或积满4分）即可出线；淘汰赛单场定胜负，平局进点球。</p><p class="dialogue">这不是普通的国家队比赛。从这一刻起，每一面国旗、每一次唱国歌，都会跟你的生涯一起被记住。</p>`,
     options:[option("开始小组赛","",()=>cupNext(s))]},cfg.title);
 }
 function startMatchFlow(s,ctx){
@@ -2131,6 +2160,6 @@ const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
-  getModalQueue:()=>modalQueue,clearModalQueue:()=>{modalQueue=[];modalBusy=false},resumeMatchFlow};
+  getModalQueue:()=>modalQueue,clearModalQueue:()=>{modalQueue=[];modalBusy=false},resumeMatchFlow,countryFlag,flagBadge,cupFixtureBoard,cupOpeningCopy,trophyPortrait};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);

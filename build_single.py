@@ -13,10 +13,12 @@ style = (ROOT / "style.css").read_text(encoding="utf-8")
 app = (ROOT / "app.js").read_text(encoding="utf-8")
 
 def data_uri(name: str) -> str:
-    return "data:image/webp;base64," + base64.b64encode((ROOT / name).read_bytes()).decode("ascii")
+    suffix = pathlib.Path(name).suffix.lower()
+    mime = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(suffix, "application/octet-stream")
+    return f"data:{mime};base64," + base64.b64encode((ROOT / name).read_bytes()).decode("ascii")
 
 # 收集被引用的图片
-refs = sorted(set(re.findall(r'assets/[\w-]+\.webp', index + app)))
+refs = sorted(set(re.findall(r'assets/[\w-]+\.(?:webp|png|jpg|jpeg)', index + app)))
 uris = {a: data_uri(a) for a in refs if (ROOT / a).exists()}
 
 # 1) 样式内联
@@ -28,12 +30,12 @@ for a, uri in uris.items():
 
 # 3) 脚本：PLAYER_ASSETS 前置 + app.js 里字面量替换
 player_assets = "const PLAYER_ASSETS = Object.freeze({" + ",".join('"%s":"%s"' % (a, uris[a]) for a in uris) + "});\n"
-app_t = re.sub(r'"(assets/[\w-]+\.webp)"', r'PLAYER_ASSETS["\1"]', app)
+app_t = re.sub(r'"(assets/[\w-]+\.(?:webp|png|jpg|jpeg))"', r'PLAYER_ASSETS["\1"]', app)
 html = html.replace('<script src="app.js"></script>', "<script>\n" + player_assets + app_t + "\n</script>")
 
 out = ROOT / "模拟球员-单文件版.html"
 out.write_text(html, encoding="utf-8")
-remaining = re.findall(r'src="assets/[\w-]+\.webp"', html)
+remaining = re.findall(r'src="assets/[\w-]+\.(?:webp|png|jpg|jpeg)"', html)
 print("已生成:", out.name, "| %.0f KB" % (out.stat().st_size/1024))
 print("  内联图片:", len(uris), "->", ", ".join(uris))
 print("  残留未内联 src=assets:", len(remaining), "(应0)")

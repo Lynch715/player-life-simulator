@@ -13,6 +13,19 @@ vm.runInContext(code,sandbox);
 const G=sandbox.window.PlayerLife;
 
 assert.ok(G,"PlayerLife engine should be exported");
+assert.equal(G.countryFlag("中国"),"🇨🇳","China must have an explicit flag");
+assert.equal(G.countryFlag("日本"),"🇯🇵","Asian opponents must have explicit flags");
+assert.match(G.cupOpeningCopy("asian",{group:[{name:"日本"}],ko:[{name:"韩国"}]}),/🇨🇳|🇯🇵|🇰🇷/,"cup opening visual includes flag badges");
+assert.match(G.trophyPortrait("world"),/大力神杯/,"World Cup celebration includes trophy art");
+assert.match(G.trophyPortrait("asian"),/亚洲杯/,"Asian Cup celebration includes trophy art");
+/* 任何一个会出现在弹窗里的国家队对手，都必须有自己的国旗——
+   漏一个就显示成白旗 🏳️。友谊赛池里的乌兹别克斯坦和泰国就这么漏过。 */
+{
+  const nations=[...code.matchAll(/name:"([\u4e00-\u9fa5A-Za-z ]+)",strength:/g)].map(m=>m[1])
+    .filter(n=>!/U16|U18|校队|中学|大学/.test(n));
+  const noFlag=[...new Set(nations)].filter(n=>G.countryFlag(n)==="🏳️");
+  assert.equal(noFlag.length,0,`这些国家队对手没有国旗，会显示成白旗：${noFlag.join(",")}`);
+}
 assert.equal(G.TALENTS.length,20,"exactly 20 football talents");
 assert.equal(new Set(G.TALENTS.map(x=>x.id)).size,20,"talent ids are unique");
 assert.ok(G.EVENTS.length>=24,"two-month event pool should resist repetition");
@@ -1776,4 +1789,3 @@ console.log("模拟球员 architecture test passed");
   assert.ok(t.schedule.fixtures.length<=14,
     `一季最多12场比赛+1行赛季评选，实际 ${t.schedule.fixtures.length} 行`);
 }
-
