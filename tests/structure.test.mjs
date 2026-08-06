@@ -892,6 +892,13 @@ assert.ok(!/plan-card|plan-grid/.test(code),"the renderer no longer emits the ol
   const t=G.createInitialState("职责",allocation,[],"standard","mid");
   assert.ok(G.MATCH_PLANS.some(p=>p.id===t.matchPlan),"新档仍有一个合法的默认职责");
 }
+/* desc 那句完整说明必须还有地方显示。行动页的控件删掉后它一度成了死数据——
+   而「疯狂逼抢」那句「DEF 够高才压得住，不够就是白跑一趟」正是玩家最需要
+   在按下去之前看到的告警，只留 effects 短标签是不够的。 */
+G.MATCH_PLANS.forEach(p=>assert.ok(code.includes(p.desc)||/p\.desc/.test(code),
+  `${p.id} 的 desc 没有任何地方在显示，成了死数据`));
+assert.match(code,/\$\{p\.effects\.join\(" · "\)\}——\$\{p\.desc\}/,
+  "赛前预告的每个职责选项要同时给出短标签和完整说明");
 
 // ===== 侧栏进度条不留孤儿配色 =====
 // 删掉「心情」那一行之后，.mini-track.violet 成了没人引用的死规则。

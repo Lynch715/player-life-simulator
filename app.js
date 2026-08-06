@@ -1986,7 +1986,7 @@ function stepMatchPreview(s){
       (s.seasonGoal?`<p class="dialogue">赛季目标：${esc(goalProgressText(s))}</p>`:"")+
       (s.challenge?`<p class="dialogue">教练挑战：${esc(s.challenge.text)}（${esc(challengeProgressText(s.challenge))}，剩余${Math.max(0,3-s.challenge.played)}场）</p>`:"")+
       `<p>本场你打算怎么踢？</p>`,
-    options:MATCH_PLANS.map(p=>option(`${p.icon} ${p.name}`,p.effects.join(" · "),()=>beginMatch(s,p.id)))},"赛前");
+    options:MATCH_PLANS.map(p=>option(`${p.icon} ${p.name}`,`${p.effects.join(" · ")}——${p.desc}`,()=>beginMatch(s,p.id)))},"赛前");
 }
 function beginMatch(s,plan){
   const pm=s.pendingMatch,fx=pm.fixture;
