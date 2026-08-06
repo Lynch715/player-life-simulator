@@ -873,18 +873,25 @@ assert.match(html,/id="radarOvr"/,"the radar panel headlines OVR");
 assert.ok(!html.includes('id="heightCm"'),"height is no longer a sidebar headline");
 assert.ok(!html.includes('id="statBars"'),"the old five-bar list is gone");
 
-// ===== 本场职责：分段控件 =====
-// 三张大卡在移动端会塌成单列竖排、高度翻三倍。改成一条 segmented +
-// 只显示当前选中项的说明行；三段文案仍留在数据里，只是不再同时全渲染。
+// ===== 本场职责只在赛前那一屏选，行动页不再常驻 =====
+// 每场比赛前都会弹预告让你选职责，行动页再放一个常驻控件就是两处设同一件事，
+// 而且玩家改了行动页那个、赛前又选一次，先后关系还容易搞混。
 assert.equal(G.MATCH_PLANS.length,3,"still exactly three match roles");
 G.MATCH_PLANS.forEach(p=>assert.ok(p.name&&p.desc&&Array.isArray(p.effects),
-  `${p.id} keeps its copy for the description row`));
+  `${p.id} keeps its copy for the pre-match screen`));
 const css=fs.readFileSync(path.join(root,"style.css"),"utf8");
 assert.ok(!css.includes(".plan-grid"),"the three-card grid is gone");
 assert.ok(!/\.plan-card/.test(css),"no stale plan-card rules remain");
-assert.ok(css.includes(".plan-seg"),"the segmented control is styled");
-assert.match(code,/data-plan=/,"role buttons still carry data-plan for the click handler");
+// 控件、样式、点击处理、以及只服务于它的 planOf 都要一起走，别留孤儿
+assert.ok(!/\.plan-seg/.test(css),"行动页的常驻职责控件删了，它的样式不该留成孤儿规则");
+assert.ok(!/plan-seg|data-plan=/.test(code),"渲染器不该再输出常驻职责控件");
+assert.ok(!/function planOf/.test(code),"planOf 只服务于那个控件，控件没了它也该走");
 assert.ok(!/plan-card|plan-grid/.test(code),"the renderer no longer emits the old card markup");
+// s.matchPlan 仍然保留：它现在是「赛前选完存下来的那个」，prepareMatch 还要读
+{
+  const t=G.createInitialState("职责",allocation,[],"standard","mid");
+  assert.ok(G.MATCH_PLANS.some(p=>p.id===t.matchPlan),"新档仍有一个合法的默认职责");
+}
 
 // ===== 侧栏进度条不留孤儿配色 =====
 // 删掉「心情」那一行之后，.mini-track.violet 成了没人引用的死规则。
