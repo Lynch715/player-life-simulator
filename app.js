@@ -1537,6 +1537,51 @@ function leagueStandings(lg){
   return [...(lg&&lg.teams||[])].sort((a,b)=>
     b.pts-a.pts || (b.gf-b.ga)-(a.gf-a.ga) || b.gf-a.gf || a.name.localeCompare(b.name));
 }
+/* 按「赛季 + 轮次」派生的确定性种子。
+   不这么做的话，读档、切 tab、重渲染都可能让已经打完的历史比分变样——
+   玩家会看到自己上个月明明赢了的那场，回头再看变成输了。 */
+function leagueRng(seasonNo,round){
+  let x=(((seasonNo*73856093)^(round*19349663))>>>0)||1;
+  return ()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+}
+/* 两支球队之间踢一场。只看实力差 + 随机，不带任何玩家个人加成——
+   玩家那场的比分是外面直接传进来的，不走这里。 */
+function simLeagueMatch(aStr,bStr,rng){
+  const edge=aStr-bStr+rndFloat(rng,-8,8);
+  return {gf:poisson(clamp(1.25+edge/18,.2,3.6),rng),ga:poisson(clamp(1.2-edge/22,.2,3.4),rng)};
+}
+function applyLeagueResult(row,gf,ga){
+  if(!row)return;
+  row.p++;row.gf+=gf;row.ga+=ga;
+  if(gf>ga){row.w++;row.pts+=3}else if(gf===ga){row.d++;row.pts+=1}else row.l++;
+}
+/* 推进一轮。play.opponent / play.result 是玩家那场的真实结果：
+   传了就原样计入（榜上那一行必须和赛程页、比赛简报是同一个结果），
+   传 null 表示玩家没上场——但球队不弃权，照样模拟，只是不带个人加成。
+   队伍数为奇数时每轮随机一队轮空，轮空不计场次。 */
+function advanceLeagueRound(s,play,round){
+  const lg=ensureLeague(s);if(!lg)return lg;
+  const rng=leagueRng(lg.season,round);
+  const byName=n=>lg.teams.find(t=>t.name===n);
+  const done=new Set();
+  if(play&&play.opponent&&play.result){
+    const me=byName(s.club.name),foe=byName(play.opponent);
+    if(me&&foe){
+      applyLeagueResult(me,play.result.gf,play.result.ga);
+      applyLeagueResult(foe,play.result.ga,play.result.gf);
+      done.add(me.name);done.add(foe.name);
+    }
+  }
+  const rest=shuffled(lg.teams.filter(t=>!done.has(t.name)),rng);
+  if(rest.length%2===1)rest.pop();          // 奇数：末位轮空，不计场次
+  for(let i=0;i<rest.length;i+=2){
+    const A=rest[i],B=rest[i+1];
+    const r=simLeagueMatch(A.strength,B.strength,rng);
+    applyLeagueResult(A,r.gf,r.ga);applyLeagueResult(B,r.ga,r.gf);
+  }
+  lg.played=Math.max(lg.played,round);
+  return lg;
+}
 /* 还有几次「结束本月」才打到这场。advanceMonth 是先 ++ 再判定，
    所以 month=totalMonth+1 的那场，下一次点「结束本月」就开打——
    那是「本月末」，不是「还有1个月」。差一位会让主界面一直骗玩家。 */
@@ -2204,7 +2249,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,opponentPool,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

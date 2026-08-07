@@ -1917,3 +1917,64 @@ console.log("模拟球员 architecture test passed");
   assert.equal(lg3.played,0,"换到英超是另一个联赛，必须重建");
   assert.equal(lg3.teams.length,20,"英超 20 队");
 }
+
+// ===== 每轮推进：全联盟必须内部自洽 =====
+// 「逐队独立掷 W/D/L」的写法算术上会崩：全联盟总胜场不等于总负场。
+// 玩家一加总就会发现这榜是假的。必须真实两两配对。
+{
+  const mk=(club,route,month)=>{
+    const t=G.createInitialState("推进",allocation,[],"standard","mid");
+    t.totalMonth=month;t.club=club;t.route=route;if(month>=48)t.flags.pro18=true;
+    G.ensureSchedule(t);G.ensureLeague(t);return t;
+  };
+  [["中超",{name:"上海海港",league:"中超",strength:79},"pro",60],
+   ["校园联赛",{name:"重庆市第七中学校队",league:"校园联赛",strength:55},"campus",24]]
+  .forEach(([label,club,route,month])=>{
+    const t=mk(club,route,month);
+    const N=t.league.teams.length;
+    for(let r=1;r<=3;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    const T=t.league.teams;
+    const W=T.reduce((n,x)=>n+x.w,0), L=T.reduce((n,x)=>n+x.l,0);
+    const D=T.reduce((n,x)=>n+x.d,0);
+    const GF=T.reduce((n,x)=>n+x.gf,0), GA=T.reduce((n,x)=>n+x.ga,0);
+    assert.equal(W,L,`${label} 全联盟总胜场(${W})必须等于总负场(${L})`);
+    assert.equal(D%2,0,`${label} 总平局数(${D})必须是偶数`);
+    assert.equal(GF,GA,`${label} 总进球(${GF})必须等于总失球(${GA})`);
+    T.forEach(x=>assert.equal(x.p,x.w+x.d+x.l,`${label} ${x.name} 场次与胜平负对不上`));
+    T.forEach(x=>assert.equal(x.pts,x.w*3+x.d,`${label} ${x.name} 积分算错`));
+    const maxP=Math.max.apply(null,T.map(x=>x.p));
+    const behind=T.filter(x=>x.p<maxP).length;
+    if(N%2===1)assert.equal(behind,3,`${label} 是${N}队（奇数），3轮后该有3支队各轮空一次，实际 ${behind}`);
+    else assert.equal(behind,0,`${label} 是${N}队（偶数），不该有人轮空`);
+  });
+}
+// 种子确定性：同一赛季同一轮，跑多少次结果都一样
+{
+  const mk=()=>{
+    const t=G.createInitialState("种子",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);return t;
+  };
+  const snap=t=>[...G.leagueStandings(t.league).map(x=>`${x.name}:${x.pts}:${x.gf}-${x.ga}`)].join("|");
+  const a=mk(),b=mk();
+  for(let r=1;r<=5;r++){G.advanceLeagueRound(a,{opponent:null,result:null},r);G.advanceLeagueRound(b,{opponent:null,result:null},r)}
+  assert.equal(snap(a),snap(b),"同赛季同轮次必须产出完全相同的结果——否则读档或重渲染会让历史比分变样");
+}
+// 玩家的比分直接进榜，不重算
+{
+  const t=G.createInitialState("直接进榜",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  const opp=t.league.teams.find(x=>x.name!==t.club.name).name;
+  G.advanceLeagueRound(t,{opponent:opp,result:{gf:4,ga:1}},1);
+  const me=t.league.teams.find(x=>x.name===t.club.name);
+  const foe=t.league.teams.find(x=>x.name===opp);
+  assert.equal(me.gf,4,"玩家进的球必须原样进榜，不能重新模拟");
+  assert.equal(me.ga,1,"玩家丢的球同理");
+  assert.equal(me.w,1,"4-1 是一场胜利");
+  assert.equal(foe.gf,1,"对手那边必须是镜像：进1");
+  assert.equal(foe.ga,4,"对手丢4");
+  assert.equal(foe.l,1,"对手记一负");
+}
