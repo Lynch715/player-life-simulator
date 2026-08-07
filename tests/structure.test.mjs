@@ -1888,3 +1888,32 @@ console.log("模拟球员 architecture test passed");
   assert.deepEqual([...out],["丙","丁","甲","乙"],
     `排序应为 积分→净胜球→进球→队名(升序)，实际 ${[...out].join(",")}`);
 }
+
+// ===== 联赛内部转会不该清空积分榜 =====
+// key 一度写成 `联赛|球队`，中超内部从重庆铜梁龙转到上海海港就会整张榜清零。
+// 但两边队名集合完全相同（leagueTeams = 自己 + opponentPool，中超永远是那16支），
+// 联赛不该因为你换了东家就重置——赛程显示打了6轮、榜显示0轮，玩家一眼看出是坏的。
+{
+  const t=G.createInitialState("转会",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  const lg1=G.ensureLeague(t);
+  lg1.teams.forEach((x,i)=>{x.p=6;x.pts=18-i});
+  lg1.played=6;
+  const namesBefore=[...lg1.teams.map(x=>x.name)].sort().join(",");
+
+  // 中超内部转会
+  t.club={name:"上海海港",league:"中超",strength:79};
+  const lg2=G.ensureLeague(t);
+  assert.equal(lg2.played,6,"联赛内部转会不该把已打轮次清零");
+  assert.equal(lg2.teams.find(x=>x.name==="上海海港").pts>0,true,"积分必须留着");
+  assert.equal([...lg2.teams.map(x=>x.name)].sort().join(","),namesBefore,
+    "sanity: 中超内部转会，队名集合本来就一样");
+
+  // 跨联赛必须重建
+  t.club={name:"Manchester United",league:"英超",strength:85};
+  const lg3=G.ensureLeague(t);
+  assert.equal(lg3.played,0,"换到英超是另一个联赛，必须重建");
+  assert.equal(lg3.teams.length,20,"英超 20 队");
+}
