@@ -1835,3 +1835,56 @@ console.log("模拟球员 architecture test passed");
   assert.ok(!/对手实力 \$\{f\.strength\}/.test(code),
     "日程页不许再用「对手实力 66」这种裸数字");
 }
+// ===== 联赛积分榜：赛季初建表 =====
+// 联赛冠军原本是掷骰子判的（wins/matches>=.7 之后再 rng()<.48），
+// 两个赛季表现一模一样，一个拿冠军一个没拿，玩家无从理解。
+{
+  const mk=(club,month,route,called)=>{
+    const t=G.createInitialState("榜",allocation,[],"standard","mid");
+    t.totalMonth=month;t.club=club;t.route=route;
+    if(month>=48)t.flags.pro18=true;
+    if(called)t.national.called=true;
+    G.ensureSchedule(t);return t;
+  };
+  const cases=[
+    ["中超",   {name:"上海海港",league:"中超",strength:79}, 60,"pro",  16],
+    ["英超",   {name:"Manchester United",league:"英超",strength:85}, 60,"pro",  20],
+    ["中超梯队",{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58}, 0,"academy",16],
+    ["校园联赛",{name:"重庆市第七中学校队",league:"校园联赛",strength:55},24,"campus",11],
+  ];
+  cases.forEach(([label,club,month,route,expectTeams])=>{
+    const t=mk(club,month,route,false);
+    const lg=G.ensureLeague(t);
+    assert.ok(lg&&Array.isArray(lg.teams),`${label} 应该建出积分榜`);
+    assert.equal(lg.teams.length,expectTeams,
+      `${label} 参赛队应为 ${expectTeams}，实际 ${lg.teams.length}`);
+    assert.ok(lg.teams.some(x=>x.name===club.name),`${label} 榜上必须有玩家自己的球队`);
+    assert.equal(new Set(lg.teams.map(x=>x.name)).size,lg.teams.length,`${label} 队名不能重复`);
+    const clubFx=t.schedule.fixtures.filter(f=>f.type==="club").length;
+    assert.equal(lg.rounds,clubFx,`${label} 轮次(${lg.rounds})必须等于赛程里的联赛场次(${clubFx})`);
+    lg.teams.forEach(x=>assert.equal(x.p+x.w+x.d+x.l+x.gf+x.ga+x.pts,0,`${label} 新表所有数据应为0`));
+  });
+}
+// 幂等：签名没变就不该重建
+{
+  const t=G.createInitialState("幂等",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);
+  const a1=G.ensureLeague(t),a2=G.ensureLeague(t);
+  assert.equal(a1,a2,"签名未变时必须返回同一个对象，不能每次重建（否则比分会被抹掉）");
+}
+// 排序：积分 → 净胜球 → 进球 → 队名
+{
+  const rows=[
+    {name:"乙",p:3,w:2,d:0,l:1,gf:5,ga:4,pts:6},
+    {name:"甲",p:3,w:2,d:0,l:1,gf:7,ga:6,pts:6},
+    {name:"丙",p:3,w:3,d:0,l:0,gf:3,ga:0,pts:9},
+    {name:"丁",p:3,w:2,d:0,l:1,gf:7,ga:6,pts:6},
+  ];
+  /* 甲和丁三项全同（6分、净胜+1、进7球），只能靠队名分先后。
+     队名按升序（足球惯例的字母序）：localeCompare 下「丁」在「甲」前。 */
+  const out=G.leagueStandings({teams:rows}).map(x=>x.name);
+  assert.deepEqual([...out],["丙","丁","甲","乙"],
+    `排序应为 积分→净胜球→进球→队名(升序)，实际 ${[...out].join(",")}`);
+}
