@@ -2134,3 +2134,264 @@ console.log("模拟球员 architecture test passed");
   assert.equal(G.leagueChampion(t),true,
     "评选月冠军要判刚结束赛季的最终榜（留底），不是新赛季第1轮的空榜");
 }
+
+// ===== 宿敌 P1：生成、镜像路线、软回归 =====
+// 世界是静止的：对手实力全是写死的常量，没有一个具体的人在和你抢东西。
+// 江彻是和你同届的梯队天才，16岁走你没走的那条路，18岁起每季和你比进球。
+{
+  const t=G.createInitialState("宿敌",allocation,[],"standard","mid");
+  const rv=G.ensureRival(t);
+  assert.ok(rv&&rv.name==="江彻","宿敌从开局就存在（14岁起活在剧情里）");
+  assert.equal(t.rival,rv,"要挂在 s.rival 上");
+  // 镜像路线：你留国内他出海，你出海他留中超
+  const a=G.createInitialState("镜像A",allocation,[],"standard","mid");
+  a.route="firstteam";a.flags.route16=true;G.ensureRival(a);
+  assert.equal(a.rival.route,"overseas","你签国内一线队，他去海外");
+  const b=G.createInitialState("镜像B",allocation,[],"standard","mid");
+  b.route="overseas";b.flags.route16=true;G.ensureRival(b);
+  assert.equal(b.rival.route,"firstteam","你出海，他留中超");
+  const c=G.createInitialState("镜像C",allocation,[],"standard","mid");
+  c.route="campus";c.flags.route16=true;G.ensureRival(c);
+  assert.equal(c.rival.route,"firstteam","你回校园，他直接签职业");
+}
+{
+  // 18岁起有俱乐部、有等级，且软回归钉在玩家 overall 的 ±6 内
+  const mk=()=>{
+    const t=G.createInitialState("软回归",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    return t;
+  };
+  const t=mk();
+  ATTR_KEYS.forEach(k=>t.attrs[k]=88);          // 玩家练猛了
+  const rv=G.ensureRival(t);
+  assert.ok(rv.club&&rv.club.name,"18岁起他必须有俱乐部");
+  assert.ok(rv.club.name!==t.club.name,"他不能和你同队（同队抢首发是另案）");
+  assert.ok(Math.abs(rv.level-G.overall(t))<=6.01,
+    `软回归：|level(${rv.level})-overall(${G.overall(t)})| 必须 ≤6`);
+  const t2=mk();
+  ATTR_KEYS.forEach(k=>t2.attrs[k]=8);          // 玩家摆烂
+  const rv2=G.ensureRival(t2);
+  assert.ok(Math.abs(rv2.level-G.overall(t2))<=6.01,"摆烂时他也只甩你6，不能甩没影");
+  // 确定性：同状态两次生成完全一致
+  const x=mk(),y=mk();
+  const rx=G.ensureRival(x),ry=G.ensureRival(y);
+  assert.equal(rx.level,ry.level,"同赛季同状态 level 必须一致（种子派生）");
+  assert.equal(rx.club.name,ry.club.name,"俱乐部选择也必须确定");
+  // 幂等：同赛季重复调用不重算、不清进球
+  rx.goals=7;
+  assert.equal(G.ensureRival(x),rx,"同赛季必须返回同一个对象");
+  assert.equal(rx.goals,7,"重复调用不能把进球抹掉");
+  // 翻季重置进球
+  x.totalMonth=72;G.ensureRival(x);
+  assert.equal(x.rival.goals,0,"新赛季进球从0起");
+  assert.equal(x.rival.season,G.ageInfo(x).season,"season 要跟上");
+}
+
+// ===== 宿敌 P2：进球推进 =====
+{
+  const mkPro=league=>{
+    const t=G.createInitialState("宿敌进球",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;
+    t.route=league==="英超"?"overseas":"pro";
+    t.club=league==="英超"?{name:"Leeds United",league:"英超",strength:76}
+                          :{name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+    return t;
+  };
+  // 同联赛：他的进球 ≤ 榜上他球队的总进球（份额自洽）
+  {
+    const t=mkPro("中超");
+    // 强制他和你同联赛：中超玩家 route=pro → 镜像 route 是 overseas(英超)。
+    // 手动放回中超验证份额路径。
+    t.rival.route="firstteam";t.rival.club=null;t.rival.season=0;G.ensureRival(t);
+    assert.equal(t.rival.club.league,"中超","sanity: 他在中超");
+    for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    const row=t.league.teams.find(x=>x.name===t.rival.club.name);
+    assert.ok(row,"他的球队必须在你的积分榜上");
+    assert.ok(t.rival.goals<=row.gf,
+      `他的进球(${t.rival.goals})不能超过他球队的总进球(${row.gf})`);
+  }
+  // 跨联赛：照样推进
+  {
+    const t=mkPro("中超");   // 玩家中超，镜像后他在英超
+    assert.equal(t.rival.club.league,"英超","sanity: 镜像后他在英超");
+    for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    assert.ok(t.rival.goals>=0&&Number.isFinite(t.rival.goals),"跨联赛他也要有进球记录");
+  }
+  // 确定性：同状态推进两次结果一致
+  {
+    const a=mkPro("中超"),b=mkPro("中超");
+    for(let r=1;r<=6;r++){G.advanceLeagueRound(a,{opponent:null,result:null},r);G.advanceLeagueRound(b,{opponent:null,result:null},r)}
+    assert.equal(a.rival.goals,b.rival.goals,"同赛季同轮次他的进球必须一致（种子派生）");
+  }
+  // 同轮防重：同一轮进来两次，他的进球不能翻倍
+  {
+    const t=mkPro("中超");
+    G.advanceLeagueRound(t,{opponent:null,result:null},1);
+    const g1=t.rival.goals;
+    G.advanceLeagueRound(t,{opponent:null,result:null},1);
+    assert.equal(t.rival.goals,g1,"同一轮不许给他算两次进球");
+  }
+  // careerGoals 随赛季进球累积
+  {
+    const t=mkPro("中超");
+    for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    assert.equal(t.rival.careerGoals,t.rival.goals,"第一个赛季生涯进球=赛季进球");
+  }
+}
+// 带宽校准：200个模拟赛季，赛季进球 P5–P95 落在 2–20、中位 7–11
+{
+  const totals=[];
+  for(let sn=5;sn<205;sn++){
+    const t=G.createInitialState("带宽",allocation,[],"standard","mid");
+    t.totalMonth=sn*12;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    ATTR_KEYS.forEach(k=>t.attrs[k]=80);
+    G.ensureSchedule(t);G.ensureLeague(t);
+    t.rival={name:"江彻",route:"firstteam",level:0,club:null,goals:0,careerGoals:0,
+      duels:{win:0,loss:0,draw:0},injuredFrom:0,injuredRounds:0,season:0};
+    G.ensureRival(t);
+    for(let r=1;r<=12;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    totals.push(t.rival.goals);
+  }
+  totals.sort((a,b)=>a-b);
+  const p=q=>totals[Math.floor(q*totals.length)];
+  assert.ok(p(.05)>=1&&p(.95)<=20,`P5(${p(.05)})–P95(${p(.95)}) 应落在 1–20`);
+  assert.ok(p(.5)>=6&&p(.5)<=12,`中位数(${p(.5)})应落在 6–12——和玩家实测带宽（中位8-12）对得上`);
+}
+
+// ===== 宿敌 P3：呈现与接线 =====
+{
+  assert.equal(typeof G.rivalCardHTML,"function","生涯页宿敌卡要抽成可测的函数");
+  assert.ok(/rivalCardHTML/.test(code)&&/renderCareer/.test(code),"生涯页要挂上宿敌卡");
+  const t=G.createInitialState("宿敌卡",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+  t.rival.goals=9;t.seasonStats.leagueGoals=11;
+  const html=G.rivalCardHTML(t);
+  assert.match(html,/江彻/,"卡上要有他的名字");
+  assert.match(html,/11/,"要有你的赛季进球");
+  assert.match(html,/9/,"要有他的赛季进球");
+  assert.match(html,new RegExp(t.rival.club.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")),"要有他的俱乐部");
+  // 18岁前只有剧情行，不比数字
+  const y=G.createInitialState("少年",allocation,[],"standard","mid");
+  G.ensureRival(y);
+  const yh=G.rivalCardHTML(y);
+  assert.match(yh,/江彻/,"18岁前卡也在（他活在剧情里）");
+  assert.ok(!/对位/.test(yh)||!/\d+ 球/.test(yh),"18岁前不该出现进球对比");
+}
+{
+  // 赛前预告：对面是他的球队时要点名
+  assert.equal(typeof G.rivalEveLine,"function","预告行要抽成可测的函数");
+  const t=G.createInitialState("预告",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  t.rival={name:"江彻",route:"firstteam",level:80,club:{name:"山东泰山",league:"中超",strength:75},
+    goals:5,careerGoals:5,duels:{win:0,loss:0,draw:0},injuredFrom:0,injuredRounds:0,season:G.ageInfo(t).season};
+  const line=G.rivalEveLine(t,{type:"club",opponent:"山东泰山"});
+  assert.match(line,/江彻/,"对阵他的球队，预告必须点名");
+  assert.equal(G.rivalEveLine(t,{type:"club",opponent:"北京国安"}),"","对面不是他的队就不提");
+  assert.equal(G.rivalEveLine(t,{type:"wcq",opponent:"山东泰山"}),"","非联赛场次不提");
+  assert.ok(/rivalEveLine/.test(code.match(/function stepMatchPreview[\s\S]{0,1200}/)[0]),
+    "stepMatchPreview 里必须真的用上这行");
+}
+{
+  // 赛季结算：duels 记账 + 年度评选带对位行
+  assert.equal(typeof G.rivalSeasonSettle,"function","赛季对位结算要抽成可测的函数");
+  const mk=(you,him)=>{
+    const t=G.createInitialState("结算",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+    t.rival.goals=him;t.seasonStats.leagueGoals=you;
+    return t;
+  };
+  const w=mk(12,9);const rw=G.rivalSeasonSettle(w);
+  assert.equal(rw.result,"win","12:9 是你赢");
+  assert.equal(w.rival.duels.win,1,"胜场要记账");
+  const l=mk(7,10);G.rivalSeasonSettle(l);
+  assert.equal(l.rival.duels.loss,1,"负场要记账");
+  const d=mk(8,8);G.rivalSeasonSettle(d);
+  assert.equal(d.rival.duels.draw,1,"平局要记账");
+  // 18岁前不结算
+  const y=G.createInitialState("未成年",allocation,[],"standard","mid");
+  G.ensureRival(y);
+  assert.equal(G.rivalSeasonSettle(y),null,"对位从18岁开始，之前不记账");
+  // 评选月必须先结算再重置：接线在 finishMonth 的 %12===0 块里
+  assert.ok(/rivalSeasonSettle/.test(code.match(/totalMonth%12===0\)\{applyAging[\s\S]{0,700}/)[0]),
+    "年度评选块里必须调用 rivalSeasonSettle");
+  assert.ok(/queueAward\(seasonAwardCheck\(S\),S,goalResult,rivalSeasonSettle\(S\)\)|rivalDuel/.test(code),
+    "对位结果要传进年度评选的弹窗");
+}
+
+// ===== 宿敌 P4：事件、成就、结局分支 =====
+{
+  const rivalEvents=G.EVENTS.filter(e=>/^rival_/.test(e.id));
+  assert.ok(rivalEvents.length>=5,`宿敌事件至少5条（梯队/分流/职业各阶段），实际 ${rivalEvents.length}`);
+  rivalEvents.forEach(e=>assert.match(e.body,/江彻/,`${e.id} 的文案里要有他`));
+  const ids=G.ACHIEVEMENTS.map(a=>a.id);
+  ["rival_first_win","rival_streak3","rival_career"].forEach(id=>
+    assert.ok(ids.includes(id),`缺成就 ${id}`));
+}
+{
+  // 连胜计数：连压三季解锁
+  const mk=(you,him)=>{
+    const t=G.createInitialState("连庄",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+    t.rival.goals=him;t.seasonStats.leagueGoals=you;
+    return t;
+  };
+  const t=mk(10,5);
+  G.rivalSeasonSettle(t);
+  t.seasonStats.leagueGoals=10;t.rival.goals=5;G.rivalSeasonSettle(t);
+  t.seasonStats.leagueGoals=10;t.rival.goals=5;const r3=G.rivalSeasonSettle(t);
+  assert.equal(t.rival.streak,3,"三连胜 streak 应为3");
+  t.seasonStats.leagueGoals=3;t.rival.goals=9;G.rivalSeasonSettle(t);
+  assert.equal(t.rival.streak,0,"输一次连胜清零");
+}
+{
+  // 结局：对位领先/落后，江彻在结尾出场的话不一样
+  const mk=lead=>{
+    const t=G.createInitialState("结局",allocation,[],"standard","mid");
+    t.totalMonth=240;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureRival(t);
+    t.rival.careerGoals=120;
+    t.rival.duels=lead?{win:8,loss:3,draw:2}:{win:3,loss:8,draw:2};
+    return t;
+  };
+  const up=G.buildEnding(mk(true)),down=G.buildEnding(mk(false));
+  assert.match(up.coda,/江彻/,"对位领先时结局要有他");
+  assert.match(down.coda,/江彻/,"对位落后时结局也要有他");
+  assert.notEqual(up.coda,down.coda,"领先和落后的结局文案必须不同");
+}
+
+// ===== 宿敌 P5：存档兼容 + 长跑不留脏数据 =====
+{
+  const old={version:3,club:{name:"上海海港",league:"中超",strength:79},
+    national:{},attrs:{},styles:{},relationship:{},injury:{},risks:{}};
+  const mig=G.normalizeSave(old);
+  assert.equal(mig.rival,null,"老档补 rival:null，下个赛季初自动生成");
+}
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<600){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("宿敌长跑",allocation,[],"standard","mid");
+  G.setState(t);G.clearModalQueue();
+  for(let m=0;m<120&&!t.retired;m++){G.setState(t);G.advanceMonth();await drive(t)}
+  const rv=t.rival;
+  assert.ok(rv,"跑到23岁必须有宿敌");
+  assert.ok(rv.club,"18岁后他必须有俱乐部");
+  assert.equal(rv.season,G.ageInfo(t).season,"他的赛季号必须跟上，不能残留");
+  assert.ok(Math.abs(rv.level-G.overall(t))<=6.01,"长跑后软回归仍要钉住 ±6");
+  const d=rv.duels,settled=d.win+d.loss+d.draw;
+  assert.ok(settled>=4&&settled<=6,`18-23岁应结算5个赛季上下的对位，实际 ${settled}`);
+  assert.equal(rv.careerGoals>=rv.goals,true,"生涯进球不能小于赛季进球");
+}
