@@ -1136,13 +1136,28 @@ function simulateNationalMatch(s,rng=Math.random,worldCup=false,fixed=null){cons
 
 function makeSeasonGoal(s){if(ageInfo(s).age<18||s.route!=="pro"){s.seasonGoal=null;return}
   const o=overall(s),club=currentClub(s),roll=Math.random();let goal;
-  if(club.tier===3||o<club.strength-4)goal={kind:"survive",target:6,text:`帮${s.club.name}至少赢下6场，别掉进降级区`};
+  if(club.tier===3||o<club.strength-4)goal={kind:"survive",target:3,text:`帮${s.club.name}守住联赛排名，赛季末别落进榜尾三名`};
   else if(roll<.5){const t=Math.max(6,Math.round((o-58)/3)+(s.club.league==="英超"?2:0));goal={kind:"goals",target:t,text:`本赛季至少打进${t}球`}}
   else goal={kind:"rating",target:7,text:"本赛季平均评分不低于7.0"};
   goal.season=ageInfo(s).season;s.seasonGoal=goal;log(s,"story",`教练组给了本赛季目标：${goal.text}。`)}
-function goalProgressText(s){const g=s.seasonGoal;if(!g)return"";const ss=s.seasonStats,avg=ss.matches?(ss.ratingTotal/ss.matches).toFixed(1):"—";return g.kind==="goals"?`${g.text}（已进${ss.goals}球）`:g.kind==="rating"?`${g.text}（当前${avg}）`:`${g.text}（已赢${ss.wins}场）`}
+function goalProgressText(s){const g=s.seasonGoal;if(!g)return"";const ss=s.seasonStats,avg=ss.matches?(ss.ratingTotal/ss.matches).toFixed(1):"—";return g.kind==="goals"?`${g.text}（已进${ss.goals}球）`:g.kind==="rating"?`${g.text}（当前${avg}）`:`${g.text}（${leagueRankText(s)||`已赢${ss.wins}场`}）`}
+/* 榜尾三名算降级区。这条目标的文案一直写着「别掉进降级区」，
+   但判定只看 wins>=6，跟排名毫无关系——现在它第一次名副其实。
+   注意：这里不引入真正的升降级机制（那会牵动转会、合同、声望一整串），
+   只是让目标判定对得上它自己的文案。 */
+function inRelegationZone(s){
+  const lg=s.league;if(!lg||!lg.teams.length||!lg.played)return false;
+  const st=leagueStandings(lg);
+  return st.slice(-3).some(x=>x.name===s.club.name);
+}
+/* 保级目标的进度不再报胜场——判定看的是排名，进度也得报排名，两边说一件事。 */
+function leagueRankText(s){
+  const lg=s.league;if(!lg||!lg.teams.length||!lg.played)return"";
+  const st=leagueStandings(lg),i=st.findIndex(x=>x.name===s.club.name);
+  return i<0?"":`当前第${i+1}名`;
+}
 function evaluateSeasonGoal(s){const g=s.seasonGoal;if(!g)return null;const ss=s.seasonStats,avg=ss.matches?ss.ratingTotal/ss.matches:0;let met=false;
-  if(g.kind==="goals")met=ss.goals>=g.target;else if(g.kind==="rating")met=avg>=g.target&&ss.matches>=6;else if(g.kind==="survive")met=ss.wins>=g.target;
+  if(g.kind==="goals")met=ss.goals>=g.target;else if(g.kind==="rating")met=avg>=g.target&&ss.matches>=6;else if(g.kind==="survive")met=!inRelegationZone(s);
   if(met){change(s,"coachFavor",10);change(s,"fame",4);const bonus=Math.round((s.salary||4)*2);addMoney(s,bonus);log(s,"good",`完成赛季目标（${g.text}），拿到 ${bonus} 万奖金，教练更信任你。`)}
   else{s.goalFails=(s.goalFails||0)+1;change(s,"coachFavor",-12);change(s,"form",-8);log(s,"bad",`没完成赛季目标（${g.text}），你被挤出核心轮换。`);
     if(g.kind==="survive"){s.club.strength=Math.max(58,s.club.strength-6);s.salary=Math.max(2,Math.round((s.salary||4)*.75));log(s,"bad",`${s.club.name}降级，球队实力和你的薪水一起缩水。`)}
@@ -1234,7 +1249,14 @@ function queueChallengeChoice(s){
       ()=>{s.challenge={id:`c${Date.now()}${Math.random().toString(36).slice(2,5)}`,tier:p.def.tier,kind:p.goal.kind,target:p.goal.target,text:p.goal.text,played:0,acc:newChallengeAcc()};
            log(s,"story",`接下未来三场的教练挑战：${p.goal.text}。`)},p.def.tone))},"三场挑战");
 }
-function seasonAwardCheck(s,rng=Math.random){const ss=s.seasonStats,avg=ss.matches?ss.ratingTotal/ss.matches:0,score=overall(s)*.48+ss.goals*1.15+ss.assists*.65+ss.trophies*7+(s.club.league==="英超"?6:0)+(s.national.goals||0)*.25+avg*1.6+rndFloat(rng,-5,6),ballon=score>=92+diffOf(s).threshold*1.5,leagueTitle=ss.matches>=7&&ss.wins/ss.matches>=.7&&overall(s)>=currentClub(s).strength-2&&rng()<.48-diffOf(s).threshold*.02;
+/* 排第一就是冠军。旧写法是满足胜率与实力门槛后再掷一次 48% 的骰子——
+   两个赛季表现一模一样、一个拿冠军一个没拿，玩家无从理解。
+   现在你把重庆铜梁龙（实力67）带到榜首，那是真的打出来的。 */
+function leagueChampion(s){
+  const lg=s.league;if(!lg||!lg.teams.length||!lg.played)return false;
+  return leagueStandings(lg)[0].name===s.club.name;
+}
+function seasonAwardCheck(s,rng=Math.random){const ss=s.seasonStats,avg=ss.matches?ss.ratingTotal/ss.matches:0,score=overall(s)*.48+ss.goals*1.15+ss.assists*.65+ss.trophies*7+(s.club.league==="英超"?6:0)+(s.national.goals||0)*.25+avg*1.6+rndFloat(rng,-5,6),ballon=score>=92+diffOf(s).threshold*1.5,leagueTitle=leagueChampion(s);
   if(leagueTitle){const title=`${s.club.league}冠军`;s.honours.unshift({title,season:ageInfo(s).season,icon:"♛",detail:s.club.name});ss.trophies++;unlock("league_title")}
   if(ballon){s.awards.unshift({title:"金球奖",season:ageInfo(s).season,score:Math.round(score)});s.honours.unshift({title:"金球奖",season:ageInfo(s).season,icon:"●",detail:`评选指数 ${Math.round(score)}`});unlock("ballon");change(s,"fame",15)}
   const result={score:Math.round(score),ballon,leagueTitle,avg:Number(avg.toFixed(1)),goals:ss.goals,assists:ss.assists};s.lastSeasonAward=result;s.seasonStats={matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0};updateRanking(s);return result}
@@ -2288,7 +2310,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

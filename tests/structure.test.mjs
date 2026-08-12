@@ -2038,3 +2038,51 @@ console.log("模拟球员 architecture test passed");
   const rows=(html.match(/<tr/g)||[]).length-1;   // 减掉表头
   assert.equal(rows,t.league.teams.length,`榜上应有 ${t.league.teams.length} 行，实际 ${rows}`);
 }
+
+// ===== 联赛冠军：排第一就是冠军，不再掷骰子 =====
+{
+  assert.ok(!/leagueTitle=ss\.matches>=7/.test(code),
+    "旧的掷骰子判定要废掉：wins/matches>=.7 之后再 rng()<.48，两个赛季表现一样却结果不同");
+  const mk=first=>{
+    const t=G.createInitialState("冠军",allocation,[],"standard","mid");
+    t.totalMonth=71;t.flags.pro18=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);
+    // 手动把榜做成「玩家第一」或「玩家垫底」
+    /* 其他队积分各不相同——全员同分会走到「队名升序」的决胜排序，
+       上海海港可能纯靠名字排到榜首，测试就测歪了 */
+    t.league.teams.forEach((x,i)=>{x.p=10;x.w=2;x.d=1;x.l=7;x.gf=8;x.ga=20;x.pts=7+i});
+    const me=t.league.teams.find(x=>x.name===t.club.name);
+    if(first){me.w=9;me.d=1;me.l=0;me.gf=30;me.ga=5;me.pts=99}else{me.pts=1}
+    t.league.played=10;
+    t.seasonStats={matches:10,goals:12,assists:5,wins:first?9:2,ratingTotal:75,trophies:0};
+    return t;
+  };
+  const champ=G.seasonAwardCheck(mk(true),()=>0.99);
+  assert.equal(champ.leagueTitle,true,"榜首就该拿冠军，且不受随机数影响（这里 rng 固定给 0.99）");
+  const nope=G.seasonAwardCheck(mk(false),()=>0.01);
+  assert.equal(nope.leagueTitle,false,"不是榜首就没有冠军，同样不受随机数影响");
+}
+// ===== 保级目标接真实榜尾 =====
+{
+  assert.ok(!/kind==="survive"\)met=ss\.wins>=g\.target/.test(code),
+    "保级目标不该再只看胜场数——它的文案写着「别掉进降级区」");
+  const mk=safe=>{
+    const t=G.createInitialState("保级",allocation,[],"standard","mid");
+    t.totalMonth=71;t.flags.pro18=true;t.route="pro";
+    t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+    G.ensureSchedule(t);G.ensureLeague(t);
+    t.league.teams.forEach((x,i)=>{x.p=10;x.pts=60-i*3;x.gf=20;x.ga=10});
+    const me=t.league.teams.find(x=>x.name===t.club.name);
+    t.league.teams.filter(x=>x!==me).forEach((x,i)=>{x.pts=100-i*3});
+    me.pts=safe?999:0;   // 安全=遥遥领先；不安全=垫底
+    t.league.played=10;
+    t.seasonGoal={kind:"survive",target:3,text:"保级",season:G.ageInfo(t).season};
+    t.seasonStats={matches:10,goals:2,assists:1,wins:8,ratingTotal:65,trophies:0};
+    return t;
+  };
+  const doomed=G.evaluateSeasonGoal(mk(false));
+  assert.equal(doomed.met,false,"掉进榜尾三名 = 保级失败，哪怕赢了8场");
+  const safe=G.evaluateSeasonGoal(mk(true));
+  assert.equal(safe.met,true,"榜上安全就是完成保级");
+}
