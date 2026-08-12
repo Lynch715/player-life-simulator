@@ -101,3 +101,13 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .team-strength small{display:block;margin-top:4px;font-size:9px;color:var(--muted)}
 .cup-side .star-rating{margin:4px 0 2px;justify-content:center}
 @media (max-width:760px){.matchup-board{gap:6px;padding:11px 6px}.team-strength b{font-size:11px}.star-track{font-size:11px}}
+
+/* 联赛积分榜：复用 .rank-table 的骨架，只调列宽与强调色 */
+.league-table td:nth-child(2){font-weight:800}
+.league-table td:last-child{color:var(--gold);font-weight:900}
+.league-table tr.me td{color:var(--green);background:#28d27d0d}
+.league-table .lt-you{font-size:8px;color:var(--green);margin-left:4px}
+@media (max-width:760px){
+  .league-table th:nth-child(4),.league-table td:nth-child(4),
+  .league-table th:nth-child(5),.league-table td:nth-child(5){display:none}
+}

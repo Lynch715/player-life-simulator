@@ -1835,3 +1835,302 @@ console.log("模拟球员 architecture test passed");
   assert.ok(!/对手实力 \$\{f\.strength\}/.test(code),
     "日程页不许再用「对手实力 66」这种裸数字");
 }
+// ===== 联赛积分榜：赛季初建表 =====
+// 联赛冠军原本是掷骰子判的（wins/matches>=.7 之后再 rng()<.48），
+// 两个赛季表现一模一样，一个拿冠军一个没拿，玩家无从理解。
+{
+  const mk=(club,month,route,called)=>{
+    const t=G.createInitialState("榜",allocation,[],"standard","mid");
+    t.totalMonth=month;t.club=club;t.route=route;
+    if(month>=48)t.flags.pro18=true;
+    if(called)t.national.called=true;
+    G.ensureSchedule(t);return t;
+  };
+  const cases=[
+    ["中超",   {name:"上海海港",league:"中超",strength:79}, 60,"pro",  16],
+    ["英超",   {name:"Manchester United",league:"英超",strength:85}, 60,"pro",  20],
+    ["中超梯队",{name:"重庆铜梁龙 U16",league:"中超梯队",strength:58}, 0,"academy",16],
+    ["校园联赛",{name:"重庆市第七中学校队",league:"校园联赛",strength:55},24,"campus",11],
+  ];
+  cases.forEach(([label,club,month,route,expectTeams])=>{
+    const t=mk(club,month,route,false);
+    const lg=G.ensureLeague(t);
+    assert.ok(lg&&Array.isArray(lg.teams),`${label} 应该建出积分榜`);
+    assert.equal(lg.teams.length,expectTeams,
+      `${label} 参赛队应为 ${expectTeams}，实际 ${lg.teams.length}`);
+    assert.ok(lg.teams.some(x=>x.name===club.name),`${label} 榜上必须有玩家自己的球队`);
+    assert.equal(new Set(lg.teams.map(x=>x.name)).size,lg.teams.length,`${label} 队名不能重复`);
+    const clubFx=t.schedule.fixtures.filter(f=>f.type==="club").length;
+    assert.equal(lg.rounds,clubFx,`${label} 轮次(${lg.rounds})必须等于赛程里的联赛场次(${clubFx})`);
+    lg.teams.forEach(x=>assert.equal(x.p+x.w+x.d+x.l+x.gf+x.ga+x.pts,0,`${label} 新表所有数据应为0`));
+  });
+}
+// 幂等：签名没变就不该重建
+{
+  const t=G.createInitialState("幂等",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);
+  const a1=G.ensureLeague(t),a2=G.ensureLeague(t);
+  assert.equal(a1,a2,"签名未变时必须返回同一个对象，不能每次重建（否则比分会被抹掉）");
+}
+// 排序：积分 → 净胜球 → 进球 → 队名
+{
+  const rows=[
+    {name:"乙",p:3,w:2,d:0,l:1,gf:5,ga:4,pts:6},
+    {name:"甲",p:3,w:2,d:0,l:1,gf:7,ga:6,pts:6},
+    {name:"丙",p:3,w:3,d:0,l:0,gf:3,ga:0,pts:9},
+    {name:"丁",p:3,w:2,d:0,l:1,gf:7,ga:6,pts:6},
+  ];
+  /* 甲和丁三项全同（6分、净胜+1、进7球），只能靠队名分先后。
+     队名按升序（足球惯例的字母序）：localeCompare 下「丁」在「甲」前。 */
+  const out=G.leagueStandings({teams:rows}).map(x=>x.name);
+  assert.deepEqual([...out],["丙","丁","甲","乙"],
+    `排序应为 积分→净胜球→进球→队名(升序)，实际 ${[...out].join(",")}`);
+}
+
+// ===== 联赛内部转会不该清空积分榜 =====
+// key 一度写成 `联赛|球队`，中超内部从重庆铜梁龙转到上海海港就会整张榜清零。
+// 但两边队名集合完全相同（leagueTeams = 自己 + opponentPool，中超永远是那16支），
+// 联赛不该因为你换了东家就重置——赛程显示打了6轮、榜显示0轮，玩家一眼看出是坏的。
+{
+  const t=G.createInitialState("转会",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+  G.ensureSchedule(t);
+  const lg1=G.ensureLeague(t);
+  lg1.teams.forEach((x,i)=>{x.p=6;x.pts=18-i});
+  lg1.played=6;
+  const namesBefore=[...lg1.teams.map(x=>x.name)].sort().join(",");
+
+  // 中超内部转会
+  t.club={name:"上海海港",league:"中超",strength:79};
+  const lg2=G.ensureLeague(t);
+  assert.equal(lg2.played,6,"联赛内部转会不该把已打轮次清零");
+  assert.equal(lg2.teams.find(x=>x.name==="上海海港").pts>0,true,"积分必须留着");
+  assert.equal([...lg2.teams.map(x=>x.name)].sort().join(","),namesBefore,
+    "sanity: 中超内部转会，队名集合本来就一样");
+
+  // 跨联赛必须重建
+  t.club={name:"Manchester United",league:"英超",strength:85};
+  const lg3=G.ensureLeague(t);
+  assert.equal(lg3.played,0,"换到英超是另一个联赛，必须重建");
+  assert.equal(lg3.teams.length,20,"英超 20 队");
+}
+
+// ===== 每轮推进：全联盟必须内部自洽 =====
+// 「逐队独立掷 W/D/L」的写法算术上会崩：全联盟总胜场不等于总负场。
+// 玩家一加总就会发现这榜是假的。必须真实两两配对。
+{
+  const mk=(club,route,month)=>{
+    const t=G.createInitialState("推进",allocation,[],"standard","mid");
+    t.totalMonth=month;t.club=club;t.route=route;if(month>=48)t.flags.pro18=true;
+    G.ensureSchedule(t);G.ensureLeague(t);return t;
+  };
+  [["中超",{name:"上海海港",league:"中超",strength:79},"pro",60],
+   ["校园联赛",{name:"重庆市第七中学校队",league:"校园联赛",strength:55},"campus",24]]
+  .forEach(([label,club,route,month])=>{
+    const t=mk(club,route,month);
+    const N=t.league.teams.length;
+    for(let r=1;r<=3;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    const T=t.league.teams;
+    const W=T.reduce((n,x)=>n+x.w,0), L=T.reduce((n,x)=>n+x.l,0);
+    const D=T.reduce((n,x)=>n+x.d,0);
+    const GF=T.reduce((n,x)=>n+x.gf,0), GA=T.reduce((n,x)=>n+x.ga,0);
+    assert.equal(W,L,`${label} 全联盟总胜场(${W})必须等于总负场(${L})`);
+    assert.equal(D%2,0,`${label} 总平局数(${D})必须是偶数`);
+    assert.equal(GF,GA,`${label} 总进球(${GF})必须等于总失球(${GA})`);
+    T.forEach(x=>assert.equal(x.p,x.w+x.d+x.l,`${label} ${x.name} 场次与胜平负对不上`));
+    T.forEach(x=>assert.equal(x.pts,x.w*3+x.d,`${label} ${x.name} 积分算错`));
+    const maxP=Math.max.apply(null,T.map(x=>x.p));
+    const behind=T.filter(x=>x.p<maxP).length;
+    if(N%2===1)assert.equal(behind,3,`${label} 是${N}队（奇数），3轮后该有3支队各轮空一次，实际 ${behind}`);
+    else assert.equal(behind,0,`${label} 是${N}队（偶数），不该有人轮空`);
+  });
+}
+// 种子确定性：同一赛季同一轮，跑多少次结果都一样
+{
+  const mk=()=>{
+    const t=G.createInitialState("种子",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);return t;
+  };
+  const snap=t=>[...G.leagueStandings(t.league).map(x=>`${x.name}:${x.pts}:${x.gf}-${x.ga}`)].join("|");
+  const a=mk(),b=mk();
+  for(let r=1;r<=5;r++){G.advanceLeagueRound(a,{opponent:null,result:null},r);G.advanceLeagueRound(b,{opponent:null,result:null},r)}
+  assert.equal(snap(a),snap(b),"同赛季同轮次必须产出完全相同的结果——否则读档或重渲染会让历史比分变样");
+}
+// 玩家的比分直接进榜，不重算
+{
+  const t=G.createInitialState("直接进榜",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  const opp=t.league.teams.find(x=>x.name!==t.club.name).name;
+  G.advanceLeagueRound(t,{opponent:opp,result:{gf:4,ga:1}},1);
+  const me=t.league.teams.find(x=>x.name===t.club.name);
+  const foe=t.league.teams.find(x=>x.name===opp);
+  assert.equal(me.gf,4,"玩家进的球必须原样进榜，不能重新模拟");
+  assert.equal(me.ga,1,"玩家丢的球同理");
+  assert.equal(me.w,1,"4-1 是一场胜利");
+  assert.equal(foe.gf,1,"对手那边必须是镜像：进1");
+  assert.equal(foe.ga,4,"对手丢4");
+  assert.equal(foe.l,1,"对手记一负");
+}
+
+// ===== 两条路径都要推进联赛 =====
+{
+  // 路径一：玩家上场
+  const t=G.createInitialState("上场",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=80);
+  t.totalMonth=59;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  await driveMatch(t,()=>0);
+  const fx=t.schedule.fixtures.find(f=>f.month===60);
+  const me=t.league.teams.find(x=>x.name===t.club.name);
+  assert.ok(t.league.played>=1,"打完一场后联赛必须推进了一轮");
+  if(fx&&fx.status==="played"&&fx.result){
+    assert.equal(me.gf,fx.result.gf,"榜上的进球必须与赛程页那场完全一致");
+    assert.equal(me.ga,fx.result.ga,"榜上的失球同理");
+  }
+}
+{
+  // 路径二：玩家伤停缺阵，球队照样要踢
+  const t=G.createInitialState("伤停",allocation,[],"standard","mid");
+  t.totalMonth=59;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  t.injury={name:"膝伤",months:3,risk:0};
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  await driveMatch(t,()=>0);
+  const fx=t.schedule.fixtures.find(f=>f.month===60);
+  const me=t.league.teams.find(x=>x.name===t.club.name);
+  assert.equal(fx.status,"missed","sanity: 伤停那场标 missed");
+  assert.equal(me.p,1,
+    "玩家缺阵，球队仍要踢这一轮——否则伤停三个月后他的球队场次会比别人少三场，榜就是坏的");
+  // 全联盟仍然自洽
+  const T=t.league.teams;
+  assert.equal(T.reduce((n,x)=>n+x.w,0),T.reduce((n,x)=>n+x.l,0),"缺阵那轮也要保持胜负配平");
+}
+
+// ===== 积分榜渲染 =====
+{
+  assert.ok(/积分榜|本赛季 · /.test(code),"赛程页顶部要有积分榜");
+  assert.ok(/\.league-table/.test(css),"积分榜要有样式");
+  assert.equal(typeof G.leagueTableHTML,"function","渲染要抽成可测的函数");
+  const t=G.createInitialState("渲染",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  G.advanceLeagueRound(t,{opponent:null,result:null},1);
+  const html=G.leagueTableHTML(t);
+  assert.match(html,/league-table/,"要用 .league-table 类");
+  assert.match(html,/上海海港/,"玩家球队要在榜上");
+  assert.match(html,/class="me"/,"玩家那一行要高亮");
+  assert.match(html,/第 1 轮/,"要标出当前轮次");
+  assert.match(html,/共 \d+ 轮/,"要标出总轮数——梯队一季只有3轮，玩家得知道样本就这么小");
+  // 榜上的行数 = 参赛队数
+  const rows=(html.match(/<tr/g)||[]).length-1;   // 减掉表头
+  assert.equal(rows,t.league.teams.length,`榜上应有 ${t.league.teams.length} 行，实际 ${rows}`);
+}
+
+// ===== 联赛冠军：排第一就是冠军，不再掷骰子 =====
+{
+  assert.ok(!/leagueTitle=ss\.matches>=7/.test(code),
+    "旧的掷骰子判定要废掉：wins/matches>=.7 之后再 rng()<.48，两个赛季表现一样却结果不同");
+  const mk=first=>{
+    const t=G.createInitialState("冠军",allocation,[],"standard","mid");
+    t.totalMonth=71;t.flags.pro18=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);
+    // 手动把榜做成「玩家第一」或「玩家垫底」
+    /* 其他队积分各不相同——全员同分会走到「队名升序」的决胜排序，
+       上海海港可能纯靠名字排到榜首，测试就测歪了 */
+    t.league.teams.forEach((x,i)=>{x.p=10;x.w=2;x.d=1;x.l=7;x.gf=8;x.ga=20;x.pts=7+i});
+    const me=t.league.teams.find(x=>x.name===t.club.name);
+    if(first){me.w=9;me.d=1;me.l=0;me.gf=30;me.ga=5;me.pts=99}else{me.pts=1}
+    t.league.played=10;
+    t.seasonStats={matches:10,goals:12,assists:5,wins:first?9:2,ratingTotal:75,trophies:0};
+    return t;
+  };
+  const champ=G.seasonAwardCheck(mk(true),()=>0.99);
+  assert.equal(champ.leagueTitle,true,"榜首就该拿冠军，且不受随机数影响（这里 rng 固定给 0.99）");
+  const nope=G.seasonAwardCheck(mk(false),()=>0.01);
+  assert.equal(nope.leagueTitle,false,"不是榜首就没有冠军，同样不受随机数影响");
+}
+// ===== 保级目标接真实榜尾 =====
+{
+  assert.ok(!/kind==="survive"\)met=ss\.wins>=g\.target/.test(code),
+    "保级目标不该再只看胜场数——它的文案写着「别掉进降级区」");
+  const mk=safe=>{
+    const t=G.createInitialState("保级",allocation,[],"standard","mid");
+    t.totalMonth=71;t.flags.pro18=true;t.route="pro";
+    t.club={name:"重庆铜梁龙",league:"中超",strength:67};
+    G.ensureSchedule(t);G.ensureLeague(t);
+    t.league.teams.forEach((x,i)=>{x.p=10;x.pts=60-i*3;x.gf=20;x.ga=10});
+    const me=t.league.teams.find(x=>x.name===t.club.name);
+    t.league.teams.filter(x=>x!==me).forEach((x,i)=>{x.pts=100-i*3});
+    me.pts=safe?999:0;   // 安全=遥遥领先；不安全=垫底
+    t.league.played=10;
+    t.seasonGoal={kind:"survive",target:3,text:"保级",season:G.ageInfo(t).season};
+    t.seasonStats={matches:10,goals:2,assists:1,wins:8,ratingTotal:65,trophies:0};
+    return t;
+  };
+  const doomed=G.evaluateSeasonGoal(mk(false));
+  assert.equal(doomed.met,false,"掉进榜尾三名 = 保级失败，哪怕赢了8场");
+  const safe=G.evaluateSeasonGoal(mk(true));
+  assert.equal(safe.met,true,"榜上安全就是完成保级");
+}
+
+// ===== 存档兼容 + 长跑不留脏数据 =====
+{
+  const old={version:3,club:{name:"上海海港",league:"中超",strength:79},
+    national:{},attrs:{},styles:{},relationship:{},injury:{},risks:{}};
+  const mig=G.normalizeSave(old);
+  assert.equal(mig.league,null,"老档补 league:null，下次自动重建");
+}
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<600){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("长跑",allocation,[],"standard","mid");
+  G.setState(t);G.clearModalQueue();
+  for(let m=0;m<120&&!t.retired;m++){G.setState(t);G.advanceMonth();await drive(t)}
+  const lg=t.league;
+  assert.ok(lg,"跑完还该有积分榜");
+  assert.equal(lg.season,G.ageInfo(t).season,"积分榜必须是本赛季的，不能残留上赛季");
+  assert.ok(lg.played<=lg.rounds,`已打轮次(${lg.played})不该超过总轮数(${lg.rounds})`);
+  const T=lg.teams;
+  assert.equal(T.reduce((n,x)=>n+x.w,0),T.reduce((n,x)=>n+x.l,0),"长跑后仍要胜负配平");
+  assert.equal(T.reduce((n,x)=>n+x.gf,0),T.reduce((n,x)=>n+x.ga,0),"长跑后仍要进失球配平");
+  T.forEach(x=>assert.ok(x.p<=lg.rounds,`${x.name} 场次 ${x.p} 超过了总轮数 ${lg.rounds}`));
+}
+
+// ===== 评选月的冠军要判「刚结束的赛季」，不是新赛季第1轮 =====
+// 职业期赛季首月（totalMonth%12===0）当月就有联赛：那场比赛会先把榜
+// 重建成新赛季，年度评选在比赛之后才结算。不留底的话，
+// 冠军就拿「新赛季第1轮」的榜来判——整季白踢。
+{
+  const t=G.createInitialState("留底",allocation,[],"standard","mid");
+  t.totalMonth=71;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  // 把上赛季的榜做成玩家夺冠
+  t.league.teams.forEach((x,i)=>{x.p=12;x.pts=10+i});
+  const me=t.league.teams.find(x=>x.name===t.club.name);me.pts=99;
+  t.league.played=12;
+  // 跨入新赛季：首月比赛触发重建（旧榜应被留底）
+  t.totalMonth=72;
+  G.ensureSchedule(t);
+  const fresh=G.ensureLeague(t);
+  assert.equal(fresh.played,0,"sanity: 新赛季的榜是空的");
+  assert.ok(t.leaguePrev&&t.leaguePrev.played===12,"旧榜必须留底，不能直接扔掉");
+  assert.equal(G.leagueChampion(t),true,
+    "评选月冠军要判刚结束赛季的最终榜（留底），不是新赛季第1轮的空榜");
+}
