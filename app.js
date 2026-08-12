@@ -1723,6 +1723,41 @@ function rivalRoundAdvance(s,round,teamGf){
     rivalAddGoals(rv,n);
   }
 }
+/* 生涯页的宿敌卡。18岁前他只活在剧情里，不比数字——梯队一季3轮，
+   比了也只是噪声。 */
+function rivalCardHTML(s){
+  const rv=s.rival;if(!rv)return"";
+  if(!rivalActive(s))
+    return `<article class="info-card"><h3>宿敌 · ${RIVAL_NAME}</h3><p>${
+      s.flags.route16
+        ?(rv.route==="overseas"?"他去了海外。你们走上了两条路，但你知道总有一天要在记分牌上碰面。"
+                               :"他留在了国内赛场。你们走上了两条路，但你知道总有一天要在记分牌上碰面。")
+        :"梯队里天赋最好的那一个。教练夸你努力的时候，夸的是他的天赋。"}</p></article>`;
+  const you=s.seasonStats.goals,him=rv.goals,d=rv.duels;
+  const status=rv.injuredRounds&&s.league&&s.league.played>=rv.injuredFrom
+    ?"他伤了，赛季要少踢两三轮——今年是拉开差距的机会。"
+    :him>you?"他最近的进球又上了头条。":you>him?"这个赛季，头条暂时是你的。":"咬得很紧，谁也没甩开谁。";
+  return `<article class="info-card"><h3>宿敌 · ${RIVAL_NAME}<small style="float:right;color:var(--muted)">${esc(rv.club.name)} · ${esc(rv.club.league)}</small></h3>`+
+    `<div class="effect-line"><span>本赛季对位 你 ${you} 球 : ${him} 球 他</span>`+
+    `<span>生涯对位 ${d.win}胜 ${d.draw}平 ${d.loss}负</span><span>他的等级 ${rv.level}</span></div>`+
+    `<p>${status}</p></article>`;
+}
+/* 赛前预告里点名：只在联赛、且对面正是他的球队时出现。 */
+function rivalEveLine(s,fx){
+  const rv=s.rival;
+  if(!rivalActive(s)||!fx||fx.type!=="club"||fx.opponent!==rv.club.name)return"";
+  return `<p class="dialogue">${RIVAL_NAME}在对面首发。本场进球压过他，状态小涨；被他压过，反之。</p>`;
+}
+/* 赛季末对位结算：比的是赛季进球，赢/平/负记进 duels。
+   必须在 seasonAwardCheck 重置 seasonStats 之前调——晚一步你的进球就归零了。 */
+function rivalSeasonSettle(s){
+  if(!rivalActive(s))return null;
+  const rv=s.rival,you=s.seasonStats.goals,him=rv.goals;
+  const result=you>him?"win":you<him?"loss":"draw";
+  rv.duels[result]++;
+  if(result==="win")unlock("rival_first_win");
+  return {you,him,result,name:RIVAL_NAME};
+}
 /* 还有几次「结束本月」才打到这场。advanceMonth 是先 ++ 再判定，
    所以 month=totalMonth+1 的那场，下一次点「结束本月」就开打——
    那是「本月末」，不是「还有1个月」。差一位会让主界面一直骗玩家。 */
@@ -1735,7 +1770,8 @@ function queueMatchReport(s,report){enqueueDecision(buildMatchReportModal(report
 function queueEvent(s,e){enqueueDecision({title:e.title,body:e.body,portrait:e.portrait,options:e.options(s)},"两月事件")}
 function queueStory(s,beat){enqueueDecision({title:beat.title,body:beat.body,portrait:beat.portrait,options:beat.options},"半年剧情")}
 function queueNationalCall(s){enqueueDecision({title:"中国国家男子足球队 · 征召",portrait:"assets/father.webp",body:`<p>通知是以红头文件的形式通过俱乐部转交的。不是电话，不是消息。一张纸，公章，写着你的名字。</p><p>你发了一会儿愣。你从小在电视上看过很多次别人接到征召的场景——有人会哭，会打电话给家人。但你只是坐在那里。你想到的不是荣耀，而是门诊部三楼的收费窗口，想到你爸在病床上说的“踢给爸看”，想到小满最后一次站在漏雨的铁丝网外看你的比赛，她什么时候走的你都不知道。</p><p>你把手机翻到反面扣在桌上，坐了一会儿。然后你站起来，把那张纸叠好，放进背包最里面的夹层——那个你一直放着那只旧足球皮的位置。</p><p>你拉上拉链，走出去。训练场上的灯已经亮了。</p>`,options:[option("接受征召","国家队功能开放；体能管理压力增加",()=>{})]},"国家队")}
-function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga} ${r.opponent}`,body:`你代表中国队出场，贡献 <b>${r.goals}</b> 球。${r.gf>r.ga?"终场哨后，整片看台都在唱同一首歌。":r.gf<r.ga?"失利没有让任务结束，下一次集训已经写进日历。":"比分没有分出高下，身体的疲惫却很具体。"}`,options:[option("返回俱乐部","国家队数据已归档",()=>{})]},"为国而战")}function queueAward(r,s,goalResult){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军。</p>`:""}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
+function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga} ${r.opponent}`,body:`你代表中国队出场，贡献 <b>${r.goals}</b> 球。${r.gf>r.ga?"终场哨后，整片看台都在唱同一首歌。":r.gf<r.ga?"失利没有让任务结束，下一次集训已经写进日历。":"比分没有分出高下，身体的疲惫却很具体。"}`,options:[option("返回俱乐部","国家队数据已归档",()=>{})]},"为国而战")}function queueAward(r,s,goalResult,rivalDuel){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";
+  const rLine=rivalDuel?`<p class="dialogue">对位：你 ${rivalDuel.you} 球，${esc(rivalDuel.name)} ${rivalDuel.him} 球——${rivalDuel.result==="win"?"今年你压他一头。":rivalDuel.result==="loss"?"今年他压你一头。":"平分秋色，明年再算。"}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军。</p>`:""}${rLine}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
 
 // ===== 世界杯：世预赛门槛 + 随机抽签 + 逐场可玩（淘汰赛临场战术）=====
 const CUP_STAGE_NAMES=["小组赛第1场","小组赛第2场","小组赛第3场","十六强","八强","半决赛","决赛"];
@@ -2141,7 +2177,10 @@ function finishMonth(ctx){
   /* 没有「一屏跑完世预赛」的后路了。进不进得了决赛圈，由你自己踢的那六轮决定；
      没赶上那六轮（比如刚被征召），这一届就与你无关——四年后再来。 */
   // 友谊赛已经是赛程上的 type:"national" 场次，由 startMatchFlow 驱动，这里不再另开一路。
-  if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);queueAward(seasonAwardCheck(S),S,goalResult);makeSeasonGoal(S);
+  if(S.totalMonth%12===0){applyAging(S);const goalResult=evaluateSeasonGoal(S);
+    /* 对位结算必须在 seasonAwardCheck 之前——它会把 seasonStats 清零。 */
+    const rivalDuel=rivalSeasonSettle(S);
+    queueAward(seasonAwardCheck(S),S,goalResult,rivalDuel);makeSeasonGoal(S);
     /* 评选完立刻把新赛季的榜建出来。校园/梯队的赛季首月没有比赛，
        不建的话上赛季的旧榜会一直挂到下一场联赛才换——期间玩家打开
        赛程页看到的还是旧赛季排名。 */
@@ -2208,6 +2247,7 @@ function stepMatchPreview(s){
   enqueueFront({title:`${fx.competition} · ${fx.home?"主场":"客场"}对阵 ${esc(fx.opponent)}`,kicker:"赛前",
     body:`<div class="matchup-board"><div class="matchup-side">${teamStrengthBlock(club.name,club.strength,fx.home?"主场":"客场")}</div><div class="matchup-vs"><span>${esc(fx.competition)}</span><strong>VS</strong></div><div class="matchup-side">${teamStrengthBlock(fx.opponent,fx.strength,fx.home?"客队":"主队")}</div></div>`+
       `<p>${edgeText}。你的体能 <b>${Math.round(s.fitness)}</b>、状态 <b>${Math.round(s.form)}</b>，预计首发概率约 <b>${st}%</b>。</p>`+
+      rivalEveLine(s,fx)+
       (s.seasonGoal?`<p class="dialogue">赛季目标：${esc(goalProgressText(s))}</p>`:"")+
       (s.challenge?`<p class="dialogue">教练挑战：${esc(s.challenge.text)}（${esc(challengeProgressText(s.challenge))}，剩余${Math.max(0,3-s.challenge.played)}场）</p>`:"")+
       `<p>本场你打算怎么踢？</p>`,
@@ -2265,8 +2305,18 @@ function resolveMatch(s){
   /* 联赛只认 type==="club" 的场次：大赛月你不在俱乐部，那一轮不推进。
      玩家的真实比分直接传进去，不让联赛模块重算——榜、赛程页、比赛简报
      必须是同一个结果。 */
-  if(pm.fixture&&pm.fixture.type==="club")
+  if(pm.fixture&&pm.fixture.type==="club"){
+    /* 直接对话：对面是江彻的球队时，这一轮他的进球会在 advanceLeagueRound
+       里按份额算出来。赛后比一下——压过他状态+1，被他压过-1。
+       数值刻意小，压力主要靠文案给（对位不进金球公式，避免平衡连锁）。 */
+    const rvBefore=rivalActive(s)&&pm.fixture.opponent===s.rival.club.name?s.rival.goals:null;
     advanceLeagueRound(s,{opponent:pm.fixture.opponent,result:{gf:report.gf,ga:report.ga}},clubRoundOf(s,pm.fixture.month));
+    if(rvBefore!==null){
+      const his=s.rival.goals-rvBefore;
+      if(report.goals>his){change(s,"form",1);log(s,"good",`同场较量：你${report.goals}球，${RIVAL_NAME}${his}球。这一晚的头条是你的。`)}
+      else if(report.goals<his){change(s,"form",-1);log(s,"bad",`同场较量：${RIVAL_NAME}进了${his}球，你只有${report.goals}球。他赛后没看你一眼。`)}
+    }
+  }
   if(pm.fixture&&pm.fixture.type==="wcq"&&s.national.wcQual){
     const q=s.national.wcQual;
     q.played++;q.points+=report.gf>report.ga?3:report.gf===report.ga?1:0;
@@ -2323,7 +2373,7 @@ function renderActions(){const phase=phaseOf(S),available=ACTIONS.filter(a=>a.ph
 
 function renderStory(){const married=!!(S.flags&&S.flags.married);const relation=married?"你们成家了。她还是有自己的事业，你还是在球场上奔跑，但如今每天回去，有个人在等你。":S.relationship.status==="分手"?"你们已经分开，关系值不再变化，但共同经历仍留在生涯记录里。":S.relationship.status==="异地"?"隔着这么远还没散，可每次谁都不先开口，心就更远一点。":"她有自己的学业和生活，不可能一直围着你的比赛转。";$("panel").innerHTML=`<section class="hero-panel relation-card"><img src="assets/lin-xiaoman.webp" alt="林小满"><div><span class="eyebrow">林小满 · ${esc(married?"已婚":S.relationship.status)}</span><h2>${S.relationship.status==="分手"?"你们回到了各自的人生":`关系值 ${Math.round(S.relationship.love)}`}</h2><p class="quote">${relation}</p><div class="bar-label"><span>亲密与信任</span><b>${Math.round(S.relationship.love)}/100</b></div><div class="bar-wide"><i style="width:${S.relationship.love}%"></i></div>${S.relationship.status!=="分手"?`<div class="effect-line"><span>状态基线 +${loveSupport(S)}</span><span>每月状态 +${S.relationship.love>=65?2:1}</span><span>关系越高，状态越稳</span></div>`:""}</div></section><div class="section-head"><h2>人生记录</h2><span>最近${Math.min(30,S.log.length)}条</span></div><div class="story-list">${S.log.slice(0,30).map(l=>{const ai={age:14+Math.floor(l.month/12),month:l.month%12+1};return`<article class="story-log"><time>${ai.age}岁·${ai.month}月</time><div><h3>${l.kind==="action"?"行动":l.kind==="good"?"好消息":l.kind==="bad"?"代价":"故事"}</h3><p>${esc(l.text)}</p></div></article>`}).join("")}</div>`}
 
-function renderCareer(){const a=ageInfo(S),c=S.statsCareer,winRate=c.matches?Math.round(c.wins/c.matches*100):0;$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">CAREER FILE</span><h2>${esc(S.name)} · ${esc(S.position)}</h2><p>${esc(S.club.name)}，${a.age}岁。你能走多远，不只看最高属性；出勤、状态和每次选择也算数。</p>${heroMetrics([[c.matches,"正式比赛"],[c.goals,"生涯进球"],[c.assists,"生涯助攻"],[`${winRate}%`,"胜率"]])}</section><div class="career-grid"><article class="info-card path-card"><h3>生涯时间线</h3><div class="path-line"><b>14岁 · 重庆铜梁龙U16</b><span>进入当地知名俱乐部梯队</span></div><div class="path-line"><b>16岁 · ${S.flags.route16?S.route==="overseas"?"赴英青训":S.route==="campus"?"回到校园":"升入一线队":"尚未发生"}</b><span>${S.flags.route16?S.route==="overseas"?"与小满异地，独自适应海外":S.route==="campus"?"保留感情与学业，等待第二次机会":"在熟悉的城市开始成年足球":"16岁评估后决定去向"}</span></div><div class="path-line"><b>18岁 · ${S.flags.pro18?`效力${esc(S.club.name)}`:"转会市场尚未开放"}</b><span>${S.flags.pro18?"职业合同、转会与国家队系统开放":"继续积累实力、声望与教练信任"}</span></div></article><article class="info-card"><h3>七项主属性</h3><div class="effect-line">${ATTRS.map(a=>`<span>${a.key} ${esc(a.name)} ${Math.round(S.attrs[a.key])}</span>`).join("")}<span>语言 ${Math.round(S.language)}</span><span>声望 ${Math.round(S.fame)}</span><span>身高 ${S.heightCm}cm</span></div><p>七项都是真实数值，行动、比赛结果与进球判定全部由它们决定；状态与体能作为动态系数同时介入——体能见底时身体和速度掉得最狠，意志几乎不受影响。“关键球”不设单独数值，由意志、状态、赛事阶段和相关天赋共同影响。当前生涯积分 <b>${careerScore(S)}</b>。</p></article><article class="info-card style-card"><h3>流派（后天踢法）</h3><p>天赋是出生带来的，流派是练出来的。流派等级抬高对应属性的成长天花板——没有流派兜着的属性练到 88 左右就基本爬不动了。意志不归任何流派，它只从剧情和压力里长。</p>${STYLES.map(st=>{const exp=(S.styles&&S.styles[st.key])||0,lv=styleLevel(exp),next=styleNext(exp),pct=Math.min(100,Math.round(exp/next*100));return `<div class="style-row ${lv?"":"dim"}"><div class="style-head"><b>${st.icon} ${esc(st.name)} <small>${st.attrs.join("·")}</small></b><span class="style-lv">${lv?STYLE_NUMERALS[lv-1]+"级":"未入门"}</span></div><div class="bar-wide"><i style="width:${pct}%"></i></div><div class="bar-label"><span>${esc(lv?st.levels[lv-1]:st.desc)}</span><span>${Math.round(exp)}${lv<3?" / "+next:""}</span></div></div>`}).join("")}</article></div><div class="section-head"><h2>转会履历</h2><span>${S.transfers.length}次</span></div>${S.transfers.length?`<div class="card-list">${S.transfers.map(t=>`<article class="info-card"><h3>${esc(t.from)} → ${esc(t.to)}</h3><p>${14+Math.floor(t.month/12)}岁 · 转会费${t.fee}万 · ${esc(t.role)}</p></article>`).join("")}</div>`:'<div class="empty-state">尚未完成正式转会。</div>'}`}
+function renderCareer(){const a=ageInfo(S),c=S.statsCareer,winRate=c.matches?Math.round(c.wins/c.matches*100):0;$("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">CAREER FILE</span><h2>${esc(S.name)} · ${esc(S.position)}</h2><p>${esc(S.club.name)}，${a.age}岁。你能走多远，不只看最高属性；出勤、状态和每次选择也算数。</p>${heroMetrics([[c.matches,"正式比赛"],[c.goals,"生涯进球"],[c.assists,"生涯助攻"],[`${winRate}%`,"胜率"]])}</section><div class="career-grid"><article class="info-card path-card"><h3>生涯时间线</h3><div class="path-line"><b>14岁 · 重庆铜梁龙U16</b><span>进入当地知名俱乐部梯队</span></div><div class="path-line"><b>16岁 · ${S.flags.route16?S.route==="overseas"?"赴英青训":S.route==="campus"?"回到校园":"升入一线队":"尚未发生"}</b><span>${S.flags.route16?S.route==="overseas"?"与小满异地，独自适应海外":S.route==="campus"?"保留感情与学业，等待第二次机会":"在熟悉的城市开始成年足球":"16岁评估后决定去向"}</span></div><div class="path-line"><b>18岁 · ${S.flags.pro18?`效力${esc(S.club.name)}`:"转会市场尚未开放"}</b><span>${S.flags.pro18?"职业合同、转会与国家队系统开放":"继续积累实力、声望与教练信任"}</span></div></article>${rivalCardHTML(S)}<article class="info-card"><h3>七项主属性</h3><div class="effect-line">${ATTRS.map(a=>`<span>${a.key} ${esc(a.name)} ${Math.round(S.attrs[a.key])}</span>`).join("")}<span>语言 ${Math.round(S.language)}</span><span>声望 ${Math.round(S.fame)}</span><span>身高 ${S.heightCm}cm</span></div><p>七项都是真实数值，行动、比赛结果与进球判定全部由它们决定；状态与体能作为动态系数同时介入——体能见底时身体和速度掉得最狠，意志几乎不受影响。“关键球”不设单独数值，由意志、状态、赛事阶段和相关天赋共同影响。当前生涯积分 <b>${careerScore(S)}</b>。</p></article><article class="info-card style-card"><h3>流派（后天踢法）</h3><p>天赋是出生带来的，流派是练出来的。流派等级抬高对应属性的成长天花板——没有流派兜着的属性练到 88 左右就基本爬不动了。意志不归任何流派，它只从剧情和压力里长。</p>${STYLES.map(st=>{const exp=(S.styles&&S.styles[st.key])||0,lv=styleLevel(exp),next=styleNext(exp),pct=Math.min(100,Math.round(exp/next*100));return `<div class="style-row ${lv?"":"dim"}"><div class="style-head"><b>${st.icon} ${esc(st.name)} <small>${st.attrs.join("·")}</small></b><span class="style-lv">${lv?STYLE_NUMERALS[lv-1]+"级":"未入门"}</span></div><div class="bar-wide"><i style="width:${pct}%"></i></div><div class="bar-label"><span>${esc(lv?st.levels[lv-1]:st.desc)}</span><span>${Math.round(exp)}${lv<3?" / "+next:""}</span></div></div>`}).join("")}</article></div><div class="section-head"><h2>转会履历</h2><span>${S.transfers.length}次</span></div>${S.transfers.length?`<div class="card-list">${S.transfers.map(t=>`<article class="info-card"><h3>${esc(t.from)} → ${esc(t.to)}</h3><p>${14+Math.floor(t.month/12)}岁 · 转会费${t.fee}万 · ${esc(t.role)}</p></article>`).join("")}</div>`:'<div class="empty-state">尚未完成正式转会。</div>'}`}
 
 function matchCard(m){return`<article class="info-card match-card ${m.classic?"classic":""}"><span class="eyebrow">${esc(m.competition)} · ${m.role}</span><div class="match-score"><span class="match-team">${esc(m.club)}</span><strong>${m.gf}:${m.ga}</strong><span class="match-team">${esc(m.opponent)}</span></div><div class="effect-line"><span>评分 ${m.rating||"—"}</span><span>${m.goals}球</span><span>${m.assists}助</span><span>${m.home?"主场":"客场"}</span></div><div class="timeline-list">${m.timeline.slice(-4).map(t=>`<div class="timeline-row"><b>${t.minute}'</b><span>${esc(t.text)}</span></div>`).join("")}</div></article>`}
 /* 三种状态各有各的显示：打过的给比分，伤停/雪藏的给原因，未打的给倒计时。
@@ -2421,7 +2471,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,seasonFinalLeague,ensureRival,rivalActive,rivalRng,rivalBaseLevel,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,seasonFinalLeague,ensureRival,rivalActive,rivalRng,rivalBaseLevel,rivalCardHTML,rivalEveLine,rivalSeasonSettle,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

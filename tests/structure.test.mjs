@@ -2260,3 +2260,69 @@ console.log("模拟球员 architecture test passed");
   assert.ok(p(.05)>=1&&p(.95)<=20,`P5(${p(.05)})–P95(${p(.95)}) 应落在 1–20`);
   assert.ok(p(.5)>=6&&p(.5)<=12,`中位数(${p(.5)})应落在 6–12——和玩家实测带宽（中位8-12）对得上`);
 }
+
+// ===== 宿敌 P3：呈现与接线 =====
+{
+  assert.equal(typeof G.rivalCardHTML,"function","生涯页宿敌卡要抽成可测的函数");
+  assert.ok(/rivalCardHTML/.test(code)&&/renderCareer/.test(code),"生涯页要挂上宿敌卡");
+  const t=G.createInitialState("宿敌卡",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+  t.rival.goals=9;t.seasonStats.goals=11;
+  const html=G.rivalCardHTML(t);
+  assert.match(html,/江彻/,"卡上要有他的名字");
+  assert.match(html,/11/,"要有你的赛季进球");
+  assert.match(html,/9/,"要有他的赛季进球");
+  assert.match(html,new RegExp(t.rival.club.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")),"要有他的俱乐部");
+  // 18岁前只有剧情行，不比数字
+  const y=G.createInitialState("少年",allocation,[],"standard","mid");
+  G.ensureRival(y);
+  const yh=G.rivalCardHTML(y);
+  assert.match(yh,/江彻/,"18岁前卡也在（他活在剧情里）");
+  assert.ok(!/对位/.test(yh)||!/\d+ 球/.test(yh),"18岁前不该出现进球对比");
+}
+{
+  // 赛前预告：对面是他的球队时要点名
+  assert.equal(typeof G.rivalEveLine,"function","预告行要抽成可测的函数");
+  const t=G.createInitialState("预告",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  t.rival={name:"江彻",route:"firstteam",level:80,club:{name:"山东泰山",league:"中超",strength:75},
+    goals:5,careerGoals:5,duels:{win:0,loss:0,draw:0},injuredFrom:0,injuredRounds:0,season:G.ageInfo(t).season};
+  const line=G.rivalEveLine(t,{type:"club",opponent:"山东泰山"});
+  assert.match(line,/江彻/,"对阵他的球队，预告必须点名");
+  assert.equal(G.rivalEveLine(t,{type:"club",opponent:"北京国安"}),"","对面不是他的队就不提");
+  assert.equal(G.rivalEveLine(t,{type:"wcq",opponent:"山东泰山"}),"","非联赛场次不提");
+  assert.ok(/rivalEveLine/.test(code.match(/function stepMatchPreview[\s\S]{0,1200}/)[0]),
+    "stepMatchPreview 里必须真的用上这行");
+}
+{
+  // 赛季结算：duels 记账 + 年度评选带对位行
+  assert.equal(typeof G.rivalSeasonSettle,"function","赛季对位结算要抽成可测的函数");
+  const mk=(you,him)=>{
+    const t=G.createInitialState("结算",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+    t.rival.goals=him;t.seasonStats.goals=you;
+    return t;
+  };
+  const w=mk(12,9);const rw=G.rivalSeasonSettle(w);
+  assert.equal(rw.result,"win","12:9 是你赢");
+  assert.equal(w.rival.duels.win,1,"胜场要记账");
+  const l=mk(7,10);G.rivalSeasonSettle(l);
+  assert.equal(l.rival.duels.loss,1,"负场要记账");
+  const d=mk(8,8);G.rivalSeasonSettle(d);
+  assert.equal(d.rival.duels.draw,1,"平局要记账");
+  // 18岁前不结算
+  const y=G.createInitialState("未成年",allocation,[],"standard","mid");
+  G.ensureRival(y);
+  assert.equal(G.rivalSeasonSettle(y),null,"对位从18岁开始，之前不记账");
+  // 评选月必须先结算再重置：接线在 finishMonth 的 %12===0 块里
+  assert.ok(/rivalSeasonSettle/.test(code.match(/totalMonth%12===0\)\{applyAging[\s\S]{0,700}/)[0]),
+    "年度评选块里必须调用 rivalSeasonSettle");
+  assert.ok(/queueAward\(seasonAwardCheck\(S\),S,goalResult,rivalSeasonSettle\(S\)\)|rivalDuel/.test(code),
+    "对位结果要传进年度评选的弹窗");
+}
