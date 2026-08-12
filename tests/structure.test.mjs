@@ -2269,7 +2269,7 @@ console.log("模拟球员 architecture test passed");
   t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
   t.club={name:"上海海港",league:"中超",strength:79};
   G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
-  t.rival.goals=9;t.seasonStats.goals=11;
+  t.rival.goals=9;t.seasonStats.leagueGoals=11;
   const html=G.rivalCardHTML(t);
   assert.match(html,/江彻/,"卡上要有他的名字");
   assert.match(html,/11/,"要有你的赛季进球");
@@ -2306,7 +2306,7 @@ console.log("模拟球员 architecture test passed");
     t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
     t.club={name:"上海海港",league:"中超",strength:79};
     G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
-    t.rival.goals=him;t.seasonStats.goals=you;
+    t.rival.goals=him;t.seasonStats.leagueGoals=you;
     return t;
   };
   const w=mk(12,9);const rw=G.rivalSeasonSettle(w);
@@ -2343,15 +2343,15 @@ console.log("模拟球员 architecture test passed");
     t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
     t.club={name:"上海海港",league:"中超",strength:79};
     G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
-    t.rival.goals=him;t.seasonStats.goals=you;
+    t.rival.goals=him;t.seasonStats.leagueGoals=you;
     return t;
   };
   const t=mk(10,5);
   G.rivalSeasonSettle(t);
-  t.seasonStats.goals=10;t.rival.goals=5;G.rivalSeasonSettle(t);
-  t.seasonStats.goals=10;t.rival.goals=5;const r3=G.rivalSeasonSettle(t);
+  t.seasonStats.leagueGoals=10;t.rival.goals=5;G.rivalSeasonSettle(t);
+  t.seasonStats.leagueGoals=10;t.rival.goals=5;const r3=G.rivalSeasonSettle(t);
   assert.equal(t.rival.streak,3,"三连胜 streak 应为3");
-  t.seasonStats.goals=3;t.rival.goals=9;G.rivalSeasonSettle(t);
+  t.seasonStats.leagueGoals=3;t.rival.goals=9;G.rivalSeasonSettle(t);
   assert.equal(t.rival.streak,0,"输一次连胜清零");
 }
 {
@@ -2369,4 +2369,29 @@ console.log("模拟球员 architecture test passed");
   assert.match(up.coda,/江彻/,"对位领先时结局要有他");
   assert.match(down.coda,/江彻/,"对位落后时结局也要有他");
   assert.notEqual(up.coda,down.coda,"领先和落后的结局文案必须不同");
+}
+
+// ===== 宿敌 P5：存档兼容 + 长跑不留脏数据 =====
+{
+  const old={version:3,club:{name:"上海海港",league:"中超",strength:79},
+    national:{},attrs:{},styles:{},relationship:{},injury:{},risks:{}};
+  const mig=G.normalizeSave(old);
+  assert.equal(mig.rival,null,"老档补 rival:null，下个赛季初自动生成");
+}
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<600){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("宿敌长跑",allocation,[],"standard","mid");
+  G.setState(t);G.clearModalQueue();
+  for(let m=0;m<120&&!t.retired;m++){G.setState(t);G.advanceMonth();await drive(t)}
+  const rv=t.rival;
+  assert.ok(rv,"跑到23岁必须有宿敌");
+  assert.ok(rv.club,"18岁后他必须有俱乐部");
+  assert.equal(rv.season,G.ageInfo(t).season,"他的赛季号必须跟上，不能残留");
+  assert.ok(Math.abs(rv.level-G.overall(t))<=6.01,"长跑后软回归仍要钉住 ±6");
+  const d=rv.duels,settled=d.win+d.loss+d.draw;
+  assert.ok(settled>=4&&settled<=6,`18-23岁应结算5个赛季上下的对位，实际 ${settled}`);
+  assert.equal(rv.careerGoals>=rv.goals,true,"生涯进球不能小于赛季进球");
 }

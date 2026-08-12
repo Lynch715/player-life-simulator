@@ -1281,7 +1281,7 @@ function leagueChampion(s){
 function seasonAwardCheck(s,rng=Math.random){const ss=s.seasonStats,avg=ss.matches?ss.ratingTotal/ss.matches:0,score=overall(s)*.48+ss.goals*1.15+ss.assists*.65+ss.trophies*7+(s.club.league==="英超"?6:0)+(s.national.goals||0)*.25+avg*1.6+rndFloat(rng,-5,6),ballon=score>=92+diffOf(s).threshold*1.5,leagueTitle=leagueChampion(s);
   if(leagueTitle){const title=`${s.club.league}冠军`;s.honours.unshift({title,season:ageInfo(s).season,icon:"♛",detail:s.club.name});ss.trophies++;unlock("league_title")}
   if(ballon){s.awards.unshift({title:"金球奖",season:ageInfo(s).season,score:Math.round(score)});s.honours.unshift({title:"金球奖",season:ageInfo(s).season,icon:"●",detail:`评选指数 ${Math.round(score)}`});unlock("ballon");change(s,"fame",15)}
-  const result={score:Math.round(score),ballon,leagueTitle,avg:Number(avg.toFixed(1)),goals:ss.goals,assists:ss.assists};s.lastSeasonAward=result;s.seasonStats={matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0};updateRanking(s);return result}
+  const result={score:Math.round(score),ballon,leagueTitle,avg:Number(avg.toFixed(1)),goals:ss.goals,assists:ss.assists};s.lastSeasonAward=result;s.seasonStats={matches:0,goals:0,assists:0,wins:0,ratingTotal:0,trophies:0,leagueGoals:0};updateRanking(s);return result}
 
 function careerScore(s){const c=s.statsCareer;return Math.round(overall(s)*18+c.goals*24+c.assists*15+c.nationalGoals*30+s.honours.length*140+s.awards.length*220+s.fame*5+(s.money||0)*2+assetValue(s)*2-(s.debt||0)*6-(s.flags.bettingEver?420:0))}
 function applyAging(s){const d=diffOf(s),age=ageInfo(s).age;if(age<d.decayAge)return;const yrs=age-d.decayAge+1,m=d.soft;const drop=base=>Math.max(0,(base+yrs*.7)*m*rndFloat(Math.random,.6,1.3));
@@ -1379,6 +1379,7 @@ function normalizeSave(d){
   if(d.national&&typeof d.national.asianCups!=="number")d.national.asianCups=0;
   if(d.league===undefined)d.league=null;
   if(d.leaguePrev===undefined)d.leaguePrev=null;
+  if(d.rival===undefined)d.rival=null;
   return d;
 }
 function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return null;let data=JSON.parse(raw);
@@ -1665,11 +1666,11 @@ function advanceLeagueRound(s,play,round){
   lg.played=Math.max(lg.played,round);
   /* 宿敌与你的联赛同步推进。他在你的榜上就分他球队的进球份额（轮空=0），
      不在就走独立模型。 */
-  {const rv=s.rival;
+  {const rv=ensureRival(s);   // 先翻季/转会，再读他的俱乐部——顺序反了他会分走别人球队的进球
    if(rv&&rv.club){
      const sameLeague=lg.key===rv.club.league;
      rivalRoundAdvance(s,round,sameLeague?(roundGf[rv.club.name]??0):null);
-   }else ensureRival(s)}
+   }}
   return lg;
 }
 /* ========== 宿敌：江彻 ==========
@@ -1710,6 +1711,10 @@ function ensureRival(s){
       :s.route==="campus"?"firstteam"
       :(s.club.league==="英超"?"firstteam":"overseas");
   if(rv.season===info.season)return rv;
+  /* 翻季前把上赛季进球留底。职业期赛季首月当月就有比赛，重建发生在
+     年度评选之前——不留底，对位结算读到的就是清零后的数字，
+     玩家会发现自己「永远赢」。和 leaguePrev 同一个坑。 */
+  rv.prevGoals=rv.goals;rv.prevSeason=rv.season;
   rv.season=info.season;rv.goals=0;
   const rng=rivalRng(info.season,101);
   rv.level=Math.round(clamp(rivalBaseLevel(info.age)+rndFloat(rng,-2,2),overall(s)-6,overall(s)+6));
@@ -1740,7 +1745,7 @@ function rivalRoundAdvance(s,round,teamGf){
   const rng=rivalRng(rv.season,round*7+3);
   if(teamGf!==null){
     /* 份额模型：球队每进一球，他都有一份触球概率。等级越高、球队越弱，份额越大。 */
-    const share=clamp(.42+(rv.level-rv.club.strength)/45,.2,.8);
+    const share=clamp(.46+(rv.level-rv.club.strength)/42,.22,.84);
     let n=0;for(let i=0;i<teamGf;i++)if(rng()<share)n++;
     rivalAddGoals(rv,n);
   }else{
@@ -1748,7 +1753,7 @@ function rivalRoundAdvance(s,round,teamGf){
        对手强度取他联赛的平均实力，避免引入整个第二联赛的配对模拟。 */
     const leagueAvg=rv.club.league==="英超"?81:71;
     const r=simLeagueMatch(rv.club.strength,leagueAvg,rng);
-    const share=clamp(.42+(rv.level-rv.club.strength)/45,.2,.8);
+    const share=clamp(.46+(rv.level-rv.club.strength)/42,.22,.84);
     let n=0;for(let i=0;i<r.gf;i++)if(rng()<share)n++;
     rivalAddGoals(rv,n);
   }
@@ -1763,12 +1768,12 @@ function rivalCardHTML(s){
         ?(rv.route==="overseas"?"他去了海外。你们走上了两条路，但你知道总有一天要在记分牌上碰面。"
                                :"他留在了国内赛场。你们走上了两条路，但你知道总有一天要在记分牌上碰面。")
         :"梯队里天赋最好的那一个。教练夸你努力的时候，夸的是他的天赋。"}</p></article>`;
-  const you=s.seasonStats.goals,him=rv.goals,d=rv.duels;
+  const you=s.seasonStats.leagueGoals||0,him=rv.goals,d=rv.duels;
   const status=rv.injuredRounds&&s.league&&s.league.played>=rv.injuredFrom
     ?"他伤了，赛季要少踢两三轮——今年是拉开差距的机会。"
     :him>you?"他最近的进球又上了头条。":you>him?"这个赛季，头条暂时是你的。":"咬得很紧，谁也没甩开谁。";
   return `<article class="info-card"><h3>宿敌 · ${RIVAL_NAME}<small style="float:right;color:var(--muted)">${esc(rv.club.name)} · ${esc(rv.club.league)}</small></h3>`+
-    `<div class="effect-line"><span>本赛季对位 你 ${you} 球 : ${him} 球 他</span>`+
+    `<div class="effect-line"><span>本赛季联赛对位 你 ${you} 球 : ${him} 球 他</span>`+
     `<span>生涯对位 ${d.win}胜 ${d.draw}平 ${d.loss}负</span><span>他的等级 ${rv.level}</span></div>`+
     `<p>${status}</p></article>`;
 }
@@ -1782,7 +1787,10 @@ function rivalEveLine(s,fx){
    必须在 seasonAwardCheck 重置 seasonStats 之前调——晚一步你的进球就归零了。 */
 function rivalSeasonSettle(s){
   if(!rivalActive(s))return null;
-  const rv=s.rival,you=s.seasonStats.goals,him=rv.goals;
+  /* 评选在赛季首月触发，此时他可能已被首月比赛翻季（goals 已清零重计）。
+     被翻季就取留底 prevGoals——和 seasonFinalLeague 同一套时序纪律。 */
+  const rv=s.rival,you=s.seasonStats.leagueGoals||0,
+    him=rv.season===ageInfo(s).season&&rv.prevSeason===ageInfo(s).season-1&&rv.prevGoals!==undefined?rv.prevGoals:rv.goals;
   const result=you>him?"win":you<him?"loss":"draw";
   rv.duels[result]++;
   rv.streak=result==="win"?(rv.streak||0)+1:0;
@@ -2215,8 +2223,8 @@ function finishMonth(ctx){
     queueAward(seasonAwardCheck(S),S,goalResult,rivalDuel);makeSeasonGoal(S);
     /* 评选完立刻把新赛季的榜建出来。校园/梯队的赛季首月没有比赛，
        不建的话上赛季的旧榜会一直挂到下一场联赛才换——期间玩家打开
-       赛程页看到的还是旧赛季排名。 */
-    ensureLeague(S)}
+       赛程页看到的还是旧赛季排名。宿敌同理：结算完立刻翻季。 */
+    ensureLeague(S);ensureRival(S)}
   if(a.age>=16&&!S.retired&&!S.challenge&&!(S.flags&&S.flags.washedOut))queueChallengeChoice(S);
   riskSettlement(S);breakupCheck(S);intimateCheck(S);checkAchievements(S);updateRanking(S);
   /* 月度小结排到队尾：它是这个月的总账，必须在本月所有事件都点完之后才结算。
@@ -2338,6 +2346,9 @@ function resolveMatch(s){
      玩家的真实比分直接传进去，不让联赛模块重算——榜、赛程页、比赛简报
      必须是同一个结果。 */
   if(pm.fixture&&pm.fixture.type==="club"){
+    /* 对位只比联赛进球：他的数字只有联赛，你的 seasonStats.goals 却混着
+       杯赛和世预赛——拿总数比联赛，随机机器人都能七成赛季压过他。 */
+    s.seasonStats.leagueGoals=(s.seasonStats.leagueGoals||0)+report.goals;
     /* 直接对话：对面是江彻的球队时，这一轮他的进球会在 advanceLeagueRound
        里按份额算出来。赛后比一下——压过他状态+1，被他压过-1。
        数值刻意小，压力主要靠文案给（对位不进金球公式，避免平衡连锁）。 */
