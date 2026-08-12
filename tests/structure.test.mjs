@@ -2086,3 +2086,51 @@ console.log("模拟球员 architecture test passed");
   const safe=G.evaluateSeasonGoal(mk(true));
   assert.equal(safe.met,true,"榜上安全就是完成保级");
 }
+
+// ===== 存档兼容 + 长跑不留脏数据 =====
+{
+  const old={version:3,club:{name:"上海海港",league:"中超",strength:79},
+    national:{},attrs:{},styles:{},relationship:{},injury:{},risks:{}};
+  const mig=G.normalizeSave(old);
+  assert.equal(mig.league,null,"老档补 league:null，下次自动重建");
+}
+{
+  const drive=async t=>{const q=G.getModalQueue();let n=0;
+    while(n++<600){if(!q.length){await new Promise(r=>setTimeout(r,0));if(!q.length)break}
+      const m=q.shift();const o=typeof m.options==="function"?m.options(t):m.options;
+      if(o&&o[0]&&o[0].apply)try{o[0].apply()}catch(e){}}};
+  const t=G.createInitialState("长跑",allocation,[],"standard","mid");
+  G.setState(t);G.clearModalQueue();
+  for(let m=0;m<120&&!t.retired;m++){G.setState(t);G.advanceMonth();await drive(t)}
+  const lg=t.league;
+  assert.ok(lg,"跑完还该有积分榜");
+  assert.equal(lg.season,G.ageInfo(t).season,"积分榜必须是本赛季的，不能残留上赛季");
+  assert.ok(lg.played<=lg.rounds,`已打轮次(${lg.played})不该超过总轮数(${lg.rounds})`);
+  const T=lg.teams;
+  assert.equal(T.reduce((n,x)=>n+x.w,0),T.reduce((n,x)=>n+x.l,0),"长跑后仍要胜负配平");
+  assert.equal(T.reduce((n,x)=>n+x.gf,0),T.reduce((n,x)=>n+x.ga,0),"长跑后仍要进失球配平");
+  T.forEach(x=>assert.ok(x.p<=lg.rounds,`${x.name} 场次 ${x.p} 超过了总轮数 ${lg.rounds}`));
+}
+
+// ===== 评选月的冠军要判「刚结束的赛季」，不是新赛季第1轮 =====
+// 职业期赛季首月（totalMonth%12===0）当月就有联赛：那场比赛会先把榜
+// 重建成新赛季，年度评选在比赛之后才结算。不留底的话，
+// 冠军就拿「新赛季第1轮」的榜来判——整季白踢。
+{
+  const t=G.createInitialState("留底",allocation,[],"standard","mid");
+  t.totalMonth=71;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  // 把上赛季的榜做成玩家夺冠
+  t.league.teams.forEach((x,i)=>{x.p=12;x.pts=10+i});
+  const me=t.league.teams.find(x=>x.name===t.club.name);me.pts=99;
+  t.league.played=12;
+  // 跨入新赛季：首月比赛触发重建（旧榜应被留底）
+  t.totalMonth=72;
+  G.ensureSchedule(t);
+  const fresh=G.ensureLeague(t);
+  assert.equal(fresh.played,0,"sanity: 新赛季的榜是空的");
+  assert.ok(t.leaguePrev&&t.leaguePrev.played===12,"旧榜必须留底，不能直接扔掉");
+  assert.equal(G.leagueChampion(t),true,
+    "评选月冠军要判刚结束赛季的最终榜（留底），不是新赛季第1轮的空榜");
+}
