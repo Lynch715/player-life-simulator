@@ -2196,6 +2196,24 @@ function matchCard(m){return`<article class="info-card match-card ${m.classic?"c
 /* 三种状态各有各的显示：打过的给比分，伤停/雪藏的给原因，未打的给倒计时。
    倒计时必须走 fixtureCountdown——直接写 f.month-cur 会差一位，
    而且 missed 的场次月份在过去，减出来是负的，会渲染成「-5个月后」。 */
+/* 梯队一季只有3轮、校园5轮，名次噪声很大。标题里标出「第N轮/共M轮」，
+   让玩家知道样本就这么小，而不是以为自己稳居第4。 */
+function leagueTableHTML(s){
+  const lg=ensureLeague(s);
+  if(!lg||!lg.teams.length)return"";
+  const rows=leagueStandings(lg).map((x,i)=>{
+    const me=x.name===s.club.name,gd=x.gf-x.ga;
+    return `<tr class="${me?"me":""}"><td>${i+1}</td>`+
+      `<td>${esc(x.name)}${me?'<span class="lt-you">你</span>':""}</td>`+
+      `<td>${x.p}</td><td>${x.w}/${x.d}/${x.l}</td>`+
+      `<td>${gd>0?"+":""}${gd}</td><td>${x.pts}</td></tr>`;
+  }).join("");
+  return `<div class="section-head"><h2>本赛季 · ${esc(s.club.league)}</h2>`+
+    `<span>第 ${Math.max(1,lg.played)} 轮 / 共 ${lg.rounds} 轮</span></div>`+
+    `<table class="rank-table league-table"><thead><tr>`+
+    `<th>#</th><th>球队</th><th>场</th><th>胜/平/负</th><th>净胜</th><th>积分</th>`+
+    `</tr></thead><tbody>${rows}</tbody></table>`;
+}
 function fixtureRow(f,cur,nextMonth){
   /* 赛季收官那一行不是比赛：没有对手、没有比分，只标个时间点。
      跟比赛行走同一套排版会渲染出「客 vs 」和「0 : 0」这种鬼话。 */
@@ -2225,6 +2243,7 @@ function renderMatches(){
   const c=S.statsCareer;ensureSchedule(S);
   const fx=(S.schedule&&S.schedule.fixtures)||[],played=fx.filter(f=>f.status==="played").length;
   $("panel").innerHTML=`<section class="hero-panel"><span class="eyebrow">FIXTURES</span><h2>强不等于稳赢</h2><p>能力越高，发挥通常越稳；但状态、疲劳、伤停、对手强弱和临场运气都会影响结果。赛程在赛季初就排定，你可以提前为硬仗调整体能与状态。</p>${heroMetrics([[`${played}/${fx.length}`,"本赛季已打"],[c.goals,"生涯进球"],[c.matches,"生涯出场"],[c.bestRating.toFixed?.(1)||c.bestRating,"最佳评分"]])}</section>`+
+    leagueTableHTML(S)+
     `<div class="section-head"><h2>本赛季日程</h2><span>第${ageInfo(S).season}赛季 · ${fx.length}场</span></div>`+
     `<div class="card-list">${fx.length?(()=>{const nf=nextFixture(S);return fx.map(f=>fixtureRow(f,S.totalMonth,nf&&nf.month)).join("")})():'<div class="empty-state">赛程尚未排定。</div>'}</div>`+
     `<div class="section-head"><h2>最近比赛</h2><span>${S.matches.length}场已归档</span></div>`+
@@ -2269,7 +2288,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

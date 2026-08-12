@@ -2017,3 +2017,24 @@ console.log("模拟球员 architecture test passed");
   const T=t.league.teams;
   assert.equal(T.reduce((n,x)=>n+x.w,0),T.reduce((n,x)=>n+x.l,0),"缺阵那轮也要保持胜负配平");
 }
+
+// ===== 积分榜渲染 =====
+{
+  assert.ok(/积分榜|本赛季 · /.test(code),"赛程页顶部要有积分榜");
+  assert.ok(/\.league-table/.test(css),"积分榜要有样式");
+  assert.equal(typeof G.leagueTableHTML,"function","渲染要抽成可测的函数");
+  const t=G.createInitialState("渲染",allocation,[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  G.advanceLeagueRound(t,{opponent:null,result:null},1);
+  const html=G.leagueTableHTML(t);
+  assert.match(html,/league-table/,"要用 .league-table 类");
+  assert.match(html,/上海海港/,"玩家球队要在榜上");
+  assert.match(html,/class="me"/,"玩家那一行要高亮");
+  assert.match(html,/第 1 轮/,"要标出当前轮次");
+  assert.match(html,/共 \d+ 轮/,"要标出总轮数——梯队一季只有3轮，玩家得知道样本就这么小");
+  // 榜上的行数 = 参赛队数
+  const rows=(html.match(/<tr/g)||[]).length-1;   // 减掉表头
+  assert.equal(rows,t.league.teams.length,`榜上应有 ${t.league.teams.length} 行，实际 ${rows}`);
+}
