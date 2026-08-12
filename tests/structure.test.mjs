@@ -1978,3 +1978,42 @@ console.log("模拟球员 architecture test passed");
   assert.equal(foe.ga,4,"对手丢4");
   assert.equal(foe.l,1,"对手记一负");
 }
+
+// ===== 两条路径都要推进联赛 =====
+{
+  // 路径一：玩家上场
+  const t=G.createInitialState("上场",allocation,[],"standard","mid");
+  ATTR_KEYS.forEach(k=>t.attrs[k]=80);
+  t.totalMonth=59;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  await driveMatch(t,()=>0);
+  const fx=t.schedule.fixtures.find(f=>f.month===60);
+  const me=t.league.teams.find(x=>x.name===t.club.name);
+  assert.ok(t.league.played>=1,"打完一场后联赛必须推进了一轮");
+  if(fx&&fx.status==="played"&&fx.result){
+    assert.equal(me.gf,fx.result.gf,"榜上的进球必须与赛程页那场完全一致");
+    assert.equal(me.ga,fx.result.ga,"榜上的失球同理");
+  }
+}
+{
+  // 路径二：玩家伤停缺阵，球队照样要踢
+  const t=G.createInitialState("伤停",allocation,[],"standard","mid");
+  t.totalMonth=59;t.flags.pro18=true;t.route="pro";
+  t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);G.ensureLeague(t);
+  t.injury={name:"膝伤",months:3,risk:0};
+  G.setState(t);G.clearModalQueue();
+  G.advanceMonth();
+  await driveMatch(t,()=>0);
+  const fx=t.schedule.fixtures.find(f=>f.month===60);
+  const me=t.league.teams.find(x=>x.name===t.club.name);
+  assert.equal(fx.status,"missed","sanity: 伤停那场标 missed");
+  assert.equal(me.p,1,
+    "玩家缺阵，球队仍要踢这一轮——否则伤停三个月后他的球队场次会比别人少三场，榜就是坏的");
+  // 全联盟仍然自洽
+  const T=t.league.teams;
+  assert.equal(T.reduce((n,x)=>n+x.w,0),T.reduce((n,x)=>n+x.l,0),"缺阵那轮也要保持胜负配平");
+}
