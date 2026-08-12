@@ -1113,7 +1113,7 @@ function routeChoice16(s){
   options.push(option(eligibleLocal?"放弃职业合同，回校园":"接受落选，回到校园","与小满留在一起，学业更稳定；18岁仍可通过校队试训重返职业",()=>setRoute(s,"campus")));
   return{title:eligibleOverseas?"三扇门，只能走进一扇":eligibleLocal?"一纸合同，和另一种生活":"一线队名单上没有你的名字",portrait:eligibleOverseas?"assets/lin-xiaoman.webp":"assets/coach-zhou.webp",body:`<p>16岁评估：综合能力 <b>${o}</b>，声望 <b>${Math.round(s.fame)}</b>，教练信任 <b>${Math.round(s.coachFavor)}</b>。${eligibleOverseas?"英格兰豪门梯队给出邀请，但不接受远程报到。小满没有哭，只问你是否已经决定。":eligibleLocal?"俱乐部给出一份低薪青年合同。校园与职业的路从今天开始分开。":"周骁说你的成长还没有结束，但俱乐部不能为“也许”保留位置。"}</p><p>你爸没有替你做决定，只在饭桌上说了一句：<span class="dialogue">“自己选。选完别回头。”</span>小满什么也没说，只在你出门时把一包葱油味饼干塞进你书包——你最喜欢的那种。</p>`,options}
 }
-function setRoute(s,route){s.route=route;s.flags.route16=true;if(route==="firstteam"){s.club={name:"重庆铜梁龙",league:"中超",strength:67};s.salary=4;s.relationship.status="恋人";addMoney(s,5);change(s,"fame",5);log(s,"story","你升入重庆铜梁龙一线队，与小满留在同一座城市。")}
+function setRoute(s,route){s.route=route;s.flags.route16=true;ensureRival(s);if(route==="firstteam"){s.club={name:"重庆铜梁龙",league:"中超",strength:67};s.salary=4;s.relationship.status="恋人";addMoney(s,5);change(s,"fame",5);log(s,"story","你升入重庆铜梁龙一线队，与小满留在同一座城市。")}
   if(route==="overseas"){s.club={name:"Manchester United U18",league:"英超梯队",strength:74};s.salary=3;s.relationship.status="异地";s.language=clamp(s.language+5);change(s,"fame",8);change(s,"form",-2);log(s,"story","你飞往英格兰的青训营。临行前你和小满约好试试异地，谁也没提“分手”——从此隔着七个小时的时差。")}
   if(route==="campus"){s.club={name:"重庆市第七中学校队",league:"校园联赛",strength:55};s.salary=0;s.relationship.status="恋人";changeLove(s,8);log(s,"story","你回到校园。小满坐在你旁边，但她要求你不要把她当作放弃职业的理由。")}}
 
@@ -1622,14 +1622,24 @@ function advanceLeagueRound(s,play,round){
       done.add(me.name);done.add(foe.name);
     }
   }
+  const roundGf={};                          // 本轮各队进球，宿敌份额要用
+  if(play&&play.opponent&&play.result){roundGf[s.club.name]=play.result.gf;roundGf[play.opponent]=play.result.ga}
   const rest=shuffled(lg.teams.filter(t=>!done.has(t.name)),rng);
   if(rest.length%2===1)rest.pop();          // 奇数：末位轮空，不计场次
   for(let i=0;i<rest.length;i+=2){
     const A=rest[i],B=rest[i+1];
     const r=simLeagueMatch(A.strength,B.strength,rng);
     applyLeagueResult(A,r.gf,r.ga);applyLeagueResult(B,r.ga,r.gf);
+    roundGf[A.name]=r.gf;roundGf[B.name]=r.ga;
   }
   lg.played=Math.max(lg.played,round);
+  /* 宿敌与你的联赛同步推进。他在你的榜上就分他球队的进球份额（轮空=0），
+     不在就走独立模型。 */
+  {const rv=s.rival;
+   if(rv&&rv.club){
+     const sameLeague=lg.key===rv.club.league;
+     rivalRoundAdvance(s,round,sameLeague?(roundGf[rv.club.name]??0):null);
+   }else ensureRival(s)}
   return lg;
 }
 /* ========== 宿敌：江彻 ==========
@@ -1662,8 +1672,13 @@ function ensureRival(s){
   const rv=s.rival,info=ageInfo(s);
   if(rv.route===null&&s.flags.route16)
     /* 镜像：走你没走的那条路。你签国内他出海；你出海他留中超；
-       你回校园——他签下了你放弃的那份职业合同。 */
-    rv.route=s.route==="firstteam"?"overseas":"firstteam";
+       你回校园——他签下了你放弃的那份职业合同。
+       18岁后 route 已被覆写成 "pro"（老档），退回用联赛反推：
+       你在英超他就在中超，反之亦然。 */
+    rv.route=s.route==="firstteam"?"overseas"
+      :s.route==="overseas"?"firstteam"
+      :s.route==="campus"?"firstteam"
+      :(s.club.league==="英超"?"firstteam":"overseas");
   if(rv.season===info.season)return rv;
   rv.season=info.season;rv.goals=0;
   const rng=rivalRng(info.season,101);
@@ -1681,6 +1696,33 @@ function ensureRival(s){
 }
 /* 对位从18岁职业期开始——梯队一季3轮样本太小，14-18岁他只活在剧情里。 */
 function rivalActive(s){return !!(s.rival&&s.rival.club&&ageInfo(s).age>=18)}
+function rivalAddGoals(rv,n){if(n>0){rv.goals+=n;rv.careerGoals+=n}}
+/* 每当你的联赛推进一轮，他那边也推进一轮（两边赛季轮数同为12）。
+   同联赛：他的进球是榜上他球队该轮进球的份额，两边永远对得上；
+   跨联赛：他的联赛不在你的榜上，按同一公式独立生成。
+   种子按（赛季,轮次）派生——读档、重渲染不改历史，与积分榜同一纪律。 */
+function rivalRoundAdvance(s,round,teamGf){
+  const rv=ensureRival(s);
+  if(!rivalActive(s))return;
+  if(rv.lastRound===`${rv.season}#${round}`)return;   // 同轮防重，与积分榜同一守卫
+  rv.lastRound=`${rv.season}#${round}`;
+  if(rv.injuredRounds&&round>=rv.injuredFrom&&round<rv.injuredFrom+rv.injuredRounds)return;   // 伤停轮不进球
+  const rng=rivalRng(rv.season,round*7+3);
+  if(teamGf!==null){
+    /* 份额模型：球队每进一球，他都有一份触球概率。等级越高、球队越弱，份额越大。 */
+    const share=clamp(.42+(rv.level-rv.club.strength)/45,.2,.8);
+    let n=0;for(let i=0;i<teamGf;i++)if(rng()<share)n++;
+    rivalAddGoals(rv,n);
+  }else{
+    /* 独立模型：先模拟他球队该轮的进球，再走同一个份额。
+       对手强度取他联赛的平均实力，避免引入整个第二联赛的配对模拟。 */
+    const leagueAvg=rv.club.league==="英超"?81:71;
+    const r=simLeagueMatch(rv.club.strength,leagueAvg,rng);
+    const share=clamp(.42+(rv.level-rv.club.strength)/45,.2,.8);
+    let n=0;for(let i=0;i<r.gf;i++)if(rng()<share)n++;
+    rivalAddGoals(rv,n);
+  }
+}
 /* 还有几次「结束本月」才打到这场。advanceMonth 是先 ++ 再判定，
    所以 month=totalMonth+1 的那场，下一次点「结束本月」就开打——
    那是「本月末」，不是「还有1个月」。差一位会让主界面一直骗玩家。 */

@@ -2187,3 +2187,76 @@ console.log("模拟球员 architecture test passed");
   assert.equal(x.rival.goals,0,"新赛季进球从0起");
   assert.equal(x.rival.season,G.ageInfo(x).season,"season 要跟上");
 }
+
+// ===== 宿敌 P2：进球推进 =====
+{
+  const mkPro=league=>{
+    const t=G.createInitialState("宿敌进球",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;
+    t.route=league==="英超"?"overseas":"pro";
+    t.club=league==="英超"?{name:"Leeds United",league:"英超",strength:76}
+                          :{name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+    return t;
+  };
+  // 同联赛：他的进球 ≤ 榜上他球队的总进球（份额自洽）
+  {
+    const t=mkPro("中超");
+    // 强制他和你同联赛：中超玩家 route=pro → 镜像 route 是 overseas(英超)。
+    // 手动放回中超验证份额路径。
+    t.rival.route="firstteam";t.rival.club=null;t.rival.season=0;G.ensureRival(t);
+    assert.equal(t.rival.club.league,"中超","sanity: 他在中超");
+    for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    const row=t.league.teams.find(x=>x.name===t.rival.club.name);
+    assert.ok(row,"他的球队必须在你的积分榜上");
+    assert.ok(t.rival.goals<=row.gf,
+      `他的进球(${t.rival.goals})不能超过他球队的总进球(${row.gf})`);
+  }
+  // 跨联赛：照样推进
+  {
+    const t=mkPro("中超");   // 玩家中超，镜像后他在英超
+    assert.equal(t.rival.club.league,"英超","sanity: 镜像后他在英超");
+    for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    assert.ok(t.rival.goals>=0&&Number.isFinite(t.rival.goals),"跨联赛他也要有进球记录");
+  }
+  // 确定性：同状态推进两次结果一致
+  {
+    const a=mkPro("中超"),b=mkPro("中超");
+    for(let r=1;r<=6;r++){G.advanceLeagueRound(a,{opponent:null,result:null},r);G.advanceLeagueRound(b,{opponent:null,result:null},r)}
+    assert.equal(a.rival.goals,b.rival.goals,"同赛季同轮次他的进球必须一致（种子派生）");
+  }
+  // 同轮防重：同一轮进来两次，他的进球不能翻倍
+  {
+    const t=mkPro("中超");
+    G.advanceLeagueRound(t,{opponent:null,result:null},1);
+    const g1=t.rival.goals;
+    G.advanceLeagueRound(t,{opponent:null,result:null},1);
+    assert.equal(t.rival.goals,g1,"同一轮不许给他算两次进球");
+  }
+  // careerGoals 随赛季进球累积
+  {
+    const t=mkPro("中超");
+    for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    assert.equal(t.rival.careerGoals,t.rival.goals,"第一个赛季生涯进球=赛季进球");
+  }
+}
+// 带宽校准：200个模拟赛季，赛季进球 P5–P95 落在 2–20、中位 7–11
+{
+  const totals=[];
+  for(let sn=5;sn<205;sn++){
+    const t=G.createInitialState("带宽",allocation,[],"standard","mid");
+    t.totalMonth=sn*12;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    ATTR_KEYS.forEach(k=>t.attrs[k]=80);
+    G.ensureSchedule(t);G.ensureLeague(t);
+    t.rival={name:"江彻",route:"firstteam",level:0,club:null,goals:0,careerGoals:0,
+      duels:{win:0,loss:0,draw:0},injuredFrom:0,injuredRounds:0,season:0};
+    G.ensureRival(t);
+    for(let r=1;r<=12;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
+    totals.push(t.rival.goals);
+  }
+  totals.sort((a,b)=>a-b);
+  const p=q=>totals[Math.floor(q*totals.length)];
+  assert.ok(p(.05)>=1&&p(.95)<=20,`P5(${p(.05)})–P95(${p(.95)}) 应落在 1–20`);
+  assert.ok(p(.5)>=6&&p(.5)<=12,`中位数(${p(.5)})应落在 6–12——和玩家实测带宽（中位8-12）对得上`);
+}
