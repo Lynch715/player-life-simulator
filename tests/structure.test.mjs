@@ -2134,3 +2134,56 @@ console.log("模拟球员 architecture test passed");
   assert.equal(G.leagueChampion(t),true,
     "评选月冠军要判刚结束赛季的最终榜（留底），不是新赛季第1轮的空榜");
 }
+
+// ===== 宿敌 P1：生成、镜像路线、软回归 =====
+// 世界是静止的：对手实力全是写死的常量，没有一个具体的人在和你抢东西。
+// 江彻是和你同届的梯队天才，16岁走你没走的那条路，18岁起每季和你比进球。
+{
+  const t=G.createInitialState("宿敌",allocation,[],"standard","mid");
+  const rv=G.ensureRival(t);
+  assert.ok(rv&&rv.name==="江彻","宿敌从开局就存在（14岁起活在剧情里）");
+  assert.equal(t.rival,rv,"要挂在 s.rival 上");
+  // 镜像路线：你留国内他出海，你出海他留中超
+  const a=G.createInitialState("镜像A",allocation,[],"standard","mid");
+  a.route="firstteam";a.flags.route16=true;G.ensureRival(a);
+  assert.equal(a.rival.route,"overseas","你签国内一线队，他去海外");
+  const b=G.createInitialState("镜像B",allocation,[],"standard","mid");
+  b.route="overseas";b.flags.route16=true;G.ensureRival(b);
+  assert.equal(b.rival.route,"firstteam","你出海，他留中超");
+  const c=G.createInitialState("镜像C",allocation,[],"standard","mid");
+  c.route="campus";c.flags.route16=true;G.ensureRival(c);
+  assert.equal(c.rival.route,"firstteam","你回校园，他直接签职业");
+}
+{
+  // 18岁起有俱乐部、有等级，且软回归钉在玩家 overall 的 ±6 内
+  const mk=()=>{
+    const t=G.createInitialState("软回归",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    return t;
+  };
+  const t=mk();
+  ATTR_KEYS.forEach(k=>t.attrs[k]=88);          // 玩家练猛了
+  const rv=G.ensureRival(t);
+  assert.ok(rv.club&&rv.club.name,"18岁起他必须有俱乐部");
+  assert.ok(rv.club.name!==t.club.name,"他不能和你同队（同队抢首发是另案）");
+  assert.ok(Math.abs(rv.level-G.overall(t))<=6.01,
+    `软回归：|level(${rv.level})-overall(${G.overall(t)})| 必须 ≤6`);
+  const t2=mk();
+  ATTR_KEYS.forEach(k=>t2.attrs[k]=8);          // 玩家摆烂
+  const rv2=G.ensureRival(t2);
+  assert.ok(Math.abs(rv2.level-G.overall(t2))<=6.01,"摆烂时他也只甩你6，不能甩没影");
+  // 确定性：同状态两次生成完全一致
+  const x=mk(),y=mk();
+  const rx=G.ensureRival(x),ry=G.ensureRival(y);
+  assert.equal(rx.level,ry.level,"同赛季同状态 level 必须一致（种子派生）");
+  assert.equal(rx.club.name,ry.club.name,"俱乐部选择也必须确定");
+  // 幂等：同赛季重复调用不重算、不清进球
+  rx.goals=7;
+  assert.equal(G.ensureRival(x),rx,"同赛季必须返回同一个对象");
+  assert.equal(rx.goals,7,"重复调用不能把进球抹掉");
+  // 翻季重置进球
+  x.totalMonth=72;G.ensureRival(x);
+  assert.equal(x.rival.goals,0,"新赛季进球从0起");
+  assert.equal(x.rival.season,G.ageInfo(x).season,"season 要跟上");
+}

@@ -1632,6 +1632,55 @@ function advanceLeagueRound(s,play,round){
   lg.played=Math.max(lg.played,round);
   return lg;
 }
+/* ========== 宿敌：江彻 ==========
+   和你同届的铜梁龙梯队前锋，14岁时就是「天才是他、努力是你」的那一个。
+   16岁走你没走的那条路，18岁起每个赛季和你比进球——对位之争是
+   「你的赛季进球 vs 他的」，不是联赛金靴：跨联赛依然成立，
+   也绕开了给全联盟建个人数据的深坑（积分榜设计里已否决）。 */
+const RIVAL_NAME="江彻";
+function rivalRng(seasonNo,round){
+  let x=(((seasonNo*2654435761)^(round*97531)^0x9e3779b9)>>>0)||1;
+  return ()=>((x=(x*1664525+1013904223)>>>0)/4294967296);
+}
+/* 年龄基线取自12局生涯实测的玩家成长曲线（18岁≈73，24岁≈84，巅峰≈91）。
+   基线只是锚，最终等级被软回归拉着走。 */
+function rivalBaseLevel(age){return age<=30?Math.min(91,61+(age-14)*2.35):Math.max(74,91-(age-30)*1.4)}
+function rivalClubPick(s,seasonNo){
+  const league=s.rival.route==="overseas"?"英超":"中超";
+  const pool=(league==="英超"?PL_CLUBS:CSL_CLUBS).filter(c=>c.name!==s.club.name);
+  const rng=rivalRng(seasonNo,777);
+  return {...pool[Math.floor(rng()*pool.length)]};
+}
+/* 成长曲线：软回归，不是橡皮筋。
+   纯静态：玩家练得快或慢，第3个赛季后对位胜负永远定死，之后十年是垃圾时间。
+   全橡皮筋：假——玩家会发现无论怎么练都五五开，对位立刻失去意义。
+   折中：差距压在 ±6 内。你摆烂他甩开你，你练猛他咬住你，
+   但胜负始终由你最近的表现主导。 */
+function ensureRival(s){
+  if(!s.rival)s.rival={name:RIVAL_NAME,route:null,level:0,club:null,goals:0,careerGoals:0,
+    duels:{win:0,loss:0,draw:0},injuredFrom:0,injuredRounds:0,season:0};
+  const rv=s.rival,info=ageInfo(s);
+  if(rv.route===null&&s.flags.route16)
+    /* 镜像：走你没走的那条路。你签国内他出海；你出海他留中超；
+       你回校园——他签下了你放弃的那份职业合同。 */
+    rv.route=s.route==="firstteam"?"overseas":"firstteam";
+  if(rv.season===info.season)return rv;
+  rv.season=info.season;rv.goals=0;
+  const rng=rivalRng(info.season,101);
+  rv.level=Math.round(clamp(rivalBaseLevel(info.age)+rndFloat(rng,-2,2),overall(s)-6,overall(s)+6));
+  if(info.age>=18&&rv.route){
+    /* 18岁签约；之后每赛季 30% 概率转会（他也有自己的生涯）。
+       永远避开玩家的俱乐部——同队抢首发是另案。 */
+    if(!rv.club||rng()<.3||rv.club.name===s.club.name)rv.club=rivalClubPick(s,info.season);
+    /* 伤病：约15%概率赛季中伤停2-3轮，制造「他伤了你趁机拉开」的年份差异。 */
+    const hurt=rng();
+    if(hurt<.15){rv.injuredRounds=hurt<.05?3:2;rv.injuredFrom=4+Math.floor(rng()*5)}
+    else{rv.injuredRounds=0;rv.injuredFrom=0}
+  }
+  return rv;
+}
+/* 对位从18岁职业期开始——梯队一季3轮样本太小，14-18岁他只活在剧情里。 */
+function rivalActive(s){return !!(s.rival&&s.rival.club&&ageInfo(s).age>=18)}
 /* 还有几次「结束本月」才打到这场。advanceMonth 是先 ++ 再判定，
    所以 month=totalMonth+1 的那场，下一次点「结束本月」就开打——
    那是「本月末」，不是「还有1个月」。差一位会让主界面一直骗玩家。 */
@@ -2330,7 +2379,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,seasonFinalLeague,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,seasonFinalLeague,ensureRival,rivalActive,rivalRng,rivalBaseLevel,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
