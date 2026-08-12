@@ -2326,3 +2326,47 @@ console.log("模拟球员 architecture test passed");
   assert.ok(/queueAward\(seasonAwardCheck\(S\),S,goalResult,rivalSeasonSettle\(S\)\)|rivalDuel/.test(code),
     "对位结果要传进年度评选的弹窗");
 }
+
+// ===== 宿敌 P4：事件、成就、结局分支 =====
+{
+  const rivalEvents=G.EVENTS.filter(e=>/^rival_/.test(e.id));
+  assert.ok(rivalEvents.length>=5,`宿敌事件至少5条（梯队/分流/职业各阶段），实际 ${rivalEvents.length}`);
+  rivalEvents.forEach(e=>assert.match(e.body,/江彻/,`${e.id} 的文案里要有他`));
+  const ids=G.ACHIEVEMENTS.map(a=>a.id);
+  ["rival_first_win","rival_streak3","rival_career"].forEach(id=>
+    assert.ok(ids.includes(id),`缺成就 ${id}`));
+}
+{
+  // 连胜计数：连压三季解锁
+  const mk=(you,him)=>{
+    const t=G.createInitialState("连庄",allocation,[],"standard","mid");
+    t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureSchedule(t);G.ensureLeague(t);G.ensureRival(t);
+    t.rival.goals=him;t.seasonStats.goals=you;
+    return t;
+  };
+  const t=mk(10,5);
+  G.rivalSeasonSettle(t);
+  t.seasonStats.goals=10;t.rival.goals=5;G.rivalSeasonSettle(t);
+  t.seasonStats.goals=10;t.rival.goals=5;const r3=G.rivalSeasonSettle(t);
+  assert.equal(t.rival.streak,3,"三连胜 streak 应为3");
+  t.seasonStats.goals=3;t.rival.goals=9;G.rivalSeasonSettle(t);
+  assert.equal(t.rival.streak,0,"输一次连胜清零");
+}
+{
+  // 结局：对位领先/落后，江彻在结尾出场的话不一样
+  const mk=lead=>{
+    const t=G.createInitialState("结局",allocation,[],"standard","mid");
+    t.totalMonth=240;t.flags.pro18=true;t.flags.route16=true;t.route="pro";
+    t.club={name:"上海海港",league:"中超",strength:79};
+    G.ensureRival(t);
+    t.rival.careerGoals=120;
+    t.rival.duels=lead?{win:8,loss:3,draw:2}:{win:3,loss:8,draw:2};
+    return t;
+  };
+  const up=G.buildEnding(mk(true)),down=G.buildEnding(mk(false));
+  assert.match(up.coda,/江彻/,"对位领先时结局要有他");
+  assert.match(down.coda,/江彻/,"对位落后时结局也要有他");
+  assert.notEqual(up.coda,down.coda,"领先和落后的结局文案必须不同");
+}

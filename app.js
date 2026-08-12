@@ -139,7 +139,10 @@ const ACHIEVEMENTS=[
   {id:"married",icon:"戒",name:"步入婚姻",desc:"与林小满结婚"},
   {id:"clean_career",icon:"盾",name:"干净的球衣",desc:"完成5个赛季且从未涉赌"},
   {id:"captain_armband",icon:"C",name:"队长袖标",desc:"成为俱乐部或国家队队长"},
-  {id:"classic_match",icon:"★",name:"经典之战",desc:"打出一场评分8.5以上、或高风险选择全部命中的比赛"}
+  {id:"classic_match",icon:"★",name:"经典之战",desc:"打出一场评分8.5以上、或高风险选择全部命中的比赛"},
+  {id:"rival_first_win",icon:"刃",name:"第一次压过江彻",desc:"单赛季进球压过宿敌"},
+  {id:"rival_streak3",icon:"焰",name:"三年连庄",desc:"连续3个赛季对位压过江彻"},
+  {id:"rival_career",icon:"巅",name:"宿敌之上",desc:"生涯对位领先江彻直到退役"}
 ];
 
 const ACTIONS=[
@@ -315,6 +318,25 @@ function buyAsset(s,id){const it=ASSETS.find(x=>x.id===id);if(!it||ownedAsset(s,
 function option(text,effect,apply,tone=""){return{text,effect,apply,tone}}
 
 const EVENTS=[
+  /* ===== 宿敌：江彻 ===== 每个阶段两三条，给对位之争铺情绪。只给小额状态/意志，不给属性大数。 */
+  {id:"rival_first_sight",once:true,phase:["academy"],condition:s=>!!s.rival,title:"熄灯后，球场上还有一个人",body:"<p>你回宿舍拿落下的护腿板，路过训练场，发现灯还亮着一半。江彻一个人在罚球弧顶，把球挑起来，凌空，打门。球进了，他自己去捡，走回原位，再来一次。</p><p>你站在暗处看了一会儿。他每一次触球的声音都很干净，像有人在按同一个琴键。教练白天说他是<span class='dialogue'>“十年一遇”</span>，说这话的时候你就站在旁边。</p><p>他忽然停下来，没回头：<span class='dialogue'>“看够了没？看够了帮我捡球。”</span></p>",options:s=>[
+    option("留下来陪他练到熄灯","意志+1，体能-8；他记住了你",()=>{gain(s,"WIL",1,"will");change(s,"fitness",-8);log(s,"story","你捡了四十分钟球，也打了四十分钟门。走的时候他说：“明天还是这个点。”你们谁都没把这当成邀请，但第二天你们都在。")}),
+    option("转身回宿舍","体能+5；有些账留到球场上算",()=>{change(s,"fitness",5);log(s,"story","你走的时候他没再说话。第二天训练，他把一脚本可以自己打的球分给了你。你们谁也没提昨晚。")})]},
+  {id:"rival_praise",once:true,phase:["academy"],condition:s=>!!s.rival,title:"教练夸你努力的时候，夸的是他的天赋",body:"<p>分组对抗结束，周骁把全队叫到中圈。他先点了江彻的名字：<span class='dialogue'>“那脚外脚背，我教不出来。”</span>然后他看了你一眼：<span class='dialogue'>“陈逐风今天跑了全场最多的距离。”</span></p><p>没有人笑，但你听得懂这两句话的区别。一句在说天花板，一句在说地板。</p><p>解散后江彻从你身边走过，用只有你能听见的音量说：<span class='dialogue'>“跑动距离，嗯。”</span>他没有恶意，这更糟。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
+    option("把这句话咽下去，加练射门","射门经验+，状态-3；话放在心里比说出来重",()=>{addStyleExp(s,"box",6);change(s,"form",-3)}),
+    option("当面回他：赛场上见","意志+1；从今天起你们是对手了",()=>{gain(s,"WIL",1,"pressure");log(s,"story","他愣了一下，然后笑了。那是他第一次正眼看你超过三秒。“好。”他说，“赛场上见。”")})]},
+  {id:"rival_paths",once:true,phase:["firstteam","overseas","campus"],condition:s=>!!(s.rival&&s.rival.route),title:"他走了那条你没走的路",body:"<p>消息是队友先刷到的，转给你的时候配了三个感叹号。官方通稿，江彻的名字在标题里。</p><p>你点开看完，配图是他拖着行李箱回头的那张。拍得很好，光从背后打过来，他看起来已经像那种「注定要走远」的人。</p><p>你想起熄灯后的球场，想起他说<span class='dialogue'>“赛场上见”</span>。现在你们隔着的不止是一块场地了。</p><p>晚上他给你发来一条消息，没有开头没有落款：<span class='dialogue'>“别掉队。”</span></p>",options:s=>[
+    option("回他：你也是","意志+1；这条线牵到职业赛场上去了",()=>{gain(s,"WIL",1,"will")}),
+    option("不回，把消息设为置顶","状态+3；有些话适合留着当燃料",()=>{change(s,"form",3)})]},
+  {id:"rival_interview",phase:["pro"],weight:.8,condition:s=>!!(s.rival&&s.rival.club&&s.totalMonth>=50),title:"发布会上，第三个问题是关于他的",body:"<p>前两个问题都是套路，第三个问题来了：<span class='dialogue'>“江彻这个赛季进球比你多（或者比你少——记者会挑对他有利的那个说法），你怎么看你们俩的比较？”</span></p><p>话筒递到你面前。摄像机的红点都亮着。你知道不管你说什么，明天的标题都已经写好了一半。</p>",options:s=>[
+    option("回一句硬的","声望+6，状态±；标题会很好看，更衣室未必",()=>{change(s,"fame",6);change(s,"form",chance(.55)?4:-4);log(s,"story","你说：“比较是你们的工作，进球是我的。”说完你自己都觉得这句会被做成动图。果然。")}),
+    option("只谈球队，不接这个茬","教练信任+4，意志+1；记者失望，教练满意",()=>{change(s,"coachFavor",4);gain(s,"WIL",1,"pressure")})]},
+  {id:"rival_lowpoint",once:true,phase:["pro"],condition:s=>!!(s.rival&&s.rival.duels&&s.rival.duels.loss>=2),title:"连续两年，他的名字都压在你前面",body:"<p>赛季数据汇总的推送是自动的，没有感情：江彻，又一次排在你前面。评论区已经开始用<span class='dialogue'>“一生之敌”</span>造句，只是主角不是你。</p><p>你把手机扣在桌上。窗外天还没黑，训练场的灯已经亮了。你想起十四岁那年熄灯后的球场，那时候留在场上加练的人是他，站在暗处看的人是你。</p><p>十年过去，好像什么都变了，又好像什么都没变。</p>",options:s=>[
+    option("今晚去把灯全打开","加练：射门经验+，体能-10；轮到他看不见你的背影了",()=>{addStyleExp(s,"box",8);change(s,"fitness",-10);gain(s,"WIL",1,"will")}),
+    option("找小满说说这件事","感情+6，状态+4；不是所有账都要一个人扛",()=>{changeLove(s,6);change(s,"form",4)})]},
+  {id:"rival_respect",once:true,phase:["pro"],condition:s=>!!(s.rival&&s.rival.duels&&s.rival.duels.win>=3),title:"凌晨一点，他发来一条消息",body:"<p>不是节日，不是你生日，也不是比赛日。就是一个普通的凌晨，手机亮了一下。</p><p>江彻：<span class='dialogue'>“看了你这个赛季所有进球。第七个那种球，我进不了。”</span></p><p>你盯着这条消息看了很久。十几年了，你们在记分牌上互相较劲，在采访里互相不接茬，可你比谁都清楚——没有他在前面吊着，你到不了现在这个位置。</p><p>过了一会儿，他又发来一条：<span class='dialogue'>“下赛季我会变强。”</span></p>",options:s=>[
+    option("回：我等着","意志+1，状态+4；最好的对手就是这样的",()=>{gain(s,"WIL",1,"will");change(s,"form",4);log(s,"good","你放下手机，忽然很想笑。十四岁那年他说“赛场上见”，这句话你们各自兑现了十年。")}),
+    option("不回，明天加练","射门经验+；话不用多，球说了算",()=>{addStyleExp(s,"box",6)})]},
   {id:"academy_ankle",once:true,phase:["academy"],title:"队医说“可以上”，你的脚踝说不行",body:"<p>队医捏着你脚踝按了两下，问了三个问题：疼不疼、能不能发力、能不能变向。你回了三个“能”。他点点头，在报告上写“可参赛”。</p><p>周骁在你旁边系鞋带，头没抬：<span class='dialogue'>“首发名单只等你一句话。”</span></p><p>你站起来走了两步，左脚落地那一下，脚踝里有一根筋像被拨了一下，不尖锐，但你知道它在。</p><p>小满发来一条消息：<span class='dialogue'>“膝盖以下的部分还连着吗？”</span>你没回。你把护踝拉紧了两格，走进通道。</p>",portrait:"assets/coach-zhou.webp",options:s=>[
     option("咬牙首发","声望+8；可能抓住机会，也可能伤停2—4个月",()=>{change(s,"fame",8);change(s,"coachFavor",4);if(chance(hasTalent(s,"iron_man")?.28:.48))sufferInjury(s,rand(2,4));else{change(s,"form",6);log(s,"good","你撑过了比赛，但这不是一个可以反复使用的答案。")}},"danger"),
     option("主动退出名单","体能+12；教练信任-5，意志+1",()=>{change(s,"fitness",12);change(s,"coachFavor",-5);gain(s,"WIL",1,"will")})]},
@@ -1276,12 +1298,20 @@ function endingGrade(s){const c=s.statsCareer,peak=s.peakOverall||overall(s);if(
   return{tier:"未竟的绿茵梦",line:"你没能真正踢进职业赛场，但那只旧足球陪你走过的日子，不会因此作废。"}}
 function buildEnding(s){const c=s.statsCareer,a=ageInfo(s),g=endingGrade(s),love=s.relationship.status;
   const loveEnd=love==="恋人"?`你回到家的时候厨房灯亮着，餐桌上放着一碗绿豆汤，还是烫的。<span class="dialogue">“洗完手再喝。”</span>她在厨房里说，没有抬头。你坐下来了——这是你这么多年来第一次，不用再赶时间。`:love==="异地"?`你收到一条消息：<span class="dialogue">“今天的比赛我看了。那个拖时间有点丢人，不像是你。”</span>你笑了一下，回了两个字：老了。她回了一个表情，没再多说。你们的对话框还留着，上一次聊天是两个月前的生日。`:`你路过那家面馆，透过玻璃看见里面靠窗的位置坐着一个长发的人。你停了一步，然后继续走了。你没有回头，也不知道那是不是她。但你知道，就算是她，你也不会进去了。`;
+  /* 宿敌的谢幕。对位领先或落后，他在结尾出场的那句话不同——
+     十几年的对手戏，值得一个各自的收尾。 */
+  const rd=s.rival&&s.rival.duels,rTotal=rd?rd.win+rd.loss+rd.draw:0;
+  const rivalCoda=rTotal>0?(rd.win>rd.loss
+    ?`退役发布会后，江彻发来一条消息：<span class="dialogue">“这些年，追你追得很累。谢了。”</span>你回他：彼此。你们约了一顿饭，谁都知道大概率吃不成——但这句话你们说了十几年，说着说着，就把彼此说成了生涯里最重要的人。<br><br>`
+    :`你退役那天，江彻在采访里被问起你。他想了几秒，说：<span class="dialogue">“跑动距离全场最多的那个人，先下班了。”</span>只有你听得懂这句话是从十四岁那年的中圈传来的。记分牌上他赢的次数多一些，但你们都清楚，没有对方，谁也到不了这么远。<br><br>`):"";
   let coda=s.national.called?`退役后你把那封征召信从包底翻出来过一次，折痕快把纸磨穿了。你没告诉任何人，只是读了一遍，重新叠好放回去。<br><br>有一天你收拾东西时发现它不见了，你没有找，只是在原地坐了一会儿。很多年后，有人在你老家那间卧室的墙缝里发现一张泛黄的纸，上面还看得清几个字——<span class="dialogue">“经研究决定……征召……”</span>字迹被潮气洇花了，但那张纸被叠得很整齐，像是有人曾经很认真地保管过它。`:"";
   if(s.flags&&s.flags.worldChampion)coda=`有一年夏天，你们赢到了最后一场。那只奖杯你只抱了很短的时间就要交回去，但那天晚上它的重量，后来很多年你都还记得。<br><br>`+coda;
+  coda=rivalCoda+coda;
   return{grade:g.tier,line:g.line,loveEnd,coda,age:a.age,peak:s.peakOverall||overall(s),score:careerScore(s),
     metrics:[[c.matches,"生涯出场"],[c.goals,"进球"],[c.assists,"助攻"],[c.nationalCaps,"国家队出场"],[s.honours.length,"奖杯/大赛荣誉"],[s.awards.length,"金球奖"]],
     honours:s.honours.slice(),difficulty:diffOf(s).name}}
-function retirePlayer(s,reason){s.retired=true;s.retireReason=reason;modalQueue=[];modalBusy=false;if(typeof document!=="undefined")$("modalMask")?.classList.add("hidden");updateRanking(s);const label=reason==="age"?`${ageInfo(s).age}岁，你决定挂靴。`:reason==="banned"?"长期禁赛让你再也回不到从前，你选择离开。":reason==="washout"?"没能踏进职业赛场，你把球鞋收进了柜子。":"身体和状态都告诉你，是时候退役了。";log(s,"story",label);if(typeof document!=="undefined")showEnding(s)}
+function retirePlayer(s,reason){s.retired=true;s.retireReason=reason;
+  {const rd=s.rival&&s.rival.duels;if(rd&&rd.win+rd.loss+rd.draw>0&&rd.win>rd.loss)unlock("rival_career")}modalQueue=[];modalBusy=false;if(typeof document!=="undefined")$("modalMask")?.classList.add("hidden");updateRanking(s);const label=reason==="age"?`${ageInfo(s).age}岁，你决定挂靴。`:reason==="banned"?"长期禁赛让你再也回不到从前，你选择离开。":reason==="washout"?"没能踏进职业赛场，你把球鞋收进了柜子。":"身体和状态都告诉你，是时候退役了。";log(s,"story",label);if(typeof document!=="undefined")showEnding(s)}
 function defaultMeta(){return{unlocked:{},rankings:[],runs:0}}
 function loadMeta(){try{return{...defaultMeta(),...JSON.parse(localStorage.getItem(META_KEY)||"{}")}}catch(e){return defaultMeta()}}
 let META=typeof localStorage!=="undefined"?loadMeta():defaultMeta();
@@ -1755,7 +1785,9 @@ function rivalSeasonSettle(s){
   const rv=s.rival,you=s.seasonStats.goals,him=rv.goals;
   const result=you>him?"win":you<him?"loss":"draw";
   rv.duels[result]++;
+  rv.streak=result==="win"?(rv.streak||0)+1:0;
   if(result==="win")unlock("rival_first_win");
+  if(rv.streak>=3)unlock("rival_streak3");
   return {you,him,result,name:RIVAL_NAME};
 }
 /* 还有几次「结束本月」才打到这场。advanceMonth 是先 ++ 再判定，
