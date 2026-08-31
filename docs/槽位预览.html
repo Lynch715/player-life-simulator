@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>立绘槽位预览 · 模拟球员</title>
+<style>
+:root{--bg:#06110d;--panel:#10251d;--line:#ffffff1b;--ink:#f5f2e9;--muted:#9bb0a5;--green:#28d27d;--gold:#f0bd5e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:24px}
+h1{font-size:22px;margin:0 0 6px}
+.lede{color:var(--muted);font-size:13px;line-height:1.7;max-width:760px;margin:0 0 20px}
+.lede code{background:#ffffff10;padding:1px 5px;border-radius:5px;font-size:12px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-bottom:22px}
+.bar label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.bar input[type=file]{font-size:12px;color:var(--muted)}
+button{border:1px solid var(--line);background:#ffffff0c;color:var(--ink);border-radius:10px;padding:8px 13px;font-size:12px;cursor:pointer}
+button:hover{border-color:#31d98555}
+h2{font-size:14px;color:var(--green);letter-spacing:.05em;margin:26px 0 4px}
+h2 small{color:var(--muted);font-weight:400;letter-spacing:0;margin-left:8px;font-size:11px}
+.row{display:flex;gap:10px;flex-wrap:wrap;padding:10px 0 4px}
+.cell{display:flex;flex-direction:column;gap:4px}
+.frame{overflow:hidden;border:1px solid #ffffff2a;border-radius:8px;background:#000;position:relative}
+.frame img{width:100%;height:100%;object-fit:cover;display:block}
+.cap{font-size:10px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.safe .frame:after{content:"";position:absolute;left:8%;right:8%;top:11%;bottom:40%;
+  border:1px dashed #28d27daa;background:#28d27d14;pointer-events:none}
+.miss{padding:14px;border:1px dashed #ffffff2a;border-radius:10px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<h1>立绘槽位预览</h1>
+<p class="lede">
+把每一张素材铺进游戏里真实存在的 8 个容器，一次看清所有裁切效果。所有尺寸与 <code>object-position</code> 都是从
+<code>style.css</code> 实测抄下来的，和游戏内一致。<br>
+勾上「安全区」会画出实测的绝对安全区（横向 8%–92%、纵向 11%–60%）——重要内容必须落在框内，
+框外的部分在某些容器里永远看不到。<br>
+新素材还没进 <code>assets/</code> 时，可以直接用「临时加载本地图片」选文件预览，不用先落盘。
+</p>
+
+<div class="bar">
+  <label><input type="checkbox" id="safe" checked> 显示安全区</label>
+  <label>临时加载本地图片 <input type="file" id="pick" accept="image/*" multiple></label>
+  <button id="clear">清除临时图片</button>
+</div>
+
+<div id="out"></div>
+
+<script>
+/* 槽位：[名称, 宽, 高, object-position-Y]  ——— 数值实测自 style.css */
+const SLOTS = [
+  ['桌面 · 弹窗立绘', 294, 529, '18%'],
+  ['手机 · 弹窗立绘', 353, 304, '18%'],
+  ['桌面 · 主界面球员卡', 270, 380, '18%'],
+  ['手机 · 主界面球员卡', 120, 178, '18%'],
+  ['桌面 · 荣誉卡', 229, 168, '22%'],
+  ['手机 · 荣誉卡', 182, 150, '22%'],
+  ['桌面 · 关系卡', 76, 96, '18%'],
+  ['手机 · 关系卡', 62, 82, '18%'],
+];
+
+/* 现有素材。新图出来后加一行文件名即可。 */
+const ASSETS = [
+  'player.webp','father.webp','lin-xiaoman.webp','coach-zhou.webp',
+  'brother-wang-v1.webp','leader-liu-v1.webp','qianjin.webp',
+  'world-cup-scene.webp','asian-cup-scene.webp',
+  'league-title-scene.webp','domestic-cup-scene.webp','continental-cup-scene.webp',
+  'golden-boot-scene.webp','ballon-scene.webp',
+  // ↓ 2026-08-31 补图批次
+  'rival-youth.webp','rival-pro.webp',
+  'moment-oneonone.webp','moment-scramble.webp','moment-duel.webp',
+  'moment-freekick.webp','moment-clutch.webp',
+  'player-youth.webp','player-pro.webp','player-peak.webp',
+];
+
+let temp = []; // {name, url}
+
+function render(){
+  const out = document.getElementById('out');
+  const items = ASSETS.map(a => ({name:a, url:'../assets/'+a})).concat(temp);
+  out.innerHTML = SLOTS.map(([label,w,h,py]) => `
+    <h2>${label}<small>${w}×${h} · object-position center ${py}</small></h2>
+    <div class="row">${items.map(it => `
+      <div class="cell" style="width:${w}px">
+        <div class="frame" style="width:${w}px;height:${h}px">
+          <img src="${it.url}" style="object-position:center ${py}"
+               onerror="this.parentElement.innerHTML='<div style=\\'color:#ef6b5e;font-size:10px;padding:6px\\'>缺图</div>'">
+        </div>
+        <div class="cap" title="${it.name}">${it.name}</div>
+      </div>`).join('')}</div>`).join('');
+  out.className = document.getElementById('safe').checked ? 'safe' : '';
+}
+
+document.getElementById('safe').addEventListener('change', render);
+document.getElementById('pick').addEventListener('change', e => {
+  for (const f of e.target.files) temp.push({name:'（临时）'+f.name, url:URL.createObjectURL(f)});
+  render();
+});
+document.getElementById('clear').addEventListener('click', () => { temp = []; render(); });
+render();
+</script>
+</body>
+</html>

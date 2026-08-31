@@ -25,6 +25,28 @@ sceneFiles.forEach(name=>{
   assert.ok(fs.statSync(file).size>10000,`scene asset ${name} is not an empty placeholder`);
   assert.match(code,new RegExp(`assets/${name}`),`source wires ${name}`);
 });
+const artBatch=[
+  "rival-youth.webp","rival-pro.webp",
+  "moment-oneonone.webp","moment-scramble.webp","moment-duel.webp","moment-freekick.webp","moment-clutch.webp",
+  "world-cup-scene.webp","asian-cup-scene.webp",
+  "player-youth.webp","player-pro.webp","player-peak.webp"
+];
+artBatch.forEach(name=>{
+  const file=path.join(root,"assets",name);
+  assert.ok(fs.existsSync(file),`new art asset ${name} exists`);
+  assert.ok(fs.statSync(file).size>10000,`new art asset ${name} is not an empty placeholder`);
+  assert.match(code+fs.readFileSync(path.join(root,"index.html"),"utf8"),new RegExp(`assets/${name}`),`source wires ${name}`);
+});
+const rivalPortraits={rival_first_sight:"assets/rival-youth.webp",rival_praise:"assets/rival-youth.webp",rival_paths:"assets/rival-youth.webp",rival_interview:"assets/rival-pro.webp",rival_lowpoint:"assets/rival-pro.webp",rival_respect:"assets/rival-pro.webp"};
+for(const [id,portrait] of Object.entries(rivalPortraits))assert.equal(G.EVENTS.find(e=>e.id===id)?.portrait,portrait,`${id} uses its period rival portrait`);
+const momentArt={counter_break:"assets/moment-oneonone.webp",through_ball:"assets/moment-oneonone.webp",box_scramble:"assets/moment-scramble.webp",aerial_duel:"assets/moment-scramble.webp",wing_duel:"assets/moment-duel.webp",hold_up:"assets/moment-duel.webp",press_trigger:"assets/moment-duel.webp",free_kick:"assets/moment-freekick.webp",late_chase:"assets/moment-clutch.webp",defend_lead:"assets/moment-clutch.webp"};
+for(const [id,art] of Object.entries(momentArt))assert.equal(G.MOMENTS.find(m=>m.id===id)?.art,art,`${id} has its key-moment art`);
+assert.match(code,/portrait:m\.art/gi,"both key-moment flows pass art into the modal portrait");
+const index=fs.readFileSync(path.join(root,"index.html"),"utf8");
+assert.match(index,/class="story-art"><img src="assets\/player-youth\.webp"/,"menu uses youth player anchor");
+assert.match(index,/class="creator-visual"[\s\S]*?assets\/player-youth\.webp/,"creator uses youth player anchor");
+assert.match(index,/class="player-card"[\s\S]*?assets\/player-pro\.webp/,"player card uses professional anchor");
+assert.match(code,/portrait:rTotal>0\?"assets\/rival-pro\.webp"/,"retirement coda can show rival professional portrait");
 assert.equal(G.awardPortraitFor({ballon:true,goldenBoot:{won:true},leagueTitle:true}),"assets/ballon-scene.webp","Ballon portrait wins when several annual honours land together");
 assert.equal(G.awardPortraitFor({ballon:false,goldenBoot:{won:true},leagueTitle:true}),"assets/golden-boot-scene.webp","Golden Boot portrait is used when no Ballon award is present");
 assert.equal(G.awardPortraitFor({ballon:false,goldenBoot:{won:false},leagueTitle:true}),"assets/league-title-scene.webp","League title portrait is used for a league-only award");
@@ -866,7 +888,7 @@ const missed={...out,national:{...out.national,cupRun:{...out.national.cupRun,mi
 assert.notEqual(G.cupOutroScene(missed).body,outScene.body,"踢飞与常规淘汰的收尾文案不同");
 }finally{G.setState(savedS);G.clearModalQueue()}
 
-for(const file of ["index.html","style.css","app.js","assets/player.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
+for(const file of ["index.html","style.css","app.js","assets/player-youth.webp","assets/lin-xiaoman.webp","assets/father.webp","assets/coach-zhou.webp"]){
   assert.ok(fs.existsSync(path.join(root,file)),`${file} should exist`);
 }
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");

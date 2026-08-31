@@ -1,6 +1,7 @@
 .DS_Store
 .playwright-cli/
 output/
-assets/*.png
+# 出图原图（PNG 未压缩）。assets/ 只放交付进游戏的 webp。
+art-source/
 .superpowers/
 .claude/

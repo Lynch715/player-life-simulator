@@ -111,3 +111,85 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
   .league-table th:nth-child(4),.league-table td:nth-child(4),
   .league-table th:nth-child(5),.league-table td:nth-child(5){display:none}
 }
+
+/* ==========================================================================
+   移动端可读性修正（2026-08-31 美术审计）
+   审计发现手机端有 1800+ 文本节点小于 12px，中文在这个尺寸下笔画会糊。
+   下面只抬字号和热区，不动配色——实测所有文字色对比度都在 6.6:1 以上，
+   配色本身没问题。桌面端完全不受影响。
+   ========================================================================== */
+@media (max-width:760px){
+  /* — 标签地板 11px（选择器特异度需匹配原规则，否则不生效） — */
+  .effect-line span,.bar-label span,.path-line span,
+  .points-orb span,.metric-grid .metric span,
+  .content-panel .section-head span,.section-title span,
+  .story-list .story-log time,.style-head small,
+  .star-rating.small b,.fixture-row .fx-meta,
+  .style-head b small,.feedback-banner small,
+  .challenge-banner small,.team-strength small,
+  .cup-opening-label small,.cup-summary-head small,
+  .allocate-name span,.stat-row span,.classic-tag,
+  .style-lv,.diff-tag,.diff-inline,.legal-note,
+  .trophy-portrait span,.honour-card span,
+  .achievement-card span,.cup-side small,
+  .height-card p,.height-card span,
+  .league-table .lt-you,.rank-table th{font-size:11px}
+
+  /* — 正文地板 12px — */
+  .action-card p,.info-card p,.offer-card p,
+  .difficulty-picker .diff-card p,
+  .relation-card p.quote,.locked-panel p,
+  .story-log>div>p,.empty-state,.talent-card p{font-size:12px;line-height:1.6}
+
+  /* — 核心数值：每个月都要瞄一眼的东西 — */
+  .pulse-row{font-size:12px}
+  .pulse-row b{font-size:14px}
+  .bar-label b{font-size:12px}
+  .section-title h3{font-size:13px}
+  #radarOvr{font-size:12px}
+  .achievement-card b{font-size:12px}
+  .fixture-row .fx-score.pending{font-size:12px}
+
+  /* — 主按钮：点击次数最多的两个 — */
+  .action-card button,.small-button{font-size:12px;min-height:40px}
+  .month-button{font-size:13px;min-height:44px}
+
+  /* — 积分榜 / 射手榜 — */
+  .rank-table{font-size:12px}
+
+  /* — 雷达图轴标签（数值在 app.js 里另行抬到 10.5） — */
+  .radar-panel svg{max-height:186px}
+
+  /* — 点击热区补到 40px 以上（iOS HIG / Material 都建议 44） — */
+  .allocate-row .step-btn{height:40px}
+  .ghost-btn{min-height:40px}
+  /* ± 是玩家进游戏的第一个交互，要连点 24 次，列宽让给它 */
+  .allocate-row{grid-template-columns:76px 1fr 40px 40px 28px;gap:4px}
+  .allocate-name b{white-space:nowrap}
+}
+/* 窄机（iPhone SE 一档）：进度条是装饰，让位给属性名，避免"SHO 射/门"折行 */
+@media (max-width:360px){
+  .allocate-row{grid-template-columns:1fr 40px 40px 28px}
+  .allocate-track{display:none}
+
+  /* — 比赛简报三个数据卡：2 列下最后一个不再落单 — */
+  .factor-row>*:last-child:nth-child(odd){grid-column:1/-1}
+
+  /* — 9 个标签的横向滚动提示再明显一点 — */
+  .game-nav{-webkit-mask-image:linear-gradient(90deg,#000 82%,#0006 94%,transparent);
+            mask-image:linear-gradient(90deg,#000 82%,#0006 94%,transparent)}
+}
+
+/* 奖杯陈列室：用已有的荣誉场景图当卡片背景，替代 31px 的 ♛ 字符 */
+.honour-card{position:relative;overflow:hidden}
+.honour-card.has-art{justify-content:flex-end;min-height:168px;padding:14px}
+.honour-card .honour-art{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:center 22%;opacity:.62;z-index:0}
+.honour-card.has-art:after{content:"";position:absolute;inset:0;z-index:1;
+  background:linear-gradient(0deg,#08150fef 6%,#08150fb0 42%,#08150f30 100%)}
+.honour-card.has-art>*{position:relative;z-index:2}
+.honour-card.has-art .trophy-icon{font-size:19px;margin-bottom:2px;
+  text-shadow:0 2px 12px #000,0 6px 20px #f0bd5e55}
+.honour-card.has-art b{text-shadow:0 2px 8px #000}
+.honour-card.has-art span{text-shadow:0 1px 6px #000}
+@media (max-width:760px){.honour-card.has-art{min-height:150px}}
