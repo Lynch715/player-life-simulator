@@ -18,6 +18,31 @@ assert.equal(G.countryFlag("日本"),"🇯🇵","Asian opponents must have expli
 assert.match(G.cupOpeningCopy("asian",{group:[{name:"日本"}],ko:[{name:"韩国"}]}),/🇨🇳|🇯🇵|🇰🇷/,"cup opening visual includes flag badges");
 assert.match(G.trophyPortrait("world"),/大力神杯/,"World Cup celebration includes trophy art");
 assert.match(G.trophyPortrait("asian"),/亚洲杯/,"Asian Cup celebration includes trophy art");
+const sceneFiles=["league-title-scene.webp","domestic-cup-scene.webp","continental-cup-scene.webp","golden-boot-scene.webp","ballon-scene.webp"];
+sceneFiles.forEach(name=>{
+  const file=path.join(root,"assets",name);
+  assert.ok(fs.existsSync(file),`scene asset ${name} exists`);
+  assert.ok(fs.statSync(file).size>10000,`scene asset ${name} is not an empty placeholder`);
+  assert.match(code,new RegExp(`assets/${name}`),`source wires ${name}`);
+});
+assert.equal(G.awardPortraitFor({ballon:true,goldenBoot:{won:true},leagueTitle:true}),"assets/ballon-scene.webp","Ballon portrait wins when several annual honours land together");
+assert.equal(G.awardPortraitFor({ballon:false,goldenBoot:{won:true},leagueTitle:true}),"assets/golden-boot-scene.webp","Golden Boot portrait is used when no Ballon award is present");
+assert.equal(G.awardPortraitFor({ballon:false,goldenBoot:{won:false},leagueTitle:true}),"assets/league-title-scene.webp","League title portrait is used for a league-only award");
+assert.equal(G.awardPortraitFor({ballon:false,goldenBoot:null,leagueTitle:false}),null,"ordinary annual review has no forced portrait");
+{
+  const awardProbe=G.createInitialState("年度探针",{PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4},[],"standard","mid");
+  G.clearModalQueue();
+  G.queueAward({score:95,ballon:false,leagueTitle:true,goals:10,assists:5,avg:7.5,goldenBoot:{won:false}},awardProbe,null,null);
+  assert.equal(G.getModalQueue()[0].portrait,"assets/league-title-scene.webp","annual award modal carries its selected portrait");
+  G.clearModalQueue();
+  G.settleClubCupMatch(awardProbe,{type:"clubcup",stage:2,opponent:"上海海港"},{opponent:"上海海港",gf:2,ga:1,goals:1,timeline:[]});
+  assert.equal(G.getModalQueue()[0].portrait,"assets/domestic-cup-scene.webp","domestic cup champion modal carries its portrait");
+  G.clearModalQueue();
+  awardProbe.continentalFor=G.ageInfo(awardProbe).season;awardProbe.continentalComp="亚冠";
+  G.settleClubCupMatch(awardProbe,{type:"continental",stage:2,opponent:"横滨水手"},{opponent:"横滨水手",gf:2,ga:0,goals:2,timeline:[]});
+  assert.equal(G.getModalQueue()[0].portrait,"assets/continental-cup-scene.webp","continental cup champion modal carries its portrait");
+  G.clearModalQueue();
+}
 /* 任何一个会出现在弹窗里的国家队对手，都必须有自己的国旗——
    漏一个就显示成白旗 🏳️。友谊赛池里的乌兹别克斯坦和泰国就这么漏过。 */
 {

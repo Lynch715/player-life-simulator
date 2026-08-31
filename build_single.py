@@ -30,7 +30,13 @@ for a, uri in uris.items():
 
 # 3) 脚本：PLAYER_ASSETS 前置 + app.js 里字面量替换
 player_assets = "const PLAYER_ASSETS = Object.freeze({" + ",".join('"%s":"%s"' % (a, uris[a]) for a in uris) + "});\n"
-app_t = re.sub(r'"(assets/[\w-]+\.(?:webp|png|jpg|jpeg))"', r'PLAYER_ASSETS["\1"]', app)
+def asset_repl(match):
+    # 还原被捕获的前导字符；给 return"assets/..." 留出词法空格，
+    # 否则会生成 returnPLAYER_ASSETS[...]，单文件版在运行时直接报错。
+    before, name = match.group(1), match.group(2)
+    gap = " " if before and (before[-1].isalnum() or before[-1] in "_$") else ""
+    return before + gap + f'PLAYER_ASSETS["{name}"]'
+app_t = re.sub(r'([A-Za-z0-9_$]?)"(assets/[\w-]+\.(?:webp|png|jpg|jpeg))"', asset_repl, app)
 html = html.replace('<script src="app.js"></script>', "<script>\n" + player_assets + app_t + "\n</script>")
 
 out = ROOT / "模拟球员-单文件版.html"

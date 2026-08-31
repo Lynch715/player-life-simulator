@@ -1623,6 +1623,7 @@ function settleClubCupMatch(s,fx,report,opts={}){
       tl(pen==="win"?`点球大战分出胜负——${meta.title}冠军是你们的！`:`终场哨响，${meta.title}冠军！`);
       log(s,"good",`${meta.title}冠军！声望+${meta.fame}，俱乐部奖金 ${meta.money} 万到账。`);
       if(!opts.missed)enqueueDecision({title:`${meta.title}冠军！`,
+        portrait:isCont?"assets/continental-cup-scene.webp":"assets/domestic-cup-scene.webp",
         body:`<p>${pen==="win"?`常规时间 ${report.gf}-${report.ga} 战平，点球大战你们顶住了。`:`决赛 ${report.gf}-${report.ga} 拿下 ${esc(report.opponent)}。`}${isCont?"更衣室的香槟喷到了天花板。这条赛道上，第一次写下了你的名字。":"一座实打实的杯赛奖杯，陈列室从此多一件。"}</p><p>声望 +${meta.fame}，奖金 <b>${meta.money}</b> 万。</p>`,
         options:[option("捧起奖杯","荣誉已入陈列室",()=>{})]},meta.title);
     }else{
@@ -2021,9 +2022,9 @@ function queueMatchReport(s,report){enqueueDecision(buildMatchReportModal(report
 function queueEvent(s,e){enqueueDecision({title:e.title,body:e.body,portrait:e.portrait,options:e.options(s)},"两月事件")}
 function queueStory(s,beat){enqueueDecision({title:beat.title,body:beat.body,portrait:beat.portrait,options:beat.options},"半年剧情")}
 function queueNationalCall(s){enqueueDecision({title:"中国国家男子足球队 · 征召",portrait:"assets/father.webp",body:`<p>通知是以红头文件的形式通过俱乐部转交的。不是电话，不是消息。一张纸，公章，写着你的名字。</p><p>你发了一会儿愣。你从小在电视上看过很多次别人接到征召的场景——有人会哭，会打电话给家人。但你只是坐在那里。你想到的不是荣耀，而是门诊部三楼的收费窗口，想到你爸在病床上说的“踢给爸看”，想到小满最后一次站在漏雨的铁丝网外看你的比赛，她什么时候走的你都不知道。</p><p>你把手机翻到反面扣在桌上，坐了一会儿。然后你站起来，把那张纸叠好，放进背包最里面的夹层——那个你一直放着那只旧足球皮的位置。</p><p>你拉上拉链，走出去。训练场上的灯已经亮了。</p>`,options:[option("接受征召","国家队功能开放；体能管理压力增加",()=>{})]},"国家队")}
-function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga} ${r.opponent}`,body:`你代表中国队出场，贡献 <b>${r.goals}</b> 球。${r.gf>r.ga?"终场哨后，整片看台都在唱同一首歌。":r.gf<r.ga?"失利没有让任务结束，下一次集训已经写进日历。":"比分没有分出高下，身体的疲惫却很具体。"}`,options:[option("返回俱乐部","国家队数据已归档",()=>{})]},"为国而战")}function queueAward(r,s,goalResult,rivalDuel){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";
+function queueNationalReport(r){enqueueDecision({title:`国家队 ${r.gf}-${r.ga} ${r.opponent}`,body:`你代表中国队出场，贡献 <b>${r.goals}</b> 球。${r.gf>r.ga?"终场哨后，整片看台都在唱同一首歌。":r.gf<r.ga?"失利没有让任务结束，下一次集训已经写进日历。":"比分没有分出高下，身体的疲惫却很具体。"}`,options:[option("返回俱乐部","国家队数据已归档",()=>{})]},"为国而战")}function awardPortraitFor(r){if(!r)return null;if(r.ballon)return"assets/ballon-scene.webp";if(r.goldenBoot&&r.goldenBoot.won)return"assets/golden-boot-scene.webp";if(r.leagueTitle)return"assets/league-title-scene.webp";return null}function queueAward(r,s,goalResult,rivalDuel){const gLine=goalResult?`<p class="dialogue" style="border-color:${goalResult.met?'#28d27d':'#e0564f'}">赛季目标${goalResult.met?"达成":"未达成"}：${esc(goalResult.goal.text)}。${goalResult.met?"奖金与信任到账。":"信任下滑，位置不保。"}</p>`:"";
   const rLine=rivalDuel?`<p class="dialogue">对位：你 ${rivalDuel.you} 球，${esc(rivalDuel.name)} ${rivalDuel.him} 球——${rivalDuel.result==="win"?"今年你压他一头。":rivalDuel.result==="loss"?"今年他压你一头。":"平分秋色，明年再算。"}</p>`:"";
-  const bLine=r.goldenBoot?`<p class="dialogue">${r.goldenBoot.won?`联赛金靴也是你的：${r.goldenBoot.you} 球领跑射手榜。`:r.goldenBoot.top?`射手榜第一是${esc(r.goldenBoot.top.name)}（${esc(r.goldenBoot.top.club)}，${r.goldenBoot.top.goals}球），你以 ${r.goldenBoot.you} 球紧随其后。`:""}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军${s.continentalComp&&s.continentalFor===ageInfo(s).season?`，并锁定下赛季${esc(s.continentalComp)}资格`:""}。</p>`:""}${bLine}${rLine}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
+  const bLine=r.goldenBoot?`<p class="dialogue">${r.goldenBoot.won?`联赛金靴也是你的：${r.goldenBoot.you} 球领跑射手榜。`:r.goldenBoot.top?`射手榜第一是${esc(r.goldenBoot.top.name)}（${esc(r.goldenBoot.top.club)}，${r.goldenBoot.top.goals}球），你以 ${r.goldenBoot.you} 球紧随其后。`:""}</p>`:"";enqueueDecision({title:r.ballon?"金球奖属于你":"年度评选揭晓",portrait:awardPortraitFor(r),body:`本赛季 ${r.goals} 球、${r.assists} 助攻，平均评分 ${r.avg}，评选指数 <b>${r.score}</b>。${r.ballon?"当主持人念出你的名字，你先想到的不是聚光灯，而是父亲手里的旧足球。":"你进入了候选讨论，但奖杯属于另一个赛季表现更完整的人。"}${r.leagueTitle?`<p class="dialogue">同时，你随${esc(s.club.name)}赢得${esc(s.club.league)}冠军${s.continentalComp&&s.continentalFor===ageInfo(s).season?`，并锁定下赛季${esc(s.continentalComp)}资格`:""}。</p>`:""}${bLine}${rLine}${gLine}`,options:[option("进入下一赛季","年度数据已经归档",()=>{})]},"年度荣誉")}
 
 // ===== 世界杯：世预赛门槛 + 随机抽签 + 逐场可玩（淘汰赛临场战术）=====
 const CUP_STAGE_NAMES=["小组赛第1场","小组赛第2场","小组赛第3场","十六强","八强","半决赛","决赛"];
@@ -2739,6 +2740,6 @@ const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */
-  getModalQueue:()=>modalQueue,clearModalQueue:()=>{modalQueue=[];modalBusy=false},resumeMatchFlow,countryFlag,flagBadge,cupFixtureBoard,cupOpeningCopy,trophyPortrait};
+  getModalQueue:()=>modalQueue,clearModalQueue:()=>{modalQueue=[];modalBusy=false},resumeMatchFlow,countryFlag,flagBadge,cupFixtureBoard,cupOpeningCopy,trophyPortrait,awardPortraitFor,queueAward};
 if(typeof window!=="undefined")window.PlayerLife=API;else if(typeof globalThis!=="undefined")globalThis.PlayerLife=API;
 if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",init);
