@@ -2442,3 +2442,35 @@ console.log("模拟球员 architecture test passed");
   assert.ok(settled>=4&&settled<=6,`18-23岁应结算5个赛季上下的对位，实际 ${settled}`);
   assert.equal(rv.careerGoals>=rv.goals,true,"生涯进球不能小于赛季进球");
 }
+
+/* ========== 生涯结算页：主视觉选图、成就时间线与导出文本 ========== */
+{
+  const t=G.createInitialState("结算探针",{PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4},[],"standard","mid");
+  // 主视觉优先级：世界杯 > 金球 > 洲际 > 联赛 > 金靴 > 国内杯赛 > 球员立绘
+  assert.match(G.endingArtFor(t),/player-(pro|peak)/,"一无所获回退到球员立绘");
+  t.honours.unshift({title:"足协杯冠军",season:3,icon:"✦"});
+  assert.equal(G.endingArtFor(t),"assets/domestic-cup-scene.webp");
+  t.honours.unshift({title:"中超金靴",season:4,icon:"⚽"});
+  assert.equal(G.endingArtFor(t),"assets/golden-boot-scene.webp");
+  t.honours.unshift({title:"中超冠军",season:5,icon:"♛"});
+  assert.equal(G.endingArtFor(t),"assets/league-title-scene.webp");
+  t.honours.unshift({title:"亚冠冠军",season:6,icon:"◈"});
+  assert.equal(G.endingArtFor(t),"assets/continental-cup-scene.webp");
+  t.awards.unshift({title:"金球奖",season:7});
+  assert.equal(G.endingArtFor(t),"assets/ballon-scene.webp");
+  t.honours.unshift({title:"世界杯冠军",season:8,icon:"世"});
+  assert.equal(G.endingArtFor(t),"assets/world-cup-scene.webp","世界杯冠军压过一切");
+  // 本局成就时间线：unlock 必须把解锁月份记进 runUnlocks（含 META 已全局解锁的成就）
+  G.setState(t);t.totalMonth=72;
+  G.unlock("first_goal");G.unlock("first_goal");
+  assert.equal(t.runUnlocks.first_goal,72,"unlock 记录本局解锁月份且不重复覆盖");
+  const e=G.buildEnding(t);
+  assert.ok(e.achievements.some(x=>x.id==="first_goal"&&x.age===20),"结算把成就折算成年龄");
+  assert.ok(e.people.length>=3&&e.people.every(p=>p.img&&p.line),"生涯中的人带立绘和收尾语");
+  assert.equal(e.heroArt,"assets/world-cup-scene.webp","buildEnding 带主视觉");
+  // 导出文本：荣誉、成就、人物都要在
+  const txt=G.endingText(t,e);
+  ["生涯战报","世界杯冠军","中超金靴","第一粒进球","林小满","周骁"].forEach(k=>
+    assert.ok(txt.includes(k),`战报文本包含「${k}」`));
+  G.setState(null);
+}

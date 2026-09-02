@@ -204,6 +204,19 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .honour-card.has-art span{text-shadow:0 1px 6px #000}
 @media (max-width:760px){.honour-card.has-art{min-height:150px}}
 
+/* ========== 生涯结算页：人物立绘、成就时间线与导出 ========== */
+.ending-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.ending-actions .primary-cta{width:auto;flex:1 1 200px;margin-top:0;min-height:52px;font-size:14px}
+.ending-actions .primary-cta.alt{background:#ffffff0c;color:#dfe9e3;border:1px solid #ffffff26;box-shadow:none}
+.ending-actions .primary-cta.alt:hover{border-color:var(--green);background:#28d27d10}
+.ending-ach{grid-template-columns:1fr 1fr}
+.people-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.person-card{border:1px solid var(--line);border-radius:15px;overflow:hidden;background:linear-gradient(145deg,#12281f,#0b1b15);text-align:center;padding-bottom:12px}
+.person-card img{width:100%;height:158px;object-fit:cover;object-position:center 10%;display:block}
+.person-card b{display:block;font-size:12px;margin:9px 8px 4px}
+.person-card span{display:block;font-size:9px;line-height:1.55;color:var(--muted);padding:0 10px}
+@media (max-width:760px){.people-grid{grid-template-columns:1fr 1fr}.ending-ach{grid-template-columns:1fr}.ending-actions .primary-cta{flex-basis:100%}}
+
 </style>
   <style>html{touch-action:manipulation;-webkit-text-size-adjust:100%}body{overscroll-behavior:none}
   .menu-screen .story-art img{object-position:center top}.menu-screen .story-art{height:58vh}.menu-screen .story-copy h2{font-size:24px;margin:0 0 10px}.menu-screen .story-body{min-height:0}
@@ -1699,6 +1712,18 @@ function endingGrade(s){const c=s.statsCareer,peak=s.peakOverall||overall(s);if(
   if(c.matches>=60||peak>=72)return{tier:"合格职业球员",line:"你靠自律和不服输熬过了一次次替补和伤病。退役的消息只在本地媒体发了一条豆腐块大小的简报，最后一场你坐在替补席上没有上场。<br><br>终场哨响时你站起来，跟每一个队友击了掌。教练拍拍你的肩膀说“不容易”。走出体育场时天已经黑了，那根你踢了二十年的铁丝网，在夜色里几乎看不见了。"};
   if(c.matches>0)return{tier:"短暂的职业生涯",line:"职业足球没给你太多时间，但你确实站上过那片草皮。退役发布会只开了十五分钟，最后一个问题是“如果重来一次，你还会踢球吗”，你沉默三秒说“会的”，但没有人看你的眼睛。<br><br>你留了一件训练服挂在柜子里，没有带走。它后来被保洁收走了，没有人会知道它是谁的。"};
   return{tier:"未竟的绿茵梦",line:"你没能真正踢进职业赛场，但那只旧足球陪你走过的日子，不会因此作废。"}}
+/* 结算页主视觉：按含金量最高的荣誉选场景图，一无所获就回退到球员立绘。 */
+function endingArtFor(s){
+  const has=re=>s.honours.some(h=>re.test(h.title));
+  if(has(/世界杯冠军/))return PLAYER_ASSETS["assets/world-cup-scene.webp"];
+  if(s.awards.length)return PLAYER_ASSETS["assets/ballon-scene.webp"];
+  if(has(/欧冠|亚冠/))return PLAYER_ASSETS["assets/continental-cup-scene.webp"];
+  if(has(/亚洲杯冠军/))return PLAYER_ASSETS["assets/asian-cup-scene.webp"];
+  if(has(/中超冠军|英超冠军/))return PLAYER_ASSETS["assets/league-title-scene.webp"];
+  if(has(/金靴/))return PLAYER_ASSETS["assets/golden-boot-scene.webp"];
+  if(has(/足协杯|足总杯/))return PLAYER_ASSETS["assets/domestic-cup-scene.webp"];
+  return(s.peakOverall||overall(s))>=82?PLAYER_ASSETS["assets/player-peak.webp"]:PLAYER_ASSETS["assets/player-pro.webp"];
+}
 function buildEnding(s){const c=s.statsCareer,a=ageInfo(s),g=endingGrade(s),love=s.relationship.status;
   const loveEnd=love==="恋人"?`你回到家的时候厨房灯亮着，餐桌上放着一碗绿豆汤，还是烫的。<span class="dialogue">“洗完手再喝。”</span>她在厨房里说，没有抬头。你坐下来了——这是你这么多年来第一次，不用再赶时间。`:love==="异地"?`你收到一条消息：<span class="dialogue">“今天的比赛我看了。那个拖时间有点丢人，不像是你。”</span>你笑了一下，回了两个字：老了。她回了一个表情，没再多说。你们的对话框还留着，上一次聊天是两个月前的生日。`:`你路过那家面馆，透过玻璃看见里面靠窗的位置坐着一个长发的人。你停了一步，然后继续走了。你没有回头，也不知道那是不是她。但你知道，就算是她，你也不会进去了。`;
   /* 宿敌的谢幕。对位领先或落后，他在结尾出场的那句话不同——
@@ -1710,7 +1735,29 @@ function buildEnding(s){const c=s.statsCareer,a=ageInfo(s),g=endingGrade(s),love
   let coda=s.national.called?`退役后你把那封征召信从包底翻出来过一次，折痕快把纸磨穿了。你没告诉任何人，只是读了一遍，重新叠好放回去。<br><br>有一天你收拾东西时发现它不见了，你没有找，只是在原地坐了一会儿。很多年后，有人在你老家那间卧室的墙缝里发现一张泛黄的纸，上面还看得清几个字——<span class="dialogue">“经研究决定……征召……”</span>字迹被潮气洇花了，但那张纸被叠得很整齐，像是有人曾经很认真地保管过它。`:"";
   if(s.flags&&s.flags.worldChampion)coda=`有一年夏天，你们赢到了最后一场。那只奖杯你只抱了很短的时间就要交回去，但那天晚上它的重量，后来很多年你都还记得。<br><br>`+coda;
   coda=rivalCoda+coda;
-  return{grade:g.tier,line:g.line,loveEnd,coda,portrait:rTotal>0?PLAYER_ASSETS["assets/rival-pro.webp"]:PLAYER_ASSETS["assets/father.webp"],age:a.age,peak:s.peakOverall||overall(s),score:careerScore(s),
+  /* 本局成就时间线：runUnlocks 记的是解锁月份，排成"几岁做到了什么"。
+     老档没有 runUnlocks 就退化为全设备已解锁清单（不带年龄）。 */
+  const runAch=Object.entries(s.runUnlocks||{})
+    .map(([id,month])=>{const d=ACHIEVEMENTS.find(x=>x.id===id);return d?{...d,month,age:14+Math.floor(month/12)}:null})
+    .filter(Boolean).sort((x,y)=>x.month-y.month);
+  const achLegacy=!runAch.length&&Object.keys((typeof META!=="undefined"&&META.unlocked)||{}).length>0;
+  const achievements=runAch.length?runAch
+    :Object.keys((typeof META!=="undefined"&&META.unlocked)||{}).map(id=>ACHIEVEMENTS.find(x=>x.id===id)).filter(Boolean);
+  /* 生涯中的人：立绘 + 一句盖棺的话。 */
+  const people=[
+    {img:PLAYER_ASSETS["assets/lin-xiaoman.webp"],name:"林小满",
+     line:s.flags.married?"从铁丝网外的看台，走到了你的婚礼":love==="恋人"?"始终在你身边，绿豆汤还是烫的":love==="异地"?"隔着时差看完了你每一场比赛":"在某个路口与你走散，没有再回头"},
+    {img:PLAYER_ASSETS["assets/father.webp"],name:"父亲",
+     line:s.flags.father_alive===false?"没能看到你最后一场比赛":"那只旧足球，一直摆在家里最显眼的位置"},
+    {img:PLAYER_ASSETS["assets/coach-zhou.webp"],name:"周骁",
+     line:"从铁丝网外把你捡进职业足球的人"}
+  ];
+  if(rTotal>0)people.push({img:PLAYER_ASSETS["assets/rival-pro.webp"],name:"江彻",
+    line:`生涯对位 ${rd.win}胜${rd.draw}平${rd.loss}负——${rd.win>rd.loss?"记分牌最终偏向了你":rd.win<rd.loss?"他赢的次数多一些":"谁也没能甩开谁"}`});
+  const transfers=[...s.transfers].reverse().map(t=>({age:14+Math.floor(t.month/12),from:t.from,to:t.to,fee:t.fee,role:t.role}));
+  return{grade:g.tier,line:g.line,loveEnd,coda,portrait:rTotal>0?PLAYER_ASSETS["assets/rival-pro.webp"]:PLAYER_ASSETS["assets/father.webp"],
+    heroArt:endingArtFor(s),name:s.name,club:s.club.name,achievements,achLegacy,people,transfers,
+    age:a.age,peak:s.peakOverall||overall(s),score:careerScore(s),
     metrics:[[c.matches,"生涯出场"],[c.goals,"进球"],[c.assists,"助攻"],[c.nationalCaps,"国家队出场"],[s.honours.length,"奖杯/大赛荣誉"],[s.awards.length,"金球奖"]],
     honours:s.honours.slice(),difficulty:diffOf(s).name}}
 function retirePlayer(s,reason){s.retired=true;s.retireReason=reason;
@@ -1719,7 +1766,12 @@ function defaultMeta(){return{unlocked:{},rankings:[],runs:0}}
 function loadMeta(){try{return{...defaultMeta(),...JSON.parse(localStorage.getItem(META_KEY)||"{}")}}catch(e){return defaultMeta()}}
 let META=typeof localStorage!=="undefined"?loadMeta():defaultMeta();
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(META))}catch(e){}}
-function unlock(id){if(META.unlocked[id])return;META.unlocked[id]=Date.now();saveMeta();if(typeof document!=="undefined")toast(`成就解锁：${ACHIEVEMENTS.find(a=>a.id===id)?.name||id}`)}
+function unlock(id){
+  /* 每局单独记一份（记的是解锁月份，不是时间戳）——结算页要按年龄排出
+     "这一辈子的成就时间线"。必须在 META 去重之前记：全局解锁过的成就
+     这一局重新达成，同样属于这段生涯。 */
+  if(S){S.runUnlocks=S.runUnlocks||{};if(S.runUnlocks[id]===undefined)S.runUnlocks[id]=S.totalMonth}
+  if(META.unlocked[id])return;META.unlocked[id]=Date.now();saveMeta();if(typeof document!=="undefined")toast(`成就解锁：${ACHIEVEMENTS.find(a=>a.id===id)?.name||id}`)}
 function updateRanking(s){const a=ageInfo(s);const row={runId:s.runId,name:s.name,age:a.age,club:s.club.name,score:careerScore(s),goals:s.statsCareer.goals,awards:s.awards.length,date:new Date().toLocaleDateString("zh-CN")};META.rankings=META.rankings.filter(x=>x.runId!==s.runId);META.rankings.push(row);META.rankings.sort((x,y)=>y.score-x.score);META.rankings=META.rankings.slice(0,10);saveMeta()}
 function checkAchievements(s){if(ageInfo(s).age<16&&overall(s)>=70)unlock("academy_70");if(s.statsCareer.goals>=50)unlock("fifty_goals");if(s.statsCareer.goals>=100)unlock("hundred_goals");if(s.statsCareer.assists>=50)unlock("fifty_assists");if(ageInfo(s).age>=24&&s.relationship.status==="恋人"&&s.relationship.love>=70)unlock("loyal_love");if(["恋人","异地"].includes(s.relationship.status)&&s.relationship.love>=95)unlock("deep_bond");if(ageInfo(s).age>=23&&!s.flags.bettingEver)unlock("clean_career")}
 
@@ -3117,13 +3169,124 @@ $("rerollTalents").disabled=rerollsLeft<=0;$("startGame").disabled=left!==0||cre
 
 function renderPrologue(){const p=PROLOGUE[prologueIndex];$("prologuePortrait").src=p.portrait;$("prologueKicker").textContent=p.kicker;$("prologueTitle").textContent=p.title;$("prologueBody").innerHTML=p.body.map(x=>`<p>${x}</p>`).join("");$("prologueProgress").style.width=`${(prologueIndex+1)/PROLOGUE.length*100}%`;$("nextPrologue").innerHTML=prologueIndex===PROLOGUE.length-1?"进入梯队 <span>→</span>":"继续 <span>→</span>"}
 function showGame(){$("menu")?.classList.add("hidden");$("creator").classList.add("hidden");$("prologue").classList.add("hidden");$("ending")?.classList.add("hidden");$("game").classList.remove("hidden");if(S.retired){showEnding(S);return}updateRanking(S);saveGame();renderAll();if(S.pendingMatch)setTimeout(()=>resumeMatchFlow(S),60)}
-function showEnding(s){const e=buildEnding(s),el=$("ending");if(typeof document==="undefined"||!el)return;el.querySelector(".story-art img")?.setAttribute("src",e.portrait);$("game").classList.add("hidden");$("modalMask").classList.add("hidden");el.classList.remove("hidden");
+/* ========== 生涯结算页 ==========
+   主视觉用含金量最高的荣誉场景图；奖杯、成就（按年龄排时间线）、
+   转会轨迹、生涯中的人（立绘）全部落在这一页，并支持导出：
+   PNG 结算卡（canvas 手绘，单文件版里图是 data URI 不会污染画布）
+   和 TXT 生涯战报（任何环境都能存）。 */
+function endingText(s,e){
+  const L=[];
+  L.push("【模拟球员 · 绿茵人生 —— 生涯战报】");
+  L.push(`${e.name} · ${e.age}岁挂靴 · ${e.difficulty}难度 · 评价：${e.grade}`);
+  L.push(`生涯最高能力 ${e.peak} · 生涯积分 ${e.score}`);
+  L.push("");
+  L.push("◆ 生涯数据");
+  L.push(e.metrics.map(x=>`${x[1]} ${x[0]}`).join(" · "));
+  L.push("");
+  L.push(`◆ 奖杯陈列（${e.honours.length}件）`);
+  L.push(e.honours.length?[...e.honours].reverse().map(h=>`  第${h.season}赛季 ${h.title}${h.detail?`（${h.detail}）`:""}`).join("\n"):"  （空）");
+  L.push("");
+  L.push(`◆ 成就（${e.achievements.length}项${e.achLegacy?"，全设备累计":""}）`);
+  L.push(e.achievements.length?e.achievements.map(x=>`  ${x.age?`${x.age}岁 · `:""}${x.name}——${x.desc}`).join("\n"):"  （空）");
+  if(e.transfers.length){L.push("");L.push("◆ 转会轨迹");
+    L.push(e.transfers.map(t=>`  ${t.age}岁 ${t.from} → ${t.to}（转会费${t.fee}万 · ${t.role}）`).join("\n"))}
+  L.push("");
+  L.push("◆ 生涯中的人");
+  L.push(e.people.map(p=>`  ${p.name}：${p.line}`).join("\n"));
+  L.push("");
+  L.push(`—— 本地生成 · ${new Date().toLocaleDateString("zh-CN")}`);
+  return L.join("\n");
+}
+function downloadFile(name,blob){const u=URL.createObjectURL(blob);const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
+function drawCover(g,im,x,y,w,h,fy=.22){const r=Math.max(w/im.width,h/im.height),iw=im.width*r,ih=im.height*r;g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.drawImage(im,x+(w-iw)/2,y+(h-ih)*fy,iw,ih);g.restore()}
+async function exportEndingCard(s,e){
+  const W=1080,H=1920,PAD=64,FONT="system-ui,'PingFang SC','Microsoft YaHei',sans-serif";
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
+  const load=src=>new Promise(res=>{if(!src)return res(null);const im=new Image();im.onload=()=>res(im);im.onerror=()=>res(null);im.src=src});
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0c1c16");bg.addColorStop(1,"#06110d");g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const hero=await load(e.heroArt);
+  if(hero){drawCover(g,hero,0,0,W,660);
+    const fade=g.createLinearGradient(0,300,0,660);fade.addColorStop(0,"rgba(12,28,22,0)");fade.addColorStop(1,"#0c1c16");g.fillStyle=fade;g.fillRect(0,300,W,360)}
+  let y=618;
+  g.fillStyle="#f0bd5e";g.font=`900 26px ${FONT}`;g.fillText(`CAREER OVER · ${e.difficulty}难度`,PAD,y);y+=62;
+  g.fillStyle="#f5f2e9";g.font=`1000 62px ${FONT}`;g.fillText(`${e.name} · ${e.age}岁挂靴`,PAD,y);y+=66;
+  g.fillStyle="#f0bd5e";g.font=`1000 48px ${FONT}`;g.fillText(e.grade,PAD,y);y+=40;
+  // 数据格
+  const cw=(W-PAD*2-40)/3;
+  e.metrics.forEach((m,i)=>{
+    const cx=PAD+(i%3)*(cw+20),cy=y+Math.floor(i/3)*112;
+    g.fillStyle="#ffffff0d";g.strokeStyle="#ffffff22";
+    g.beginPath();g.roundRect(cx,cy,cw,96,14);g.fill();g.stroke();
+    g.fillStyle="#f0bd5e";g.font=`1000 40px ${FONT}`;g.fillText(String(m[0]),cx+22,cy+50);
+    g.fillStyle="#9bb0a5";g.font=`700 20px ${FONT}`;g.fillText(String(m[1]),cx+22,cy+80);
+  });
+  y+=112*2+8;
+  g.fillStyle="#c6d6cd";g.font=`800 24px ${FONT}`;g.fillText(`生涯最高能力 ${e.peak} · 生涯积分 ${e.score}`,PAD,y);y+=44;
+  // 奖杯：小图+名称，最多8行
+  const drawHead=t=>{g.fillStyle="#28d27d";g.font=`900 26px ${FONT}`;g.fillText(t,PAD,y);y+=16;g.strokeStyle="#ffffff1e";g.beginPath();g.moveTo(PAD,y);g.lineTo(W-PAD,y);g.stroke();y+=34};
+  drawHead(`奖杯陈列 · ${e.honours.length}件`);
+  if(e.honours.length){
+    const rows=e.honours.slice(0,8);
+    for(const h of rows){
+      const art=await load(honourArtFor(h.title));
+      if(art)drawCover(g,art,PAD,y-30,44,44,.15);
+      g.fillStyle="#f5f2e9";g.font=`800 24px ${FONT}`;g.fillText(`${h.title}`,PAD+60,y);
+      g.fillStyle="#9bb0a5";g.font=`700 20px ${FONT}`;g.fillText(`第${h.season}赛季${h.detail?` · ${h.detail}`:""}`,PAD+430,y);
+      y+=52;
+    }
+    if(e.honours.length>8){g.fillStyle="#9bb0a5";g.font=`700 20px ${FONT}`;g.fillText(`……共 ${e.honours.length} 件`,PAD,y);y+=44}
+  }else{g.fillStyle="#9bb0a5";g.font=`700 22px ${FONT}`;g.fillText("奖杯架空着，但那只旧足球一直在。",PAD,y);y+=44}
+  y+=10;
+  // 成就：两列
+  drawHead(`成就 · ${e.achievements.length}项${e.achLegacy?"（全设备）":""}`);
+  const colW=(W-PAD*2)/2,achRows=e.achievements.slice(0,12);
+  achRows.forEach((x,i)=>{
+    const cx=PAD+(i%2)*colW,cy=y+Math.floor(i/2)*44;
+    g.fillStyle="#f0bd5e";g.font=`900 22px ${FONT}`;g.fillText(x.icon||"◆",cx,cy);
+    g.fillStyle="#dfe9e3";g.font=`800 22px ${FONT}`;g.fillText(`${x.age?x.age+"岁 · ":""}${x.name}`,cx+40,cy);
+  });
+  y+=Math.ceil(Math.min(e.achievements.length,12)/2)*44;
+  if(e.achievements.length>12){g.fillStyle="#9bb0a5";g.font=`700 20px ${FONT}`;g.fillText(`……共 ${e.achievements.length} 项`,PAD,y);y+=36}
+  // 底部：人物立绘条
+  const fy=H-250;
+  g.strokeStyle="#ffffff1e";g.beginPath();g.moveTo(PAD,fy-46);g.lineTo(W-PAD,fy-46);g.stroke();
+  for(let i=0;i<e.people.length;i++){
+    const p=e.people[i],im=await load(p.img),px=PAD+i*150;
+    if(im){g.save();g.beginPath();g.roundRect(px,fy-20,120,150,12);g.clip();drawCover(g,im,px,fy-20,120,150,.1);g.restore()}
+    g.fillStyle="#9bb0a5";g.font=`700 20px ${FONT}`;g.fillText(p.name,px+60-g.measureText(p.name).width/2,fy+156);
+  }
+  g.fillStyle="#f0bd5e";g.font=`900 24px ${FONT}`;g.fillText("模拟球员 · 绿茵人生",W-PAD-236,H-56);
+  g.fillStyle="#5d6f66";g.font=`700 18px ${FONT}`;g.fillText(new Date().toLocaleDateString("zh-CN"),W-PAD-236,H-28);
+  const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
+  if(!blob)throw new Error("toBlob failed");
+  downloadFile(`${e.name}-生涯结算.png`,blob);
+}
+function showEnding(s){const e=buildEnding(s),el=$("ending");if(typeof document==="undefined"||!el)return;el.querySelector(".story-art img")?.setAttribute("src",e.heroArt||e.portrait);$("game").classList.add("hidden");$("modalMask").classList.add("hidden");el.classList.remove("hidden");
   $("endingBody").innerHTML=`<span class="eyebrow">CAREER OVER · ${esc(e.difficulty)}难度</span><h2>${esc(s.name)} · ${e.age}岁挂靴</h2><div class="ending-grade">${esc(e.grade)}</div><p class="ending-line">${e.line}</p>
   <div class="metric-grid">${e.metrics.map(x=>`<div class="metric"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>
   <p class="ending-line">生涯最高能力 <b>${e.peak}</b> · 最终生涯积分 <b>${e.score}</b></p>
   <p class="ending-line">${e.loveEnd}</p>${e.coda?`<p class="ending-line">${e.coda}</p>`:""}
   ${e.honours.length?`<div class="section-head"><h2>奖杯陈列</h2><span>${e.honours.length}件</span></div><div class="trophy-shelf">${e.honours.map(h=>honourCardHTML(h)).join("")}</div>`:`<p class="ending-line">奖杯架空着，但父亲那只旧足球，一直摆在你家最显眼的位置。</p>`}
-  <button id="endingRestart" class="primary-cta" type="button">开启新的生涯 <span>→</span></button>`;
+  <div class="section-head"><h2>生涯成就</h2><span>${e.achievements.length}项${e.achLegacy?" · 全设备累计":""}</span></div>
+  ${e.achievements.length?`<div class="achievement-grid ending-ach">${e.achievements.map(x=>`<article class="achievement-card"><div class="ach-icon">${esc(x.icon||"◆")}</div><div><b>${x.age?`${x.age}岁 · `:""}${esc(x.name)}</b><span>${esc(x.desc)}</span></div></article>`).join("")}</div>`:'<p class="ending-line">这一局没有解锁成就——但故事本身就是故事。</p>'}
+  ${e.transfers.length?`<div class="section-head"><h2>转会轨迹</h2><span>${e.transfers.length}次</span></div><article class="info-card">${e.transfers.map(t=>`<div class="path-line"><b>${t.age}岁 · ${esc(t.from)} → ${esc(t.to)}</b><span>转会费${t.fee}万 · ${esc(t.role)}</span></div>`).join("")}</article>`:""}
+  <div class="section-head"><h2>生涯中的人</h2><span>他们都在这段故事里</span></div>
+  <div class="people-grid">${e.people.map(p=>`<article class="person-card"><img src="${p.img}" alt="${esc(p.name)}" loading="lazy"><b>${esc(p.name)}</b><span>${esc(p.line)}</span></article>`).join("")}</div>
+  <div class="ending-actions">
+    <button id="endingExportImg" class="primary-cta alt" type="button">保存结算图 ↓</button>
+    <button id="endingExportTxt" class="primary-cta alt" type="button">导出生涯战报 ↓</button>
+    <button id="endingRestart" class="primary-cta" type="button">开启新的生涯 <span>→</span></button>
+  </div>`;
+  $("endingExportTxt").addEventListener("click",()=>{
+    downloadFile(`${e.name}-生涯战报.txt`,new Blob([endingText(s,e)],{type:"text/plain;charset=utf-8"}));
+    toast("生涯战报已导出")});
+  $("endingExportImg").addEventListener("click",async ev=>{
+    const b=ev.currentTarget;b.disabled=true;b.textContent="正在生成…";
+    try{await exportEndingCard(s,e);toast("结算图已保存")}
+    catch(err){ /* file:// 直开时本地图片会污染画布，PNG 导不出——退回文本战报 */
+      downloadFile(`${e.name}-生涯战报.txt`,new Blob([endingText(s,e)],{type:"text/plain;charset=utf-8"}));
+      toast("浏览器限制了图片导出，已改为文本战报")}
+    b.disabled=false;b.textContent="保存结算图 ↓"});
   $("endingRestart").addEventListener("click",()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;modalQueue=[];modalBusy=false;$("continueBtn")?.remove();creatorAllocation={...START_ALLOC};creatorHeight="mid";creatorTalents=randomTalents();rerollsLeft=1;el.classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()})}
 function startNewGame(){const name=$("playerName").value.trim();$("continueBtn")?.remove();modalBusy=false;modalQueue=[];S=createInitialState(name,creatorAllocation,creatorTalents,creatorDifficulty,creatorHeight);META.runs=(META.runs||0)+1;saveMeta();saveGame();prologueIndex=0;$("creator").classList.add("hidden");$("prologue").classList.remove("hidden");renderPrologue()}
 function requestRestart(){if(!S){location.reload();return}enqueueDecision({title:"重新开始这段生涯？",body:`当前${ageInfo(S).age}岁的进度会被新存档覆盖。本地成就与历史排行会保留。`,options:[option("保留当前进度","返回游戏",()=>{}),option("确认重开","清除当前存档，回到创建球员",()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;modalQueue=[];modalBusy=false;$("continueBtn")?.remove();creatorAllocation={...START_ALLOC};creatorHeight="mid";creatorTalents=randomTalents();rerollsLeft=1;$("game").classList.add("hidden");$("creator").classList.remove("hidden");renderCreator()},"danger")]},"重新开档")}
@@ -3139,7 +3302,7 @@ function init(){
   $("gameNav").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b||!S)return;S.tab=b.dataset.tab;saveGame();renderAll()});$("endMonthBtn").addEventListener("click",()=>advanceMonth());$("saveBtn").addEventListener("click",()=>toast(saveGame()?"进度已保存在本机":"保存失败"));$("restartBtn").addEventListener("click",requestRestart);
 }
 
-const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,seasonFinalLeague,ensureRival,rivalActive,rivalRng,rivalBaseLevel,rivalCardHTML,rivalEveLine,rivalSeasonSettle,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,DOMESTIC_CUP_META,CONT_CUP_META,ACL_POOL,UCL_POOL,CUP_STAGE_OFFSETS,clubCupEligible,ensureClubCup,ensureContCup,clubCupOpponent,contCupOpponent,injectClubCups,injectContinentalNow,settleClubCupMatch,settleClubCupMissed,ensureScorers,scorerRows,goldenBootCheck,scorerTableHTML,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
+const API={VERSION,TALENTS,ATTRS,ATTR_KEYS,START_ALLOC,ALLOC_BUDGET,HEIGHT_TIERS,gain,softFactor,ACTIONS,COMBOS,STYLES,MOMENTS,MATCH_PLANS,MATCH_ACTION_LINES,CHALLENGE_TIERS,EVENTS,ACHIEVEMENTS,CSL_CLUBS,PL_CLUBS,DIFFICULTIES,createInitialState,overall,cond,eff,effOverall,atk,def,COND_SENS,loveSupport,familySupport,ageInfo,phaseOf,chooseRandomEvent,simulateMatchCore,applyMatch,routeChoice16,setRoute,enterProAt18,generateOffers,acceptOffer,nationalSelectionCheck,simulateNationalMatch,scheduleQualifiers,settleQualifiers,nationalStrength,fixtureClub,startCupFinals,cupMatchSim,cupDraw,seasonAwardCheck,careerScore,applyAging,shouldRetire,buildEnding,makeSeasonGoal,evaluateSeasonGoal,breakupCheck,normalizeSave,migrateV2toV3,radarSVG,prepareMatch,startChance,ensureSchedule,buildSchedule,ensureLeague,buildLeague,leagueStandings,advanceLeagueRound,leagueRng,simLeagueMatch,opponentPool,clubRoundOf,leagueTableHTML,leagueChampion,inRelegationZone,seasonFinalLeague,ensureRival,rivalActive,rivalRng,rivalBaseLevel,rivalCardHTML,rivalEveLine,rivalSeasonSettle,strengthStars,starRating,teamStrengthBlock,fixtureOfMonth,nextFixture,fixtureCountdown,fixtureRow,shouldPlayMatch,resumeCup,PENALTY_OPTIONS,penaltyKickerRound,penaltyRate,teamPenaltyRate,cupFinalEve,cupOutroScene,cupFinish,newShootout,shootoutAdvance,shootoutPlayerKick,resolveMoments,finishMatch,styleLevel,styleCapLevel,styleOf,addStyleExp,topStyle,momentSuccessRate,momentOptions,pickMoments,challengeProgress,challengeMet,challengeProgressText,newChallengeAcc,checkCombos,ASSETS,buyAsset,assetPassive,assetValue,assetLocked,trainMult,ASIA_POOL,AC_GROUP_POOL,AC_ELITE_POOL,WC_GROUP_POOL,WC_ELITE_POOL,CUP_CONFIG,cupCfg,cupMonthOf,qualifierMonths,qualifierRoundAt,qualifierOpponent,DOMESTIC_CUP_META,CONT_CUP_META,ACL_POOL,UCL_POOL,CUP_STAGE_OFFSETS,clubCupEligible,ensureClubCup,ensureContCup,clubCupOpponent,contCupOpponent,injectClubCups,injectContinentalNow,settleClubCupMatch,settleClubCupMissed,ensureScorers,scorerRows,goldenBootCheck,scorerTableHTML,endingArtFor,honourArtFor,endingText,unlock,getMeta:()=>META,showEnding,advanceMonth:()=>advanceMonth(true),getState:()=>S,setState:s=>{S=s},
   /* 测试接缝：无 document 时 pumpModal 直接返回，弹窗只进队列不消费，
      于是测试可以自己把队列跑完。必须是取值函数——modalQueue 有 5 处整体
      重新赋值，导出数组引用会拿到悬空的旧数组。 */

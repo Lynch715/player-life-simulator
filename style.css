@@ -193,3 +193,16 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .honour-card.has-art b{text-shadow:0 2px 8px #000}
 .honour-card.has-art span{text-shadow:0 1px 6px #000}
 @media (max-width:760px){.honour-card.has-art{min-height:150px}}
+
+/* ========== 生涯结算页：人物立绘、成就时间线与导出 ========== */
+.ending-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.ending-actions .primary-cta{width:auto;flex:1 1 200px;margin-top:0;min-height:52px;font-size:14px}
+.ending-actions .primary-cta.alt{background:#ffffff0c;color:#dfe9e3;border:1px solid #ffffff26;box-shadow:none}
+.ending-actions .primary-cta.alt:hover{border-color:var(--green);background:#28d27d10}
+.ending-ach{grid-template-columns:1fr 1fr}
+.people-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.person-card{border:1px solid var(--line);border-radius:15px;overflow:hidden;background:linear-gradient(145deg,#12281f,#0b1b15);text-align:center;padding-bottom:12px}
+.person-card img{width:100%;height:158px;object-fit:cover;object-position:center 10%;display:block}
+.person-card b{display:block;font-size:12px;margin:9px 8px 4px}
+.person-card span{display:block;font-size:9px;line-height:1.55;color:var(--muted);padding:0 10px}
+@media (max-width:760px){.people-grid{grid-template-columns:1fr 1fr}.ending-ach{grid-template-columns:1fr}.ending-actions .primary-cta{flex-basis:100%}}
