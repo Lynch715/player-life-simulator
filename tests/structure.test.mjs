@@ -37,6 +37,36 @@ artBatch.forEach(name=>{
   assert.ok(fs.statSync(file).size>10000,`new art asset ${name} is not an empty placeholder`);
   assert.match(code+fs.readFileSync(path.join(root,"index.html"),"utf8"),new RegExp(`assets/${name}`),`source wires ${name}`);
 });
+/* 2026-09-05 荣誉室批次：14 座奖杯、5 枚印章、3 张底纹、8 枚徽记都要在 assets/ 里，
+   奖杯与徽记还要能按荣誉标题/联赛名映射到。 */
+{
+  const batch=["trophy-league-csl","trophy-league-pl","trophy-league-laliga","trophy-league-bundesliga","trophy-league-seriea","trophy-league-ligue1","trophy-domestic-cup","trophy-ucl","trophy-uel","trophy-acl","trophy-golden-boot","trophy-ballon","trophy-world-cup","trophy-asian-cup",
+    "seal-s","seal-a","seal-b","seal-c","seal-d","poster-velvet","poster-leather","poster-concrete",
+    "badge-league-csl","badge-league-pl","badge-league-laliga","badge-league-bundesliga","badge-league-seriea","badge-league-ligue1","badge-ucl","badge-acl"];
+  batch.forEach(n=>{const f=path.join(root,"assets",`${n}.webp`);assert.ok(fs.existsSync(f)&&fs.statSync(f).size>10000,`art asset ${n}.webp exists`)});
+  const map={"中超冠军":"trophy-league-csl","英超冠军":"trophy-league-pl","西甲冠军":"trophy-league-laliga","德甲冠军":"trophy-league-bundesliga","意甲冠军":"trophy-league-seriea","法甲冠军":"trophy-league-ligue1",
+    "足协杯冠军":"trophy-domestic-cup","国王杯冠军":"trophy-domestic-cup","德国杯冠军":"trophy-domestic-cup","欧冠冠军":"trophy-ucl","欧联冠军":"trophy-uel","亚冠冠军":"trophy-acl","英超金靴":"trophy-golden-boot","金球奖":"trophy-ballon","世界杯冠军":"trophy-world-cup","亚洲杯冠军":"trophy-asian-cup"};
+  for(const [t,n] of Object.entries(map))assert.equal(G.trophyIconFor(t),`assets/${n}.webp`,`${t} → ${n}`);
+  assert.equal(G.leagueBadgeFor("西甲梯队"),"assets/badge-league-laliga.webp","梯队沿用母联赛徽记");
+  assert.equal(G.leagueBadgeFor("欧冠"),"assets/badge-ucl.webp");
+  const ex=G.honourExhibits([{title:"西甲冠军",season:10,detail:"皇家马德里"},{title:"西甲冠军",season:11,detail:"皇家马德里"},{title:"金球奖",season:10}]);
+  const la=ex.find(e=>e.title==="西甲冠军");assert.equal(la.count,2);assert.equal(la.seasons.join(","),"10,11");assert.equal(la.group,"league");
+  assert.equal(ex.find(e=>e.title==="金球奖").group,"individual");
+}
+{ // 评级 → 印章/底纹
+  assert.equal(G.gradeSeal("巨星").letter,"S");assert.match(G.gradeSeal("巨星").seal,/seal-s/);assert.match(G.gradeSeal("巨星").poster,/velvet/);
+  assert.equal(G.gradeSeal("顶级职业球员").letter,"A");assert.equal(G.gradeSeal("合格职业球员").letter,"B");assert.match(G.gradeSeal("合格职业球员").poster,/leather/);
+  assert.equal(G.gradeSeal("短暂的职业生涯").letter,"C");assert.equal(G.gradeSeal("未竟的绿茵梦").letter,"D");assert.match(G.gradeSeal("涉赌禁赛").poster,/concrete/);
+  ["seal-s","seal-a","seal-b","seal-c","seal-d","poster-velvet","poster-leather","poster-concrete"].forEach(n=>assert.match(code,new RegExp(`assets/${n}\\.webp`),`poster wires ${n}`));
+}
+{ // 赛季中途被征召重建赛程：当月已经踢完，不能再往当月补一场友谊赛（会变成幽灵场次）
+  const t=G.createInitialState("中途征召",{PAC:4,SHO:4,PAS:3,DRI:3,DEF:3,PHY:3,WIL:4},[],"standard","mid");
+  t.totalMonth=60;t.flags.pro18=true;t.flags.route16=true;t.route="pro";t.club={name:"上海海港",league:"中超",strength:79};
+  G.ensureSchedule(t);const fx=t.schedule.fixtures.find(f=>f.month===60&&f.type==="club");assert.ok(fx);fx.status="played";fx.result={gf:1,ga:0,goals:1,assists:0,rating:7};
+  t.national.called=true;G.ensureSchedule(t);
+  assert.ok(!t.schedule.fixtures.some(f=>f.month===60&&f.status==="upcoming"&&f.type!=="award"),"当月已结束，重建不能再塞新场次");
+  assert.ok(t.schedule.fixtures.some(f=>f.month===66&&f.type==="national"),"之后的友谊赛照常排进来");
+}
 const rivalPortraits={rival_first_sight:"assets/rival-youth.webp",rival_praise:"assets/rival-youth.webp",rival_paths:"assets/rival-youth.webp",rival_interview:"assets/rival-pro.webp",rival_lowpoint:"assets/rival-pro.webp",rival_respect:"assets/rival-pro.webp"};
 for(const [id,portrait] of Object.entries(rivalPortraits))assert.equal(G.EVENTS.find(e=>e.id===id)?.portrait,portrait,`${id} uses its period rival portrait`);
 const momentArt={counter_break:"assets/moment-oneonone.webp",through_ball:"assets/moment-oneonone.webp",box_scramble:"assets/moment-scramble.webp",aerial_duel:"assets/moment-scramble.webp",wing_duel:"assets/moment-duel.webp",hold_up:"assets/moment-duel.webp",press_trigger:"assets/moment-duel.webp",free_kick:"assets/moment-freekick.webp",late_chase:"assets/moment-clutch.webp",defend_lead:"assets/moment-clutch.webp"};
@@ -61,7 +91,10 @@ assert.equal(G.awardPortraitFor({ballon:false,goldenBoot:null,leagueTitle:false}
   assert.equal(G.getModalQueue()[0].portrait,"assets/domestic-cup-scene.webp","domestic cup champion modal carries its portrait");
   G.clearModalQueue();
   awardProbe.continentalFor=G.ageInfo(awardProbe).season;awardProbe.continentalComp="亚冠";
-  G.settleClubCupMatch(awardProbe,{type:"continental",stage:2,opponent:"横滨水手"},{opponent:"横滨水手",gf:2,ga:0,goals:2,timeline:[]});
+  /* 洲际赛事现在是 4 轮（联赛阶段生死战/八强/半决赛/决赛），半决赛赢了不该弹夺冠。 */
+  G.settleClubCupMatch(awardProbe,{type:"continental",stage:2,opponent:"川崎前锋"},{opponent:"川崎前锋",gf:2,ga:0,goals:2,timeline:[]});
+  assert.equal(G.getModalQueue().length,0,"continental semi-final win is not a title");
+  G.settleClubCupMatch(awardProbe,{type:"continental",stage:G.cupFinalStage("continental"),opponent:"横滨水手"},{opponent:"横滨水手",gf:2,ga:0,goals:2,timeline:[]});
   assert.equal(G.getModalQueue()[0].portrait,"assets/continental-cup-scene.webp","continental cup champion modal carries its portrait");
   G.clearModalQueue();
 }
@@ -1823,8 +1856,8 @@ console.log("模拟球员 architecture test passed");
   G.ensureSchedule(t);G.setState(t);G.clearModalQueue();
   const capsBefore=t.national.caps;
   G.advanceMonth();await drive(t);
-  const f=t.schedule.fixtures.find(x=>x.month===54);
-  assert.equal(f.type,"national","sanity: 第54月是友谊赛");
+  const f=t.schedule.fixtures.find(x=>x.month===54&&x.type==="national");
+  assert.ok(f,"sanity: 第54月有友谊赛（与当月联赛并存）");
   assert.equal(f.status,"played","打完要标记，否则会变成幽灵场次");
   assert.ok(f.result&&Number.isFinite(f.result.gf),"比分要写回赛程表");
   assert.ok(t.national.caps>capsBefore,"友谊赛也要计国家队出场");
@@ -1847,8 +1880,8 @@ console.log("模拟球员 architecture test passed");
   assert.equal(stray.length,0,
     `赛程里残留了 ${stray.length} 场上赛季的比赛（月份 ${[...stray.map(f=>f.month)].join(",")}）——` +
     `ensureSchedule 保留过去场次时漏了赛季边界，日程页会把历年比赛全列成「本赛季」`);
-  assert.ok(t.schedule.fixtures.length<=14,
-    `一季最多12场比赛+1行赛季评选，实际 ${t.schedule.fixtures.length} 行`);
+  assert.ok(t.schedule.fixtures.length<=24,
+    `一季最多 12 场联赛 + 3 杯赛 + 4 洲际 + 国家队 + 1 行赛季评选，实际 ${t.schedule.fixtures.length} 行`);
 }
 
 // ===== 球队实力用星级，不许写成并排数字 =====
@@ -2261,8 +2294,8 @@ console.log("模拟球员 architecture test passed");
   }
   // 跨联赛：照样推进
   {
-    const t=mkPro("中超");   // 玩家中超，镜像后他在英超
-    assert.equal(t.rival.club.league,"英超","sanity: 镜像后他在英超");
+    const t=mkPro("中超");   // 玩家中超，镜像后他在五大联赛之一
+    assert.ok(G.isEuropeanLeague(t.rival.club.league),"sanity: 镜像后他在欧洲五大联赛");
     for(let r=1;r<=6;r++)G.advanceLeagueRound(t,{opponent:null,result:null},r);
     assert.ok(t.rival.goals>=0&&Number.isFinite(t.rival.goals),"跨联赛他也要有进球记录");
   }

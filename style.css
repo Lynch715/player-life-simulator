@@ -107,6 +107,15 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .league-table td:last-child{color:var(--gold);font-weight:900}
 .league-table tr.me td{color:var(--green);background:#28d27d0d}
 .league-table .lt-you{font-size:8px;color:var(--green);margin-left:4px}
+/* 资格线：左侧一道色条——洲际正赛金、次级洲际蓝、降级区红 */
+.league-table tr.lt-cont td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+.league-table tr.lt-second td:first-child{box-shadow:inset 3px 0 0 #5aa9e6}
+.league-table tr.lt-rel td:first-child{box-shadow:inset 3px 0 0 var(--bad,#e0564f)}
+.fx-ord{display:block;font-style:normal;font-size:8px;color:var(--gold);opacity:.85;margin-top:2px}
+.lt-legend{display:flex;gap:6px;flex-wrap:wrap;margin:0 2px 8px}
+.lt-legend span{font-size:8px;color:var(--muted);padding:3px 7px 3px 10px;border:1px solid var(--line);border-radius:7px;position:relative}
+.lt-legend span:before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:2px;background:var(--muted)}
+.lt-legend .lt-cont:before{background:var(--gold)}.lt-legend .lt-second:before{background:#5aa9e6}.lt-legend .lt-rel:before{background:var(--bad,#e0564f)}
 @media (max-width:760px){
   .league-table th:nth-child(4),.league-table td:nth-child(4),
   .league-table th:nth-child(5),.league-table td:nth-child(5){display:none}
@@ -206,3 +215,54 @@ button,input{font:inherit}.hidden{display:none!important}.pitch-noise{position:f
 .person-card b{display:block;font-size:12px;margin:9px 8px 4px}
 .person-card span{display:block;font-size:9px;line-height:1.55;color:var(--muted);padding:0 10px}
 @media (max-width:760px){.people-grid{grid-template-columns:1fr 1fr}.ending-ach{grid-template-columns:1fr}.ending-actions .primary-cta{flex-basis:100%}}
+
+/* ===== 荣誉室 ===== */
+.honours-hero{background:linear-gradient(120deg,#1d2a17,#10261e 52%,#0a1914)}
+.sec-badge{width:22px;height:22px;object-fit:contain;vertical-align:-6px;margin-right:6px;filter:drop-shadow(0 2px 4px #0008)}
+.exhibit-shelf{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.exhibit{position:relative;border:1px solid var(--line);border-radius:17px;padding:12px 12px 14px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:linear-gradient(180deg,#132a20,#0b1b15 70%,#08150f)}
+.exhibit-stage{width:100%;aspect-ratio:1/0.82;display:grid;place-items:center;position:relative;margin-bottom:4px}
+.exhibit-stage:before{content:"";position:absolute;left:12%;right:12%;bottom:6%;height:10px;border-radius:50%;background:radial-gradient(ellipse at center,#f0bd5e33,transparent 70%)}
+.exhibit-stage:after{content:"";position:absolute;left:6%;right:6%;bottom:4%;height:3px;border-radius:2px;background:linear-gradient(90deg,transparent,#ffffff22,transparent)}
+.exhibit-stage img{position:relative;width:78%;height:88%;object-fit:contain;filter:drop-shadow(0 10px 16px #000a);z-index:1}
+.exhibit-stage .trophy-icon{font-size:36px}
+.exhibit b{font-size:12px;line-height:1.3}
+.exhibit-count{font-style:normal;margin-left:5px;padding:1px 6px;border-radius:8px;background:#f0bd5e22;color:var(--gold);font-size:10px;font-weight:900}
+.exhibit span{font-size:9px;color:var(--muted)}
+.exhibit .exhibit-detail{font-size:8px;color:#8da298;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exhibit.ghost{border-style:dashed;background:#ffffff03}
+.exhibit.ghost .exhibit-stage img{opacity:.16;filter:grayscale(1)}
+.exhibit.ghost b{color:#7d8f87}
+.exhibit.ghost:after{content:"空位";position:absolute;top:10px;right:10px;font-size:8px;color:#7d8f87;border:1px solid #ffffff16;padding:2px 6px;border-radius:6px}
+.record-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.record-tile{padding:13px 14px;border-radius:15px;border:1px solid var(--line);background:#ffffff06;display:flex;flex-direction:column}
+.record-tile b{font-size:22px;color:var(--gold);letter-spacing:-.04em;line-height:1.1}
+.record-tile span{font-size:9px;color:var(--muted);margin-top:3px}
+.record-tile small{font-size:8px;color:#8da298;margin-top:2px}
+.honour-timeline{display:grid;gap:6px}
+.ht-row{display:grid;grid-template-columns:86px 1fr;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:#ffffff04}
+.ht-when b{display:block;font-size:11px}.ht-when span{font-size:9px;color:var(--muted)}
+.ht-items{display:flex;flex-wrap:wrap;gap:6px}
+.ht-item{display:inline-flex;align-items:center;gap:5px;font-size:10px;padding:4px 8px 4px 5px;border-radius:9px;border:1px solid #ffffff14;background:#ffffff05}
+.ht-item img{width:20px;height:20px;object-fit:contain}
+.ht-item i{font-style:normal;color:var(--muted);font-size:8px}
+/* 奖杯实物图进旧的荣誉卡（结算页等处仍用） */
+.honour-card .trophy-img{width:56px;height:56px;object-fit:contain;filter:drop-shadow(0 6px 12px #000a);margin:0 auto}
+.honour-card.has-art .trophy-img{width:48px;height:48px}
+/* 徽记：报价卡、积分榜标题 */
+.league-badge{width:18px;height:18px;object-fit:contain;vertical-align:-4px;margin-right:4px}
+.offer-card .offer-badge{width:34px;height:34px;object-fit:contain;float:right;margin-left:8px;filter:drop-shadow(0 2px 4px #0008)}
+@media (max-width:1050px){.exhibit-shelf{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.exhibit-shelf{grid-template-columns:1fr 1fr;gap:8px}.record-grid{grid-template-columns:1fr 1fr}.ht-row{grid-template-columns:1fr;gap:6px}.exhibit b{font-size:11px}}
+.trophy-strip{display:flex;gap:14px;justify-content:center;margin:2px 0 12px}
+.trophy-strip figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.trophy-strip img{width:84px;height:84px;object-fit:contain;filter:drop-shadow(0 10px 18px #000c)}
+.trophy-strip figcaption{font-size:9px;color:var(--gold);font-weight:800}
+@media (max-width:760px){.trophy-strip img{width:64px;height:64px}}
+/* 结算页评级印章 */
+.ending-grade-row{display:flex;align-items:center;gap:16px;margin:6px 0 12px}
+.ending-grade-row .ending-grade{margin:0}
+.ending-seal{position:relative;width:96px;height:96px;flex:none;filter:drop-shadow(0 8px 16px #000a)}
+.ending-seal img{width:100%;height:100%;object-fit:contain}
+.ending-seal b{position:absolute;inset:0;display:grid;place-items:center;font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:44px;font-weight:900;color:#f3d27a;text-shadow:0 2px 3px #000c;padding-top:2px}
